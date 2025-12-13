@@ -48,11 +48,35 @@ class AppTheme {
         onError: Colors.white,
       ),
 
+        segmentedButtonTheme: SegmentedButtonThemeData(
+          style: ButtonStyle(
+            // لون الخلفية عندما يكون الزر غير محدد
+            backgroundColor: MaterialStateProperty.resolveWith<Color>(
+                  (Set<MaterialState> states) {
+                return Colors.white; // خلفية بيضاء واضحة
+              },
+            ),
+            // لون الخط والأيقونة عندما يكون الزر غير محدد
+            foregroundColor: MaterialStateProperty.resolveWith<Color>(
+                  (Set<MaterialState> states) {
+                return primaryColor; // لون كحلي واضح
+              },
+            ),
+            // لون الحدود
+            side: MaterialStateProperty.all(
+              BorderSide(color: primaryColor.withOpacity(0.5), width: 1.5),
+            ),
+          ),
+        ),
+      // --- نهاية الإضافة ---
+
       // 2. تحديد الخطوط
       textTheme: textTheme.apply(
         bodyColor: textPrimaryColor,
         displayColor: textPrimaryColor,
       ),
+
+
 
       // 3. تخصيص مظهر الويدجتس
       appBarTheme: AppBarTheme(

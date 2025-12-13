@@ -1,6 +1,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" />
+    <!-- بداية الإضافة: تعريف الاستعلامات -->
+    <queries>
+        <!-- للسماح بفتح روابط الويب (https) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <!-- للسماح بفتح تطبيق الهاتف (tel) -->
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <!-- للسماح بفتح تطبيق الرسائل (sms) -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="sms" />
+        </intent>
+    </queries>
+    <!-- نهاية الإضافة -->
     <application
-        android:label="ehab_company_admin"
+        android:label="Ehab Company Admin"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
