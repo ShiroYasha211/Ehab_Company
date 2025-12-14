@@ -5,9 +5,12 @@ import 'package:ehab_company_admin/features/home/presentation/widgets/feature_ca
 import 'package:ehab_company_admin/features/home/presentation/widgets/stats_carousel.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_binding.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/purchases_dashboard_screen.dart';
+// --- 1. بداية الإضافة: إضافة import جديد ---
+import 'package:ehab_company_admin/features/sales/presentation/screens/sales_dashboard_screen.dart';
+// --- نهاية الإضافة ---
 import 'package:ehab_company_admin/features/suppliers/presentation/screens/suppliers_dashboard_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:visibility_detector/visibility_detector.dart'; // <-- 1. قم باستيراد الحزمة
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:get/get.dart';
 
 import '../../../fund/presentation/screens/fund_screen.dart';
@@ -25,7 +28,6 @@ class HomeScreen extends StatelessWidget {
       {'title': 'المخازن', 'icon': Icons.inventory_2_outlined},
       {'title': 'المبيعات', 'icon': Icons.point_of_sale_outlined},
       {'title': 'الصندوق', 'icon': Icons.account_balance_wallet_outlined},
-      // <-- البطاقة الجديدة
       {'title': 'المشتريات', 'icon': Icons.shopping_cart_outlined},
       {'title': 'المصروفات', 'icon': Icons.receipt_long_outlined},
       {'title': 'العملاء', 'icon': Icons.people_outline},
@@ -38,7 +40,6 @@ class HomeScreen extends StatelessWidget {
     final HomeController homeController = Get.find<HomeController>();
     return VisibilityDetector(
         key: const Key('home-screen-visibility-detector'),
-        // سيتم استدعاء هذه الدالة كلما أصبحت الشاشة مرئية بنسبة 50% أو أكثر
         onVisibilityChanged: (visibilityInfo) {
           if (visibilityInfo.visibleFraction > 0.5) {
             homeController.refreshStats();
@@ -50,7 +51,7 @@ class HomeScreen extends StatelessWidget {
             centerTitle: true,
           ),
           body: RefreshIndicator(
-            onRefresh: () => homeController.refreshStats(), // <-- للسحب للتحديث
+            onRefresh: () => homeController.refreshStats(),
             child: ListView(
               children: [
                 const Padding(
@@ -64,8 +65,6 @@ class HomeScreen extends StatelessWidget {
                   child: Text('أقسام النظام', style: TextStyle(
                       fontSize: 22, fontWeight: FontWeight.bold)),
                 ),
-
-                // الجزء الرابع: شبكة البطاقات
                 GridView.builder(
                   padding: const EdgeInsets.all(12),
                   shrinkWrap: true,
@@ -84,13 +83,17 @@ class HomeScreen extends StatelessWidget {
                       onTap: () {
                         final featureTitle = features[index]['title'];
                         if (featureTitle == 'المخازن') {
-                          // استخدام binding لتحضير الكنترولرات قبل فتح الشاشة
                           Get.to(
                                 () => const InventoryDashboardScreen(),
-                            binding: InventoryDashboardBinding(), // <-- هذا هو التعديل الأهم
+                            binding: InventoryDashboardBinding(),
                           );
-                        } else
-                        if (featureTitle == 'الصندوق') { // <-- الشرط الجديد
+                        }
+                        // --- 2. بداية التعديل: إضافة شرط المبيعات ---
+                        else if (featureTitle == 'المبيعات') {
+                          Get.to(() => const SalesDashboardScreen());
+                        }
+                        // --- نهاية التعديل ---
+                        else if (featureTitle == 'الصندوق') {
                           Get.to(() => const FundScreen());
                         } else if (featureTitle == 'الموردين') {
                           Get.to(() => const SuppliersDashboardScreen());
@@ -109,7 +112,7 @@ class HomeScreen extends StatelessWidget {
                     );
                   },
                 ),
-                const SizedBox(height: 20), // هامش في الأسفل
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -117,4 +120,3 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
-

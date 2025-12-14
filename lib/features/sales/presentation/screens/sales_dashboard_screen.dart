@@ -1,51 +1,61 @@
-// File: lib/features/purchases/presentation/screens/purchases_dashboard_screen.dart
+// File: lib/features/sales/presentation/screens/sales_dashboard_screen.dart
 
-import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_binding.dart';
+// --- 1. بداية التعديل: إضافة imports جديدة ---
+import 'package:ehab_company_admin/features/sales/presentation/screens/add_sales_invoice_binding.dart';
+import 'package:ehab_company_admin/features/sales/presentation/screens/add_sales_invoice_screen.dart';
+// --- نهاية التعديل ---
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import 'add_purchase_invoice_screen.dart';
-import 'list_purchases_screen.dart';
-
-class PurchasesDashboardScreen extends StatelessWidget {
-  const PurchasesDashboardScreen({super.key});
+class SalesDashboardScreen extends StatelessWidget {
+  const SalesDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إدارة المشتريات'),
+        title: const Text('إدارة المبيعات'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
           _buildDashboardItem(
             context: context,
-            icon: Icons.add_shopping_cart_rounded,
-            title: 'فاتورة شراء جديدة',
-            subtitle: 'تسجيل فاتورة شراء جديدة وزيادة المخزون',
+            icon: Icons.point_of_sale_rounded,
+            title: 'فاتورة مبيعات جديدة',
+            subtitle: 'تسجيل فاتورة مبيعات جديدة وخصم المخزون',
             onTap: () {
-              Get.to(() => const AddPurchaseInvoiceScreen(),
-              binding: AddPurchaseBinding());
+              // --- 2. بداية التعديل: تفعيل الزر مع Binding ---
+              Get.to(() => const AddSalesInvoiceScreen(),
+                  binding: AddSalesInvoiceBinding());
+              // --- نهاية التعديل ---
             },
           ),
           _buildDashboardItem(
             context: context,
-            icon: Icons.receipt_long_outlined,
+            icon: Icons.inventory_outlined,
             title: 'عرض كل الفواتير',
-            subtitle: 'تصفح وبحث في أرشيف فواتير الشراء',
+            subtitle: 'تصفح وبحث في أرشيف فواتير المبيعات',
             onTap: () {
-              Get.to(() => const ListPurchasesScreen());
-              print('Navigate to List All Invoices');
+              // TODO: Get.to(() => const ListSalesInvoicesScreen());
             },
           ),
-
+          _buildDashboardItem(
+            context: context,
+            icon: Icons.assignment_return_outlined,
+            title: 'مرتجعات المبيعات',
+            subtitle: 'إدارة المنتجات المرتجعة من العملاء',
+            onTap: () {
+              // TODO: Get.to(() => const ListSalesReturnsScreen());
+            },
+            isAdvanced: true,
+          ),
         ],
       ),
     );
   }
 
-  /// ودجت مساعد لبناء كل عنصر في لوحة التحكم
+  /// ودجت مساعد لبناء كل عنصر في لوحة التحكم (مطابق لتصميم المشتريات)
   Widget _buildDashboardItem({
     required BuildContext context,
     required IconData icon,
