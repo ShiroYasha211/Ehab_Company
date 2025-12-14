@@ -22,23 +22,19 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 5,
+      // --- بداية الإصلاح: زيادة رقم الإصدار ---
+      version: 7,
+      // --- نهاية الإصلاح ---
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
   }
 
-  // --- الحل الجذري والمنطق الصحيح ---
-
-  /// تُنفذ عند إنشاء قاعدة بيانات جديدة تمامًا.
   Future<void> _onCreate(Database db, int version) async {
-    // أنشئ كل الجداول بالترتيب حتى الإصدار الحالي
     await _onUpgrade(db, 0, version);
   }
 
-  /// تُنفذ عند ترقية قاعدة البيانات من إصدار قديم إلى جديد.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // نستخدم هذا الأسلوب المتسلسل لضمان تنفيذ الترقيات بالترتيب
     if (oldVersion < 1) {
       await _createV1Tables(db);
     }
@@ -54,10 +50,19 @@ class DatabaseService {
     if (oldVersion < 5) {
       await _createV5Tables(db);
     }
+    if (oldVersion < 6) {
+      await _createV6Tables(db);
+    }
+    // --- بداية الإصلاح: إضافة الإصدار الجديد ---
+    if (oldVersion < 7) {
+      await _createV7Tables(db);
+    }
+    // --- نهاية الإصلاح ---
   }
 
   /// الإصدار 1: جداول المخازن والصندوق الأساسية
   Future<void> _createV1Tables(Database db) async {
+    // ... (هذا الجزء يبقى كما هو)
     final batch = db.batch();
     batch.execute('''
       CREATE TABLE products (
@@ -90,6 +95,7 @@ class DatabaseService {
 
   /// الإصدار 2: جداول الموردين والمشتريات
   Future<void> _createV2Tables(Database db) async {
+    // ... (هذا الجزء يبقى كما هو)
     final batch = db.batch();
     batch.execute('''
       CREATE TABLE suppliers (
@@ -119,6 +125,7 @@ class DatabaseService {
 
   /// الإصدار 3: إضافة حقول لجدول الموردين
   Future<void> _createV3Tables(Database db) async {
+    // ... (هذا الجزء يبقى كما هو)
     await db.execute('ALTER TABLE suppliers ADD COLUMN company TEXT');
     await db.execute('ALTER TABLE suppliers ADD COLUMN commercialRecord TEXT');
     await db.execute('ALTER TABLE suppliers ADD COLUMN notes TEXT');
@@ -126,6 +133,7 @@ class DatabaseService {
 
   /// الإصدار 4: إضافة حقل الرصيد للموردين وجدول حركات الموردين
   Future<void> _createV4Tables(Database db) async {
+    // ... (هذا الجزء يبقى كما هو)
     await db.execute('ALTER TABLE suppliers ADD COLUMN balance REAL NOT NULL DEFAULT 0.0');
     await db.execute('''
       CREATE TABLE supplier_transactions (
@@ -140,15 +148,14 @@ class DatabaseService {
       )
     ''');
   }
+
   /// الإصدار 5: إضافة حقل الحالة للفواتير وجدول مرتجعات المشتريات
   Future<void> _createV5Tables(Database db) async {
+    // ... (هذا الجزء يبقى كما هو)
     final batch = db.batch();
-    // إضافة حقل لتتبع حالة الفاتورة (عادية، مرتجعة، ملغاة، الخ)
     batch.execute('''
       ALTER TABLE purchase_invoices ADD COLUMN status TEXT NOT NULL DEFAULT 'COMPLETED'
     ''');
-
-    // إنشاء جدول لتخزين معلومات عمليات الإرجاع
     batch.execute('''
       CREATE TABLE purchase_returns (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,4 +169,73 @@ class DatabaseService {
     await batch.commit(noResult: true);
   }
 
+  /// الإصدار 6: إضافة جداول العملاء وحركاتهم
+  Future<void> _createV6Tables(Database db) async {
+    // ... (هذا الجزء يبقى كما هو)
+    final batch = db.batch();
+    batch.execute('''
+      CREATE TABLE customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        phone TEXT,
+        address TEXT,
+        email TEXT,
+        company TEXT,
+        notes TEXT,
+        balance REAL NOT NULL DEFAULT 0.0,
+        createdAt TEXT NOT NULL
+      )
+    ''');
+    batch.execute('''
+      CREATE TABLE customer_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customerId INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        notes TEXT,
+        transactionDate TEXT NOT NULL,
+        affectsFund INTEGER NOT NULL DEFAULT 1,
+        FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
+      )
+    ''');
+    await batch.commit(noResult: true);
+  }
+
+  // --- بداية الإضافة: دالة الترقية الجديدة ---
+  /// الإصدار 7: إضافة جداول المبيعات
+  Future<void> _createV7Tables(Database db) async {
+    final batch = db.batch();
+    // إنشاء جدول فواتير المبيعات
+    batch.execute('''
+      CREATE TABLE sales_invoices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customerId INTEGER,
+        totalAmount REAL NOT NULL,
+        discountAmount REAL NOT NULL DEFAULT 0.0,
+        paidAmount REAL NOT NULL,
+        remainingAmount REAL NOT NULL,
+        invoiceDate TEXT NOT NULL,
+        notes TEXT,
+        status TEXT NOT NULL DEFAULT 'COMPLETED',
+        FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL
+      )
+    ''');
+
+    // إنشاء جدول أصناف فواتير المبيعات
+    batch.execute('''
+      CREATE TABLE sales_invoice_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoiceId INTEGER NOT NULL,
+        productId INTEGER NOT NULL,
+        productName TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        salePrice REAL NOT NULL,
+        totalPrice REAL NOT NULL,
+        FOREIGN KEY (invoiceId) REFERENCES sales_invoices(id) ON DELETE CASCADE,
+        FOREIGN KEY (productId) REFERENCES products(id) ON DELETE RESTRICT
+      )
+    ''');
+    await batch.commit(noResult: true);
+  }
+// --- نهاية الإضافة ---
 }

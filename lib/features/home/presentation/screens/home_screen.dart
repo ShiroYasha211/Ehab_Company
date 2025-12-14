@@ -1,5 +1,6 @@
 // File: lib/features/home/presentation/screens/home_screen.dart
 
+import 'package:ehab_company_admin/features/customers/presentation/screens/customers_dashboard_screen.dart';
 import 'package:ehab_company_admin/features/home/presentation/widgets/feature_card.dart';
 import 'package:ehab_company_admin/features/home/presentation/widgets/stats_carousel.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_binding.dart';
@@ -97,6 +98,9 @@ class HomeScreen extends StatelessWidget {
                         else if (featureTitle == 'المشتريات') {
                           Get.to(() => const PurchasesDashboardScreen(),
                               binding: AddPurchaseBinding());
+                        }
+                        else if(featureTitle == 'العملاء'){
+                          Get.to(() => const CustomersDashboardScreen());
                         }
                         else {
                           print('$featureTitle card tapped');
