@@ -7,6 +7,8 @@ import 'package:ehab_company_admin/features/sales/presentation/screens/add_sales
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'list_sales_invoices_screen.dart';
+
 class SalesDashboardScreen extends StatelessWidget {
   const SalesDashboardScreen({super.key});
 
@@ -37,18 +39,10 @@ class SalesDashboardScreen extends StatelessWidget {
             title: 'عرض كل الفواتير',
             subtitle: 'تصفح وبحث في أرشيف فواتير المبيعات',
             onTap: () {
-              // TODO: Get.to(() => const ListSalesInvoicesScreen());
+
+                Get.to(() => const ListSalesInvoicesScreen(),
+                binding: AddSalesInvoiceBinding());
             },
-          ),
-          _buildDashboardItem(
-            context: context,
-            icon: Icons.assignment_return_outlined,
-            title: 'مرتجعات المبيعات',
-            subtitle: 'إدارة المنتجات المرتجعة من العملاء',
-            onTap: () {
-              // TODO: Get.to(() => const ListSalesReturnsScreen());
-            },
-            isAdvanced: true,
           ),
         ],
       ),
