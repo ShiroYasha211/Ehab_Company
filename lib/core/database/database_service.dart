@@ -23,7 +23,7 @@ class DatabaseService {
     return await openDatabase(
       path,
       // --- بداية الإصلاح: زيادة رقم الإصدار ---
-      version: 7,
+      version: 8,
       // --- نهاية الإصلاح ---
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -58,6 +58,9 @@ class DatabaseService {
       await _createV7Tables(db);
     }
     // --- نهاية الإصلاح ---
+    if (oldVersion < 8) {
+      await _createV8Tables(db);
+    }
   }
 
   /// الإصدار 1: جداول المخازن والصندوق الأساسية
@@ -238,4 +241,38 @@ class DatabaseService {
     await batch.commit(noResult: true);
   }
 // --- نهاية الإضافة ---
+  /// الإصدار 8: إضافة جداول المصروفات وبنودها
+  Future<void> _createV8Tables(Database db) async {
+    final batch = db.batch();
+
+    // إنشاء جدول لتصنيف المصروفات (البنود)
+    batch.execute('''
+      CREATE TABLE expense_categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE
+      )
+    ''');
+
+    // إنشاء جدول لتسجيل المصروفات الفعلية
+    batch.execute('''
+      CREATE TABLE expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        categoryId INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        expenseDate TEXT NOT NULL,
+        notes TEXT,
+        FOREIGN KEY (categoryId) REFERENCES expense_categories(id) ON DELETE RESTRICT
+      )
+    ''');
+
+    // إضافة بعض البنود الافتراضية
+    batch.insert('expense_categories', {'name': 'إيجار'});
+    batch.insert('expense_categories', {'name': 'رواتب وأجور'});
+    batch.insert('expense_categories', {'name': 'فواتير (كهرباء، ماء، إنترنت)'});
+    batch.insert('expense_categories', {'name': 'مصاريف تسويق'});
+    batch.insert('expense_categories', {'name': 'ضيافة ونثريات'});
+
+    await batch.commit(noResult: true);
+  }
+
 }

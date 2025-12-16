@@ -54,6 +54,7 @@ dependencies:
   equatable: ^2.0.7
   url_launcher: ^6.3.2
   visibility_detector: ^0.4.0+2
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:
