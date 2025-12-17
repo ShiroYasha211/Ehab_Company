@@ -101,6 +101,7 @@ class SalesRepository {
 
     return invoiceId;
   }
+
   Future<List<SalesInvoiceSummaryModel>> getAllInvoices({
     int? invoiceId,
     int? customerId,
@@ -156,15 +157,77 @@ class SalesRepository {
     return List.generate(
         maps.length, (i) => SalesInvoiceSummaryModel.fromMap(maps[i]));
   }
+
+  Future<double> getTotalSalesRevenue(
+      {required DateTime from, required DateTime to}) async {
+    final db = await _dbService.database;
+    // إضافة يوم واحد لتاريخ النهاية ليشمل اليوم نفسه بالكامل
+    final inclusiveTo = to.add(const Duration(days: 1));
+
+    final result = await db.rawQuery('''
+      SELECT SUM(totalAmount) as total 
+      FROM sales_invoices
+      WHERE invoiceDate >= ? AND invoiceDate < ? AND status != 'RETURNED'
+    ''', [from.toIso8601String(), inclusiveTo.toIso8601String()]);
+
+    if (result.first['total'] != null) {
+      return (result.first['total'] as num).toDouble();
+    }
+    return 0.0;
+  }
+
+  /// دالة لحساب تكلفة البضاعة المباعة (COGS) خلال فترة محددة
+  Future<double> getCostOfGoodsSold(
+      {required DateTime from, required DateTime to}) async {
+    final db = await _dbService.database;
+    final inclusiveTo = to.add(const Duration(days: 1));
+
+    // هذا استعلام معقد يقوم بالآتي:
+    // 1. يربط جدول أصناف المبيعات (sales_invoice_items) بجدول فواتير المبيعات (sales_invoices)
+    //     // 2. يربط الناتج بجدول المنتجات (products) للحصول على سعر الشراء
+    //     // 3. يفلتر النتائج حسب الفترة الزمنية المحددة وحالة الفاتورة (ليست مرتجعة)
+    //     // 4. يحسب المجموع النهائي لـ (الكمية المباعة * سعر الشراء)
+    final result = await db.rawQuery('''
+          SELECT SUM(sii.quantity * p.purchasePrice) as totalCOGS
+      FROM sales_invoice_items sii
+      JOIN sales_invoices si ON sii.invoiceId = si.id
+      JOIN products p ON sii.productId = p.id
+      WHERE si.invoiceDate >= ? AND si.invoiceDate < ? AND si.status != 'RETURNED'
+    ''', [from.toIso8601String(), inclusiveTo.toIso8601String()]);
+
+    if (result.first['totalCOGS'] != null) {
+      return (result.first['totalCOGS'] as num).toDouble();
+    }
+    return 0.0;
+  }
+
+  Future<List<Map<String, dynamic>>> getTopSellingProducts({
+    required DateTime from,
+    required DateTime to,
+    required String orderBy, // 'totalQuantity' or 'totalRevenue'
+    int limit = 10,
+  }) async {
+    final db = await _dbService.database;
+    final inclusiveTo = to.add(const Duration(days: 1));
+
+    final String query = '''
+     SELECT 
+       p.id,
+       p.name,
+       SUM(sii.quantity) as totalQuantity,
+       SUM(sii.totalPrice) as totalRevenue
+     FROM sales_invoice_items sii
+     JOIN sales_invoices si ON sii.invoiceId = si.id
+      JOIN products p ON sii.productId = p.id
+      WHERE si.invoiceDate >= ? AND si.invoiceDate < ? AND si.status != 'RETURNED'
+      GROUP BY p.id, p.name
+      ORDER BY $orderBy DESC
+        LIMIT ?
+      ''';
+
+    final List<Map<String, dynamic>> maps = await db.rawQuery(
+        query, [from.toIso8601String(), inclusiveTo.toIso8601String(), limit]);
+
+    return maps;
+  }
 }
-
-
-
-
-
-
-
-
-
-
-

@@ -22,15 +22,18 @@ class FundRepository {
       );
 
       // 2. تحديث رصيد الصندوق
-      final currentFund = await txn.query('funds', where: 'id = ?', whereArgs: [transaction.fundId]);
+      final currentFund = await txn.query(
+          'funds', where: 'id = ?', whereArgs: [transaction.fundId]);
       if (currentFund.isNotEmpty) {
         double currentBalance = currentFund.first['balance'] as double;
         double newBalance;
 
         if (transaction.type == TransactionType.DEPOSIT) {
-          newBalance = currentBalance + transaction.amount; // زيادة الرصيد عند الإيداع
+          newBalance =
+              currentBalance + transaction.amount; // زيادة الرصيد عند الإيداع
         } else {
-          newBalance = currentBalance - transaction.amount; // إنقاص الرصيد عند السحب
+          newBalance =
+              currentBalance - transaction.amount; // إنقاص الرصيد عند السحب
         }
 
         await txn.update(
@@ -56,14 +59,16 @@ class FundRepository {
     if (maps.isEmpty) {
       return [];
     }
-    return List.generate(maps.length, (i) => FundTransactionModel.fromMap(maps[i]));
+    return List.generate(
+        maps.length, (i) => FundTransactionModel.fromMap(maps[i]));
   }
 
   /// دالة لجلب بيانات الصندوق الرئيسي (أو أي صندوق آخر)
   Future<FundModel?> getMainFund() async {
     final db = await _dbService.database;
     // نفترض أن الصندوق الرئيسي هو أول صندوق (ID = 1)
-    final List<Map<String, dynamic>> maps = await db.query('funds', where: 'id = ?', whereArgs: [1]);
+    final List<Map<String, dynamic>> maps = await db.query(
+        'funds', where: 'id = ?', whereArgs: [1]);
 
     if (maps.isNotEmpty) {
       return FundModel.fromMap(maps.first);
@@ -74,7 +79,9 @@ class FundRepository {
   // --- بداية الحل: الدالة الداخلية الجديدة ---
   /// دالة داخلية لتنفيذ المنطق. تتطلب transaction موجودة مسبقًا.
   /// هذا يمنع حدوث Deadlock.
-  Future<void> addTransactionWithinTransaction(DatabaseExecutor txn, FundTransactionModel transaction) async {    // 1. إضافة سجل الحركة الجديد
+  Future<void> addTransactionWithinTransaction(DatabaseExecutor txn,
+      FundTransactionModel transaction) async {
+    // 1. إضافة سجل الحركة الجديد
     await txn.insert(
       'fund_transactions',
       transaction.toMap(),
@@ -82,7 +89,8 @@ class FundRepository {
     );
 
     // 2. تحديث رصيد الصندوق
-    final currentFund = await txn.query('funds', where: 'id = ?', whereArgs: [transaction.fundId]);
+    final currentFund = await txn.query(
+        'funds', where: 'id = ?', whereArgs: [transaction.fundId]);
     if (currentFund.isNotEmpty) {
       double currentBalance = currentFund.first['balance'] as double;
       double newBalance;
@@ -101,6 +109,7 @@ class FundRepository {
       );
     }
   }
+
 // --- نهاية الحل ---
 
   Future<double> getFundBalance(int fundId) async {
@@ -117,5 +126,27 @@ class FundRepository {
     return 0.0;
   }
 
+  Future<Map<String, double>> getFundFlowSummary(
+      {required DateTime from, required DateTime to}) async {
+    final db = await _dbService.database;
+    // إضافة يوم واحد لتاريخ النهاية ليشمل اليوم نفسه بالكامل
+    final inclusiveTo = to.add(const Duration(days: 1));
 
+    // استعلام يجلب مجموع الوارد ومجموع الصادر في مرة واحدة
+    final result = await db.rawQuery('''
+      SELECT 
+        SUM(CASE WHEN type = 'DEPOSIT' THEN amount ELSE 0 END) as totalDeposits,
+        SUM(CASE WHEN type = 'WITHDRAWAL' THEN amount ELSE 0 END) as totalWithdrawals
+      FROM fund_transactions
+      WHERE transactionDate >= ? AND transactionDate < ?
+    ''', [from.toIso8601String(), inclusiveTo.toIso8601String()]);
+
+    final summary = result.first;
+
+    return {
+      'totalDeposits': (summary['totalDeposits'] as num?)?.toDouble() ?? 0.0,
+      'totalWithdrawals': (summary['totalWithdrawals'] as num?)?.toDouble() ??
+          0.0,
+    };
+  }
 }

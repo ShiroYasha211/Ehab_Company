@@ -18,6 +18,7 @@ import 'package:get/get.dart';
 import '../../../fund/presentation/screens/fund_screen.dart';
 import '../../../products/presentation/screens/inventory_dashboard_binding.dart';
 import '../../../products/presentation/screens/inventory_dashboard_screen.dart';
+import '../../../reports/presentation/screens/reports_dashboard_screen.dart';
 import '../controllers/home_controller.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -26,18 +27,18 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // قائمة الوظائف التي ستعرض في البطاقات
-    final List<Map<String, dynamic>> features = [
-      {'title': 'المخازن', 'icon': Icons.inventory_2_outlined},
-      {'title': 'المبيعات', 'icon': Icons.point_of_sale_outlined},
-      {'title': 'الصندوق', 'icon': Icons.account_balance_wallet_outlined},
+    final List<Map<String  , dynamic>> features = [
+      {'title': 'المخازن'  , 'icon': Icons.inventory_2_outlined},
+      {'title': 'المبيعات' , 'icon': Icons.point_of_sale_outlined},
+      {'title': 'الصندوق'  , 'icon': Icons.account_balance_wallet_outlined},
       {'title': 'المشتريات', 'icon': Icons.shopping_cart_outlined},
       {'title': 'المصروفات', 'icon': Icons.receipt_long_outlined},
-      {'title': 'العملاء', 'icon': Icons.people_outline},
-      {'title': 'الموردين', 'icon': Icons.local_shipping_outlined},
-      {'title': 'الفواتير', 'icon': Icons.description_outlined},
-      {'title': 'التقارير', 'icon': Icons.bar_chart_outlined},
-      {'title': 'الموظفين', 'icon': Icons.badge_outlined},
-      {'title': 'الإعدادات', 'icon': Icons.settings_outlined},
+      {'title': 'العملاء'   , 'icon': Icons.people_outline},
+      {'title': 'الموردين' , 'icon': Icons.local_shipping_outlined},
+      {'title': 'الفواتير' , 'icon': Icons.description_outlined},
+      {'title': 'التقارير' , 'icon': Icons.bar_chart_outlined},
+      {'title': 'الموظفين' , 'icon': Icons.badge_outlined},
+      {'title': 'الإعدادات' , 'icon': Icons.settings_outlined},
     ];
     final HomeController homeController = Get.find<HomeController>();
     return VisibilityDetector(
@@ -110,6 +111,9 @@ class HomeScreen extends StatelessWidget {
                         }
                         else if(featureTitle == 'العملاء'){
                           Get.to(() => const CustomersDashboardScreen());
+                        }
+                        else if(featureTitle == 'التقارير'){
+                          Get.to(() => const ReportsDashboardScreen());
                         }
                         else {
                           print('$featureTitle card tapped');

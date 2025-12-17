@@ -114,4 +114,22 @@ class ExpenseRepository {
 
     return expenseId;
   }
+  /// دالة لحساب إجمالي المصروفات خلال فترة محددة
+  Future<double> getTotalExpenses(
+      {required DateTime from, required DateTime to}) async {
+    final db = await _dbService.database;
+    // إضافة يوم واحد لتاريخ النهاية ليشمل اليوم نفسه بالكامل
+    final inclusiveTo = to.add(const Duration(days: 1));
+
+    final result = await db.rawQuery('''
+      SELECT SUM(amount) as total 
+      FROM expenses
+      WHERE expenseDate >= ? AND expenseDate < ?
+    ''', [from.toIso8601String(), inclusiveTo.toIso8601String()]);
+
+    if (result.first['total'] != null) {
+      return (result.first['total'] as num).toDouble();
+    }
+    return 0.0;
+  }
 }
