@@ -1,11 +1,14 @@
 // File: lib/features/reports/presentation/screens/reports_dashboard_screen.dart
 
 import 'package:ehab_company_admin/features/reports/presentation/screens/profit_and_loss_screen.dart';
+import 'package:ehab_company_admin/features/reports/presentation/screens/reports_binding.dart';
 import 'package:ehab_company_admin/features/reports/presentation/screens/top_selling_products_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'customer_debts_report_screen.dart';
 import 'fund_flow_report_screen.dart';
+import 'inventory_value_screen.dart';
 
 class ReportsDashboardScreen extends StatelessWidget {
   const ReportsDashboardScreen({super.key});
@@ -56,7 +59,8 @@ class ReportsDashboardScreen extends StatelessWidget {
             title: 'تقرير ديون العملاء',
             subtitle: 'عرض قائمة بالعملاء الذين عليهم أرصدة مستحقة.',
             onTap: () {
-              // TODO: Get.to(() => const CustomerDebtsReportScreen());
+               Get.to(() => const CustomerDebtsReportScreen(),
+               binding: ReportsBinding());
             },
             isAdvanced: true,
           ),
@@ -67,7 +71,7 @@ class ReportsDashboardScreen extends StatelessWidget {
             title: 'تقرير قيمة المخزون',
             subtitle: 'حساب القيمة الإجمالية للمخزون الحالي بسعر الشراء.',
             onTap: () {
-              // TODO: Get.to(() => const InventoryValueScreen());
+               Get.to(() => const InventoryValueScreen());
             },
             isAdvanced: true,
           ),

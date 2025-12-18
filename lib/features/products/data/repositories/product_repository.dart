@@ -126,5 +126,23 @@ class ProductRepository {
     }
     return 0;
   }
+  Future<Map<String, double>> getInventoryValue() async {
+    final db = await _dbService.database;
 
+    // استعلام واحد لحساب القيمتين معًا
+    final result = await db.rawQuery('''
+      SELECT 
+        SUM(quantity * purchasePrice) as totalPurchaseValue,
+        SUM(quantity * salePrice) as totalSaleValue
+      FROM products
+    ''');
+
+    final summary = result.first;
+
+    return {
+      'totalPurchaseValue': (summary['totalPurchaseValue'] as num?)
+          ?.toDouble() ?? 0.0,
+      'totalSaleValue': (summary['totalSaleValue'] as num?)?.toDouble() ?? 0.0,
+    };
+  }
 }

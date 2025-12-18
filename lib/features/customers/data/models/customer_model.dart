@@ -10,6 +10,7 @@ class CustomerModel {
   final String? notes;
   final double balance;
   final DateTime createdAt;
+  final DateTime? lastTransactionDate; // <-- الحقل الجديد
 
   CustomerModel({
     this.id,
@@ -21,6 +22,7 @@ class CustomerModel {
     this.notes,
     required this.balance,
     required this.createdAt,
+    this.lastTransactionDate, // <-- الحقل الجديد
   });
 
   // لتحويل البيانات من قاعدة البيانات إلى كائن
@@ -35,6 +37,11 @@ class CustomerModel {
       notes: map['notes'],
       balance: (map['balance'] as num?)?.toDouble() ?? 0.0,
       createdAt: DateTime.parse(map['createdAt']),
+      // --- بداية التعديل ---
+      lastTransactionDate: map['lastTransactionDate'] != null
+          ? DateTime.parse(map['lastTransactionDate'])
+          : null,
+      // --- نهاية التعديل ---
     );
   }
 
@@ -50,10 +57,16 @@ class CustomerModel {
       'notes': notes,
       'balance': balance,
       'createdAt': createdAt.toIso8601String(),
+      // --- بداية التعديل ---
+      // إذا كان تاريخ آخر حركة فارغًا، استخدم تاريخ الإنشاء
+      'lastTransactionDate': (lastTransactionDate ?? createdAt)
+          .toIso8601String(),
+      // --- نهاية التعديل ---
     };
   }
 
-  // دالة لتسهيل عملية النسخ مع التعديل
+
+// دالة لتسهيل عملية النسخ مع التعديل
   CustomerModel copyWith({
     int? id,
     String? name,

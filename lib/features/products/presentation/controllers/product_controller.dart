@@ -19,6 +19,10 @@ class ProductController extends GetxController {
   final RxString searchQuery = ''.obs;
   RxList<String> get categoryNames => _categoryController.categories.map((c) => c.name).toList().obs;
 
+  final RxDouble totalPurchaseValue = 0.0.obs;
+  final RxDouble totalSaleValue = 0.0.obs;
+  final RxBool isCalculatingValue = true.obs;
+
   @override
   void onInit() {
     super.onInit();
@@ -83,6 +87,19 @@ class ProductController extends GetxController {
     } finally {
       _filterProducts();
       isLoading(false);
+    }
+  }
+
+  Future<void> getInventoryValue() async {
+    isCalculatingValue(true);
+    try {
+      final values = await _repository.getInventoryValue();
+      totalPurchaseValue.value = values['totalPurchaseValue'] ?? 0.0;
+      totalSaleValue.value = values['totalSaleValue'] ?? 0.0;
+    } catch (e) {
+      Get.snackbar('خطأ', 'فشل في حساب قيمة المخزون: $e');
+    } finally {
+      isCalculatingValue(false);
     }
   }
 

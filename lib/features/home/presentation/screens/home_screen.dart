@@ -9,6 +9,7 @@ import 'package:ehab_company_admin/features/home/presentation/widgets/feature_ca
 import 'package:ehab_company_admin/features/home/presentation/widgets/stats_carousel.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_binding.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/purchases_dashboard_screen.dart';
+import 'package:ehab_company_admin/features/reports/presentation/screens/reports_binding.dart';
 import 'package:ehab_company_admin/features/sales/presentation/screens/sales_dashboard_screen.dart';
 import 'package:ehab_company_admin/features/suppliers/presentation/screens/suppliers_dashboard_screen.dart';
 import 'package:flutter/material.dart';
@@ -113,7 +114,8 @@ class HomeScreen extends StatelessWidget {
                           Get.to(() => const CustomersDashboardScreen());
                         }
                         else if(featureTitle == 'التقارير'){
-                          Get.to(() => const ReportsDashboardScreen());
+                          Get.to(() => const ReportsDashboardScreen(),
+                          binding: ReportsBinding());
                         }
                         else {
                           print('$featureTitle card tapped');

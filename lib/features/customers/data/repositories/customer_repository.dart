@@ -66,7 +66,15 @@ class CustomerRepository {
         );
       }
 
-      // 3. تحديث رصيد الصندوق
+      // --- بداية التعديل ---
+      // 3. تحديث تاريخ آخر حركة للعميل
+      await txn.rawUpdate(
+        'UPDATE customers SET lastTransactionDate = ? WHERE id = ?',
+        [transaction.transactionDate.toIso8601String(), transaction.customerId],
+      );
+      // --- نهاية التعديل ---
+
+      // 4. تحديث رصيد الصندوق
       if (transaction.affectsFund &&
           transaction.type == CustomerTransactionType.RECEIPT) {
         final customer = (await txn.query(
@@ -106,5 +114,16 @@ class CustomerRepository {
       return result.first['totalDebt'] as double;
     }
     return 0.0;
+  }
+  Future<List<CustomerModel>> getIndebtedCustomers(
+      {String orderBy = 'balance DESC'}) async { // الافتراضي هو الترتيب حسب الأعلى دينًا
+    final db = await _dbService.database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'customers',
+      where: 'balance > 0', // الشرط الأهم: جلب العملاء الذين رصيدهم أكبر من صفر
+      orderBy: orderBy,
+    );
+    if (maps.isEmpty) return [];
+    return List.generate(maps.length, (i) => CustomerModel.fromMap(maps[i]));
   }
 }

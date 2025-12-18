@@ -23,7 +23,7 @@ class DatabaseService {
     return await openDatabase(
       path,
       // --- بداية الإصلاح: زيادة رقم الإصدار ---
-      version: 8,
+      version: 9,
       // --- نهاية الإصلاح ---
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -60,6 +60,9 @@ class DatabaseService {
     // --- نهاية الإصلاح ---
     if (oldVersion < 8) {
       await _createV8Tables(db);
+    }
+    if (oldVersion < 9) {
+      await _createV9Tables(db);
     }
   }
 
@@ -274,5 +277,9 @@ class DatabaseService {
 
     await batch.commit(noResult: true);
   }
-
+  Future<void> _createV9Tables(Database db) async {
+    // سيتم تعيين القيمة الافتراضية إلى تاريخ إنشاء العميل
+    await db.execute('ALTER TABLE customers ADD COLUMN lastTransactionDate TEXT');
+    await db.execute('UPDATE customers SET lastTransactionDate = createdAt');
+  }
 }
