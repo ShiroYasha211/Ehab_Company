@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
-import '../../../home/presentation/controllers/home_controller.dart';
 
 /// كلاس مساعد لتخزين بيانات المنتج داخل الفاتورة
 class InvoiceItem {

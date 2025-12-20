@@ -110,4 +110,61 @@ class SupplierRepository {
     }
     return 0.0;
   }
+
+  Future<List<SupplierTransactionModel>> getPaymentVouchers({
+    int? supplierId,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final db = await _dbService.database;
+
+    List<String> whereClauses = [
+      // الشرط الأساسي: جلب سندات الدفع وسندات الرصيد الافتتاحي
+      "(st.type = 'PAYMENT' OR st.type = 'OPENING_BALANCE')"
+    ];
+    List<dynamic> whereArgs = [];
+
+    if (supplierId != null) {
+      whereClauses.add('st.supplierId = ?');
+      whereArgs.add(supplierId);
+    }
+
+    if (from != null) {
+      whereClauses.add('st.transactionDate >= ?');
+      whereArgs.add(from.toIso8601String());
+    }
+
+    if (to != null) {
+      final inclusiveTo = to.add(const Duration(days: 1));
+      whereClauses.add('st.transactionDate < ?');
+      whereArgs.add(inclusiveTo.toIso8601String());
+    }
+
+    final String whereStatement =
+    whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
+
+    final String query = '''
+      SELECT 
+        st.*, 
+        s.name as supplierName  -- جلب اسم المورد
+      FROM supplier_transactions st
+      JOIN suppliers s ON st.supplierId = s.id
+      $whereStatement
+      ORDER BY st.transactionDate DESC
+    ''';
+
+    final List<Map<String, dynamic>> maps = await db.rawQuery(query, whereArgs);
+
+    if (maps.isEmpty) {
+      return [];
+    }
+
+    // ملاحظة: SupplierTransactionModel لا يحتوي على supplierName
+    // سنقوم بإنشاء نسخة جديدة من الخريطة ونضيفه
+    return List.generate(maps.length, (i) {
+      final map = Map<String, dynamic>.from(maps[i]);
+      // سنحتاج إلى تعديل الـ model لاستقبال هذا الحقل
+      return SupplierTransactionModel.fromMap(map);
+    });
+  }
 }

@@ -1,6 +1,5 @@
 // File: lib/features/expenses/presentation/screens/list_expenses_screen.dart
 
-import 'package:ehab_company_admin/features/expenses/data/models/expense_category_model.dart';
 import 'package:ehab_company_admin/features/expenses/data/models/expense_model.dart';
 import 'package:ehab_company_admin/features/expenses/presentation/controllers/expense_controller.dart';
 import 'package:flutter/material.dart';

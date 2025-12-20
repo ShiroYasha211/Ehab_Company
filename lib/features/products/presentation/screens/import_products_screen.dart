@@ -51,86 +51,88 @@ class _ImportProductsScreenState extends State<ImportProductsScreen> {
       appBar: AppBar(
         title: const Text('استيراد المنتجات من Excel'),
       ),
-      body: Obx(() {
-        // عرض شاشة تحميل أثناء عملية الاستيراد
-        if (_productController.isImporting.isTrue) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 20),
-                Text('جاري استيراد البيانات...', style: TextStyle(fontSize: 16)),
+      body: SafeArea(
+        child: Obx(() {
+          // عرض شاشة تحميل أثناء عملية الاستيراد
+          if (_productController.isImporting.isTrue) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 20),
+                  Text('جاري استيراد البيانات...', style: TextStyle(fontSize: 16)),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Text(
+                      'قد تستغرق هذه العملية عدة دقائق حسب حجم الملف.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+        
+          // الواجهة الرئيسية
+          return ListView(
+            padding: const EdgeInsets.all(20.0),
+            children: [
+              // قسم التعليمات وزر تنزيل القالب
+              _buildInstructionsCard(context),
+        
+              const SizedBox(height: 32),
+        
+              // زر اختيار الملف
+              OutlinedButton.icon(
+                onPressed: _pickExcelFile,
+                icon: const Icon(Icons.folder_open),
+                label: const Text('1. اختيار ملف Excel'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+        
+              // عرض معلومات الملف المختار
+              if (_selectedFile != null)
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Text(
-                    'قد تستغرق هذه العملية عدة دقائق حسب حجم الملف.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: Card(
+                    color: Colors.green.shade50,
+                    child: ListTile(
+                      leading: Icon(Icons.check_circle, color: Colors.green.shade700),
+                      title: const Text(
+                        'تم اختيار الملف بنجاح',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        _selectedFile!.path.split(Platform.pathSeparator).last,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
+        
+              const SizedBox(height: 16),
+        
+              // زر بدء الاستيراد
+              ElevatedButton.icon(
+                // تعطيل الزر إذا لم يتم اختيار ملف
+                onPressed: _selectedFile == null ? null : _startImport,
+                icon: const Icon(Icons.cloud_upload_outlined),
+                label: const Text('2. بدء عملية الاستيراد'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  disabledBackgroundColor: Colors.grey.shade300,
+                ),
+              ),
+            ],
           );
-        }
-
-        // الواجهة الرئيسية
-        return ListView(
-          padding: const EdgeInsets.all(20.0),
-          children: [
-            // قسم التعليمات وزر تنزيل القالب
-            _buildInstructionsCard(context),
-
-            const SizedBox(height: 32),
-
-            // زر اختيار الملف
-            OutlinedButton.icon(
-              onPressed: _pickExcelFile,
-              icon: const Icon(Icons.folder_open),
-              label: const Text('1. اختيار ملف Excel'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            // عرض معلومات الملف المختار
-            if (_selectedFile != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: Card(
-                  color: Colors.green.shade50,
-                  child: ListTile(
-                    leading: Icon(Icons.check_circle, color: Colors.green.shade700),
-                    title: const Text(
-                      'تم اختيار الملف بنجاح',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      _selectedFile!.path.split(Platform.pathSeparator).last,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 16),
-
-            // زر بدء الاستيراد
-            ElevatedButton.icon(
-              // تعطيل الزر إذا لم يتم اختيار ملف
-              onPressed: _selectedFile == null ? null : _startImport,
-              icon: const Icon(Icons.cloud_upload_outlined),
-              label: const Text('2. بدء عملية الاستيراد'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                disabledBackgroundColor: Colors.grey.shade300,
-              ),
-            ),
-          ],
-        );
-      }),
+        }),
+      ),
     );
   }
 

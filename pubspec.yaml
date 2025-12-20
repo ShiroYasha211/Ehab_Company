@@ -55,6 +55,8 @@ dependencies:
   url_launcher: ^6.3.2
   visibility_detector: ^0.4.0+2
   fl_chart: ^0.69.0
+  lottie: ^3.3.0
+  flutter_typeahead: ^5.2.0
 
 dev_dependencies:
   flutter_test:
@@ -87,6 +89,7 @@ flutter:
   assets:
     - assets/images/
     - assets/fonts/
+    - assets/animations/
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

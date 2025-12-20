@@ -9,11 +9,13 @@ import 'package:get/get.dart';
 class ProductListItem extends StatelessWidget {
   final ProductModel product;
   final VoidCallback onDelete;
+  final Color? cardColor; // <-- إضافة جديدة
 
   const ProductListItem({
     super.key,
     required this.product,
     required this.onDelete,
+    this.cardColor, // <-- إضافة جديدة
   });
 
   @override
@@ -26,6 +28,7 @@ class ProductListItem extends StatelessWidget {
         Get.to(() => ProductDetailScreen(product: product));
       },
       child: Card(
+        color: cardColor,
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         elevation: 2,
         shadowColor: Colors.black.withOpacity(0.08),

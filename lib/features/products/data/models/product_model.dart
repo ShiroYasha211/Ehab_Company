@@ -72,4 +72,17 @@ class ProductModel {
       createdAt: DateTime.parse(map['createdAt']),
     );
   }
+  bool get isExpired {
+    final now = DateTime.now();
+    // يعتبر منتهيًا إذا كان تاريخ الانتهاء هو الأمس أو قبل ذلك
+    return expiryDate != null && expiryDate!.isBefore(DateTime(now.year, now.month, now.day));
+  }
+
+  bool get isExpiringSoon {
+    final now = DateTime.now();
+    // يعتبر قريبًا من الانتهاء إذا كان تاريخ الانتهاء خلال الـ 30 يومًا القادمة
+    return expiryDate != null &&
+        !isExpired &&
+        expiryDate!.isBefore(now.add(const Duration(days: 30)));
+  }
 }

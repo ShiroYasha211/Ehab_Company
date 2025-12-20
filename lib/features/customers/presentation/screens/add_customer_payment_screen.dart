@@ -1,6 +1,5 @@
 // File: lib/features/customers/presentation/screens/add_customer_payment_screen.dart
 
-import 'package:ehab_company_admin/features/customers/data/models/customer_model.dart';
 import 'package:ehab_company_admin/features/customers/data/models/customer_transaction_model.dart';
 import 'package:ehab_company_admin/features/customers/presentation/controllers/add_customer_payment_controller.dart';
 import 'package:flutter/material.dart';

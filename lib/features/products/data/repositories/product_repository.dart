@@ -21,16 +21,32 @@ class ProductRepository {
     return List.generate(maps.length, (i) => ProductModel.fromMap(maps[i]));
   }
 
+  /// يبحث عن منتج باستخدام الباركود ويعيد المنتج إذا وجده
+  Future<ProductModel?> getProductByBarcode(String barcode) async {
+    final db = await _dbService.database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'products',
+      where: 'code = ?',
+      whereArgs: [barcode],
+    );
+
+    if (maps.isNotEmpty) {
+      return ProductModel.fromMap(maps.first);
+    }
+    return null;
+  }
+
   // إضافة منتج جديد
   Future<int> addProduct(ProductModel product) async {
     final db = await _dbService.database;
-    // استخدام conflictAlgorithm.replace لتجنب مشاكل إدخال كود فريد مكرر
-    // إذا أردت أن يظهر خطأ بدلاً من الاستبدال، استخدم .fail
+    // --- 2. بداية التعديل: تغيير سلوك الإضافة ---
+    // الآن، سيقوم بإرجاع خطأ إذا كان الباركود موجودًا، بدلاً من الاستبدال
     return await db.insert(
       'products',
       product.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      conflictAlgorithm: ConflictAlgorithm.fail,
     );
+    // --- نهاية التعديل ---
   }
 
   // تعديل منتج موجود

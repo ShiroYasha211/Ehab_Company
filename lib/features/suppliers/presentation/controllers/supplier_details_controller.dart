@@ -4,7 +4,6 @@ import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model
 import 'package:ehab_company_admin/features/suppliers/data/models/supplier_transaction_model.dart';
 import 'package:ehab_company_admin/features/suppliers/data/repositories/supplier_transactions_repository.dart';
 import 'package:ehab_company_admin/features/suppliers/presentation/controllers/supplier_controller.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class SupplierDetailsController extends GetxController {

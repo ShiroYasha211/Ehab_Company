@@ -12,14 +12,17 @@ class ReportService {
   static Future<void> printInventoryReport(List<ProductModel> products) async {
     final pdf = pw.Document();
 
-    // --- بداية التعديل: تحميل الوزنين العادي والعريض للخط ---
     final font = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
     final boldFont = await rootBundle.load("assets/fonts/Tajawal-Bold.ttf");
     final ttf = pw.Font.ttf(font);
     final boldTtf = pw.Font.ttf(boldFont);
+
+    // --- بداية التعديل: تحميل صورة الشعار ---
+    final logoImage = pw.MemoryImage(
+      (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List(),
+    );
     // --- نهاية التعديل ---
 
-    // تقسيم المنتجات إلى صفحات لتجنب تجاوز حجم الصفحة
     const int productsPerPage = 20;
     for (var i = 0; i < products.length; i += productsPerPage) {
       final pageProducts = products.sublist(
@@ -28,20 +31,22 @@ class ReportService {
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
-          // --- بداية التعديل: تعيين السمة العامة والخط الأساسي والاتجاه ---
           textDirection: pw.TextDirection.rtl,
           theme: pw.ThemeData.withFont(
-            base: ttf, // الخط الأساسي
-            bold: boldTtf, // الخط العريض
+            base: ttf,
+            bold: boldTtf,
           ),
-          // --- نهاية التعديل ---
+          header: (context) => _buildHeader(logoImage), // <-- تمرير الشعار
           build: (pw.Context context) {
             return [
-              _buildHeader(context),
+              _buildReportTitle(), // <-- عنوان التقرير
               pw.SizedBox(height: 20),
               _buildInventoryTable(pageProducts),
-              pw.SizedBox(height: 20),
-              _buildSummary(context, products.length),
+              // الملخص سيظهر فقط في آخر صفحة
+              if (i + productsPerPage >= products.length) ...[
+                pw.SizedBox(height: 30),
+                _buildSummary(products),
+              ],
             ];
           },
           footer: (pw.Context context) {
@@ -51,84 +56,142 @@ class ReportService {
       );
     }
 
-    // عرض شاشة المعاينة والطباعة
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
     );
   }
 
-  /// ودجت لإنشاء رأس التقرير
-  static pw.Widget _buildHeader(pw.Context context) {
+  // --- بداية التعديل: دالة جديدة لبناء رأس الصفحة مع الشعار وبيانات الشركة ---
+  static pw.Widget _buildHeader(pw.MemoryImage logo) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.only(bottom: 15),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey, width: 1.5)),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('شركة إيهاب للتجارة', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+              pw.SizedBox(height: 5),
+              pw.Text('هاتف: 777-777-777', style: const pw.TextStyle(fontSize: 10)),
+              pw.Text('البريد الإلكتروني: info@ehab-company.com', style: const pw.TextStyle(fontSize: 10)),
+            ],
+          ),
+          pw.SizedBox(
+            height: 60,
+            width: 60,
+            child: pw.Image(logo),
+          ),
+        ],
+      ),
+    );
+  }
+  // --- نهاية التعديل ---
+
+  // --- بداية التعديل: ودجت جديد لعرض عنوان التقرير وتاريخه ---
+  static pw.Widget _buildReportTitle() {
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
+        pw.SizedBox(height: 10),
         pw.Text(
           'تقرير جرد المخزون',
-          // استخدام الخط العريض هنا
-          style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+          style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800),
         ),
-        pw.SizedBox(height: 8),
+        pw.SizedBox(height: 5),
         pw.Text(
-          'تاريخ التقرير: ${intl.DateFormat('yyyy-MM-dd hh:mm a').format(DateTime.now())}',
-          style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey),
+          'تاريخ التقرير: ${intl.DateFormat('yyyy-MM-dd hh:mm a', 'ar').format(DateTime.now())}',
+          style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey600),
         ),
-        pw.Divider(),
       ],
     );
   }
+  // --- نهاية التعديل ---
 
-  /// ودجت لإنشاء جدول المنتجات
+
+  // --- بداية التعديل: تحسين تصميم الجدول وإضافة عمود "القيمة" ---
   static pw.Widget _buildInventoryTable(List<ProductModel> products) {
+    final formatCurrency = (double value) => intl.NumberFormat.decimalPattern('ar').format(value);
+
     final headers = [
-      'التكلفة',
-      'سعر البيع',
+      'القيمة',
+      'س. الشراء',
       'الكمية',
-      'الباركود',
       'المنتج',
     ];
 
     final data = products.map((product) {
+      final totalValue = product.quantity * product.purchasePrice;
       return [
-        '${product.purchasePrice} ريال',
-        '${product.salePrice} ريال',
+        '${formatCurrency(totalValue)}',
+        '${formatCurrency(product.purchasePrice)}',
         product.quantity.toInt().toString(),
-        product.code ?? '-',
         product.name,
       ];
     }).toList();
 
-    return pw.Table.fromTextArray(
+    return pw.TableHelper.fromTextArray(
+      cellAlignment: pw.Alignment.centerRight,
+      cellStyle: const pw.TextStyle(fontSize: 10),
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
+      rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200))),
       headers: headers,
       data: data,
-      cellAlignment: pw.Alignment.centerRight,
-      // استخدام الخط العريض للهيدر
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
-      border: pw.TableBorder.all(),
+      columnWidths: {
+        0: const pw.FlexColumnWidth(2),
+        1: const pw.FlexColumnWidth(2),
+        2: const pw.FlexColumnWidth(1.5),
+        3: const pw.FlexColumnWidth(4),
+      },
     );
   }
+  // --- نهاية التعديل ---
 
-  /// ودجت لإنشاء ملخص التقرير
-  static pw.Widget _buildSummary(pw.Context context, int totalProducts) {
+  // --- بداية التعديل: تحسين الملخص ليشمل القيم المالية ---
+  static pw.Widget _buildSummary(List<ProductModel> allProducts) {
+    final double totalValue = allProducts.fold(0, (sum, item) => sum + (item.quantity * item.purchasePrice));
+    final int totalItems = allProducts.fold(0, (sum, item) => sum + item.quantity.toInt());
+    final formatCurrency = intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+
     return pw.Container(
-      alignment: pw.Alignment.centerRight,
-      child: pw.Text(
-        'إجمالي عدد الأصناف: $totalProducts',
-        // استخدام الخط العريض للملخص
-        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+      padding: const pw.EdgeInsets.all(16),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey200,
+        borderRadius: pw.BorderRadius.circular(5),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+        children: [
+          _buildSummaryItem('إجمالي قيمة المخزون', formatCurrency.format(totalValue)),
+          _buildSummaryItem('إجمالي عدد القطع', totalItems.toString()),
+          _buildSummaryItem('إجمالي عدد الأصناف', allProducts.length.toString()),
+        ],
       ),
     );
   }
 
-  /// ودجت لإنشاء تذييل الصفحة
+  static pw.Widget _buildSummaryItem(String label, String value) {
+    return pw.Column(
+      children: [
+        pw.Text(label, style: const pw.TextStyle(color: PdfColors.black, fontSize: 11)),
+        pw.SizedBox(height: 4),
+        pw.Text(value, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, color: PdfColors.blueGrey800)),
+      ],
+    );
+  }
+  // --- نهاية التعديل ---
+
   static pw.Widget _buildFooter(pw.Context context) {
     return pw.Container(
       alignment: pw.Alignment.center,
+      margin: const pw.EdgeInsets.only(top: 10),
       child: pw.Text(
-        'صفحة ${context.pageNumber} من ${context.pagesCount}',
+        'صفحة ${context.pageNumber} من ${context.pagesCount} - © شركة إيهاب',
         style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
       ),
     );
   }
 }
-

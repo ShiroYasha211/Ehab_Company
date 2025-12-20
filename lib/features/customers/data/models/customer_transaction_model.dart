@@ -15,6 +15,7 @@ class CustomerTransactionModel {
   final String? notes;
   final DateTime transactionDate;
   final bool affectsFund; // هل هذه الحركة تؤثر على الصندوق؟
+  final String? customerName;
 
   CustomerTransactionModel({
     this.id,
@@ -24,6 +25,7 @@ class CustomerTransactionModel {
     this.notes,
     required this.transactionDate,
     required this.affectsFund,
+    this.customerName,
   });
 
   // لتحويل البيانات من قاعدة البيانات إلى كائن
@@ -32,11 +34,13 @@ class CustomerTransactionModel {
       id: map['id'],
       customerId: map['customerId'],
       type: CustomerTransactionType.values
-          .firstWhere((e) => e.toString().split('.').last == map['type']),
+          .firstWhere((e) => e.toString().split('.').last == map['type'],
+      orElse: ()=> CustomerTransactionType.RECEIPT),
       amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
       notes: map['notes'],
       transactionDate: DateTime.parse(map['transactionDate']),
       affectsFund: map['affectsFund'] == 1,
+      customerName: map['customerName'], // <-- 3. قراءة الحقل الجديد
     );
   }
 

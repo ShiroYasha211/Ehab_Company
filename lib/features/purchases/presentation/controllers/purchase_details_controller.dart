@@ -86,8 +86,7 @@ class PurchaseDetailsController extends GetxController {
     if (invoiceDetails.value == null) return;
 
     try {
-      isReturningInvoice(true);      final invoiceData = invoiceDetails.value!['invoice'];
-      final double totalValue = invoiceData['totalAmount'];
+      isReturningInvoice(true);
 
       await _repository.returnPurchaseInvoice(
         originalInvoiceId: invoiceId,

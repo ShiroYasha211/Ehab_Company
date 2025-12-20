@@ -5,7 +5,9 @@ import 'package:ehab_company_admin/features/sales/presentation/controllers/add_s
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart'; // <-- 1. إضافة import جديد
 
+import '../../../customers/presentation/screens/add_edit_customer_screen.dart';
 import '../../../products/data/models/product_model.dart';
 
 class AddSalesInvoiceScreen extends StatelessWidget {
@@ -13,7 +15,8 @@ class AddSalesInvoiceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AddSalesInvoiceController controller = Get.find<AddSalesInvoiceController>(); // <-- 2.
+    final AddSalesInvoiceController controller = Get.find<
+        AddSalesInvoiceController>(); // <-- 2.
 
     return Scaffold(
       appBar: AppBar(
@@ -22,19 +25,26 @@ class AddSalesInvoiceScreen extends StatelessWidget {
       bottomNavigationBar: _buildNewFooter(context, controller),
       body: Column(
         children: [
+          _buildMagicSearchBar(controller),
+
           _buildHeader(context, controller),
+          const Divider(height: 1),
           Expanded(
             child: Obx(
-                  () => controller.invoiceItems.isEmpty
+                  () =>
+              controller.invoiceItems.isEmpty
                   ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_shopping_cart_rounded, size: 80, color: Colors.grey.shade400),
+                    Icon(Icons.add_shopping_cart_rounded, size: 80,
+                        color: Colors.grey.shade400),
                     const SizedBox(height: 16),
-                    const Text('الفاتورة فارغة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const Text('الفاتورة فارغة', style: TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    const Text('قم بإضافة أصناف لبدء فاتورة المبيعات', style: TextStyle(color: Colors.grey)),
+                    const Text('استخدم شريط البحث أعلاه لإضافة الأصناف',
+                        style: TextStyle(color: Colors.grey)),
                   ],
                 ),
               )
@@ -52,7 +62,8 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context, AddSalesInvoiceController controller) {
+  Widget _buildHeader(BuildContext context,
+      AddSalesInvoiceController controller) {
     return Padding(
       padding: const EdgeInsets.all(12.0),
       child: Column(
@@ -60,31 +71,37 @@ class AddSalesInvoiceScreen extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Obx(() => DropdownButtonFormField<CustomerModel>( // <-- 3.
-                  value: controller.selectedCustomer.value,
-                  items: controller.customerController.filteredCustomers.map((customer) {
-                    return DropdownMenuItem<CustomerModel>(
-                      value: customer,
-                      child: Text(customer.name),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    controller.selectedCustomer.value = value;
-                  },
-                  decoration: const InputDecoration(
-                    labelText: 'اختر العميل *',
-                    prefixIcon: Icon(Icons.person_search_outlined),
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) => value == null ? 'الرجاء اختيار عميل' : null,
-                )),
+                child: Obx(() =>
+                    DropdownButtonFormField<CustomerModel>( // <-- 3.
+                      value: controller.selectedCustomer.value,
+                      items: controller.customerController.filteredCustomers
+                          .map((customer) {
+                        return DropdownMenuItem<CustomerModel>(
+                          value: customer,
+                          child: Text(customer.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        controller.selectedCustomer.value = value;
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'اختر العميل *',
+                        prefixIcon: Icon(Icons.person_search_outlined),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      validator: (value) =>
+                      value == null
+                          ? 'الرجاء اختيار عميل'
+                          : null,
+                    )),
               ),
               const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.person_add_alt_1),
                 tooltip: 'إضافة عميل جديد',
                 onPressed: () {
-                  // TODO: Get.to(() => const AddEditCustomerScreen());
+                  Get.to(() => const AddEditCustomerScreen());
                 },
               ),
             ],
@@ -98,15 +115,7 @@ class AddSalesInvoiceScreen extends StatelessWidget {
               labelText: 'تاريخ الفاتورة',
               prefixIcon: Icon(Icons.calendar_today_outlined),
               border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: () => _showSearchDialog(context, controller),
-            icon: const Icon(Icons.add_shopping_cart),
-            label: const Text('إضافة صنف إلى الفاتورة'),
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 45),
+              isDense: true,
             ),
           ),
         ],
@@ -114,162 +123,105 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildItemCard(BuildContext context, AddSalesInvoiceController controller, SalesInvoiceItem item) { // <-- 4.
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        title: Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(
-          'الكمية: ${item.quantity.toStringAsFixed(0)} × ${item.salePrice.toStringAsFixed(2)}  =  ${item.subtotal.toStringAsFixed(2)} ريال',
-        ),
-        trailing: IconButton(
-          icon: Icon(Icons.delete_outline, color: Colors.red.shade700),
-          onPressed: () => controller.removeProductFromInvoice(item.product.id!),
-        ),
-        onTap: () => _showEditItemDialog(context, controller, item),
-      ),
-    );
-  }
-
-  void _showSearchDialog(BuildContext context, AddSalesInvoiceController mainController) { // <-- 5.
-    Get.dialog(
-      AlertDialog(
-        title: const Text('البحث عن منتج'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: TextField(
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: 'ابحث بالاسم أو الباركود...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.qr_code_scanner),
-                      onPressed: () async {
-                        Get.back();
-                        final code = await Get.dialog<String>(
-                          Scaffold(
-                            appBar: AppBar(title: const Text('امسح الباركود')),
-                            body: MobileScanner(
-                              onDetect: (capture) {
-                                final String? detectedCode = capture.barcodes.first.rawValue;
-                                if (detectedCode != null) {
-                                  Get.back(result: detectedCode);
-                                }
-                              },
-                            ),
-                          ),
-                        );
-                        if (code != null) {
-                          mainController.productController.searchQuery.value = code;
-                          _showSearchDialog(context, mainController);
-                        }
-                      },
+  Widget _buildMagicSearchBar(AddSalesInvoiceController controller) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      child: TypeAheadField<ProductModel>(
+        suggestionsCallback: (pattern) async {
+          if (pattern.isEmpty) {
+            return [];
+          }
+          return controller.productController.allProducts.where((product) {
+            final nameMatches = product.name.toLowerCase().contains(
+                pattern.toLowerCase());
+            final codeMatches = product.code?.toLowerCase().contains(
+                pattern.toLowerCase()) ?? false;
+            return nameMatches || codeMatches;
+          }).toList();
+        },
+        itemBuilder: (context, suggestion) {
+          final bool isAvailable = suggestion.quantity > 0;
+          return ListTile(
+            enabled: isAvailable,
+            leading: Text(
+              suggestion.quantity.toInt().toString(),
+              style: TextStyle(
+                  fontSize: 16, color: isAvailable ? Colors.green : Colors.red),
+            ),
+            title: Text(suggestion.name),
+            trailing: Text('${suggestion.salePrice.toStringAsFixed(2)} ريال'),
+          );
+        },
+        onSelected: (suggestion) {
+          controller.addProductToInvoice(suggestion, 1);
+          controller.productSearchController.clear();
+        },
+        builder: (context, textEditingController, focusNode) {
+          // 2. ربط الـ Controller الخاص بنا بالـ TextField
+          return TextField(
+            controller: textEditingController,
+            focusNode: focusNode,
+            decoration: InputDecoration(
+              hintText: 'ابحث بالاسم أو الباركود لإضافة صنف...',
+              prefixIcon: const Icon(Icons.search),
+              // 3. إضافة أيقونة ماسح الباركود
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                onPressed: () async {
+                  final code = await Get.dialog<String>(
+                    Scaffold(
+                      appBar: AppBar(title: const Text('امسح الباركود للبحث')),
+                      body: MobileScanner(
+                        onDetect: (capture) {
+                          if (capture.barcodes.isNotEmpty) {
+                            Get.back(result: capture.barcodes.first.rawValue);
+                          }
+                        },
+                      ),
                     ),
-                  ),
-                  onChanged: (value) => mainController.productController.searchQuery.value = value,
-                ),
-              ),
-              const Divider(),
-              Expanded(
-                child: Obx(() {
-                  final products = mainController.productController.filteredProducts;
-                  final query = mainController.productController.searchQuery.value;
-
-                  if (mainController.productController.isLoading.isTrue) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (products.isEmpty && query.isEmpty) {
-                    return const Center(child: Text('تصفح المنتجات أو ابدأ البحث...'));
-                  }
-
-                  return ListView.builder(
-                    itemCount: products.length,
-                    itemBuilder: (context, index) {
-                      final product = products[index];
-                      final bool isAvailable = product.quantity > 0;
-                      return Card(
-                        elevation: 1,
-                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        child: ListTile(
-                          enabled: isAvailable, // تعطيل العنصر إذا كانت الكمية صفر
-                          leading: CircleAvatar(
-                            backgroundColor: isAvailable ? Theme.of(context).primaryColor.withOpacity(0.1) : Colors.grey.shade200,
-                            foregroundColor: isAvailable ? Theme.of(context).primaryColor : Colors.grey,
-                            child: Text(product.quantity.toInt().toString()),
-                          ),
-                          title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                          subtitle: Text('سعر البيع: ${product.salePrice} ريال'), // <-- 6.
-                          onTap: () {
-                            _showQuantityDialog(context, mainController, product); // <-- 7.
-                          },
-                        ),
-                      );
-                    },
                   );
-                }),
+                  if (code != null) {
+                    // بعد المسح، قم بوضع الباركود في الحقل وتشغيل البحث
+                    textEditingController.text = code;
+                  }
+                },
+                tooltip: 'بحث بالباركود',
               ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('إغلاق')),
-        ],
-      ),
-      barrierDismissible: false,
-    ).whenComplete(() => mainController.clearProductSearch());
-  }
-
-  void _showQuantityDialog(BuildContext context, AddSalesInvoiceController controller, ProductModel product) { // <-- 7.
-    final qtyController = TextEditingController(text: '1');
-    Get.dialog(
-      AlertDialog(
-        title: Text(product.name),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('الكمية المتوفرة: ${product.quantity.toInt()}'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: qtyController,
-              autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: false),
-              decoration: const InputDecoration(labelText: 'أدخل الكمية المطلوبة'),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              isDense: true,
             ),
-          ],
+          );
+        },
+        emptyBuilder: (context) =>
+        const Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text('لم يتم العثور على منتج يطابق بحثك.',
+              style: TextStyle(color: Colors.grey)),
         ),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
-          ElevatedButton(
-            onPressed: () {
-              final qty = double.tryParse(qtyController.text) ?? 0;
-              controller.addProductToInvoice(product, qty);
-              // Get.back() is called inside addProductToInvoice
-            },
-            child: const Text('إضافة'),
-          ),
-        ],
       ),
     );
   }
 
-  void _showEditItemDialog(BuildContext context, AddSalesInvoiceController controller, SalesInvoiceItem item) { // <-- 8.
-    final qtyController = TextEditingController(text: item.quantity.toStringAsFixed(0));
-    final salePriceController = TextEditingController(text: item.salePrice.toString());
+  void _showEditItemDialog(BuildContext context,
+      AddSalesInvoiceController controller, SalesInvoiceItem item) {
+    // <-- 8.
+    final qtyController = TextEditingController(
+        text: item.quantity.toStringAsFixed(0));
+    final salePriceController = TextEditingController(
+        text: item.salePrice.toString());
 
     Get.dialog(
       AlertDialog(
-        title: Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(item.product.name,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDialogInfoRow('الكمية المتوفرة:', '${item.product.quantity} ${item.product.unit ?? ''}'),
+              _buildDialogInfoRow('الكمية المتوفرة:',
+                  '${item.product.quantity} ${item.product.unit ?? ''}'),
               _buildDialogEditableRow('الكمية في الفاتورة:', qtyController),
               const Divider(),
               _buildDialogEditableRow('سعر البيع:', salePriceController),
@@ -280,8 +232,10 @@ class AddSalesInvoiceScreen extends StatelessWidget {
           TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () {
-              final newQty = double.tryParse(qtyController.text) ?? item.quantity;
-              final newSalePrice = double.tryParse(salePriceController.text) ?? item.salePrice;
+              final newQty = double.tryParse(qtyController.text) ??
+                  item.quantity;
+              final newSalePrice = double.tryParse(salePriceController.text) ??
+                  item.salePrice;
               controller.updateItemQuantity(item.product.id!, newQty);
               controller.updateItemPrice(item.product.id!, newSalePrice);
               Get.back();
@@ -306,7 +260,8 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDialogEditableRow(String label, TextEditingController controller) {
+  Widget _buildDialogEditableRow(String label,
+      TextEditingController controller) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: TextField(
@@ -322,31 +277,45 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNewFooter(BuildContext context, AddSalesInvoiceController controller) {
+  Widget _buildNewFooter(BuildContext context,
+      AddSalesInvoiceController controller) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Theme.of(context).canvasColor,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, -2))],
+          color: Theme
+              .of(context)
+              .canvasColor,
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, -2))
+          ],
         ),
         child: Row(
           children: [
             Expanded(
-              child: Obx(() => Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'الإجمالي: ${controller.grandTotal.toStringAsFixed(2)} ريال', // <-- 9.
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Get.theme.primaryColor),
-                  ),
-                  Text(
-                    'عدد الأصناف: ${controller.invoiceItems.length} | إجمالي الكمية: ${controller.totalItemsCount}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                ],
-              )),
+              child: Obx(() =>
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'الإجمالي: ${controller.grandTotal.toStringAsFixed(
+                            2)} ريال', // <-- 9.
+                        style: TextStyle(fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Get.theme.primaryColor),
+                      ),
+                      Text(
+                        'عدد الأصناف: ${controller.invoiceItems
+                            .length} | إجمالي الكمية: ${controller
+                            .totalItemsCount}',
+                        style: const TextStyle(
+                            color: Colors.grey, fontSize: 13),
+                      ),
+                    ],
+                  )),
             ),
             const SizedBox(width: 16),
             SizedBox(
@@ -361,11 +330,12 @@ class AddSalesInvoiceScreen extends StatelessWidget {
                     Get.snackbar('خطأ', 'الرجاء اختيار عميل أولاً.');
                     return;
                   }
-                  _showPaymentDialog(context, controller);
+                  _showReviewBottomSheet(context, controller);
                 },
                 icon: const Icon(Icons.payment_rounded),
                 label: const Text('مراجعة وحفظ'),
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12)),
               ),
             ),
           ],
@@ -374,62 +344,211 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  void _showPaymentDialog(BuildContext context, AddSalesInvoiceController controller) { // <-- 10.
-    controller.preparePaymentDialog();
+  void _showReviewBottomSheet(BuildContext context,
+      AddSalesInvoiceController controller) {
+    controller.updateTotals(); // حساب الإجماليات أولاً
 
-    Get.dialog(
-      AlertDialog(
-        title: const Text('مراجعة الدفع والحفظ'),
-        content: Obx(() => SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: controller.paidAmount.value == 0
-                    ? 'آجل'
-                    : controller.paidAmount.value >= controller.grandTotal // >= to handle rounding issues
-                    ? 'نقداً'
-                    : 'مختلط',
-                items: const [
-                  DropdownMenuItem(value: 'نقداً', child: Text('نقداً')),
-                  DropdownMenuItem(value: 'آجل', child: Text('آجل')),
-                  DropdownMenuItem(value: 'مختلط', child: Text('نقداً وآجل')),
+    Get.bottomSheet(
+      isScrollControlled: true, // للسماح للواجهة بأخذ ارتفاع الشاشة
+      ignoreSafeArea: false,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      Container(
+        height: MediaQuery
+            .of(context)
+            .size
+            .height * 0.9, // 90% من ارتفاع الشاشة
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // 1. هيدر الـ BottomSheet
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('مراجعة وحفظ الفاتورة', style: TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Get.back(),
+                  ),
                 ],
-                onChanged: (value) {
-                  if (value == 'نقداً') {
-                    controller.paidAmountController.text = controller.grandTotal.toStringAsFixed(2);
-                  } else if (value == 'آجل') {
-                    controller.paidAmountController.text = '0.0';
-                  }
-                },
-                decoration: const InputDecoration(labelText: 'طريقة الدفع', border: OutlineInputBorder()),
               ),
-              const Divider(height: 20),
-              _buildDialogInfoRow('الإجمالي الفرعي:', '${controller.subtotal.toStringAsFixed(2)} ريال'),
-              _buildDialogEditableRow('الخصم (مبلغ)', controller.discountController),
-              // الضريبة غير ضرورية في فاتورة البيع عادةً
-              const SizedBox(height: 10),
-              _buildDialogInfoRow('الإجمالي النهائي:', '${controller.grandTotal.toStringAsFixed(2)} ريال'),
-              const Divider(height: 20),
-              _buildDialogEditableRow('المبلغ المقبوض:', controller.paidAmountController),
-              const SizedBox(height: 10),
-              _buildDialogInfoRow('المبلغ المتبقي:', '${controller.remainingAmount.toStringAsFixed(2)} ريال'),
-            ],
+            ),
+
+            // 2. محتوى قابل للتمرير
+            Expanded(
+              child: ListView(
+                children: [
+                  // ملخص الأصناف
+                  _buildItemsSummary(controller),
+                  const Divider(height: 24),
+                  // قسم الخصم
+                  _buildDiscountSection(controller),
+                  const Divider(height: 24),
+                  // قسم الدفع
+                  _buildPaymentSection(controller),
+                ],
+              ),
+            ),
+
+            // 3. زر الحفظ في الأسفل
+            SafeArea(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.done_all_rounded),
+                label: const Text('تأكيد وحفظ الفاتورة'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  textStyle: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                onPressed: controller.saveSalesInvoice,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ودجت بناء ملخص الأصناف
+  Widget _buildItemsSummary(AddSalesInvoiceController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ملخص الأصناف',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Container(
+          constraints: const BoxConstraints(maxHeight: 150),
+          // تحديد ارتفاع أقصى
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
           ),
-        )),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
-          Obx(() {
-            if (controller.isSaving.isTrue) {
-              return const CircularProgressIndicator();
-            }
-            return ElevatedButton(
-              onPressed: () => controller.saveSalesInvoice(),
-              style: ElevatedButton.styleFrom(backgroundColor: Get.theme.primaryColor, foregroundColor: Colors.white),
-              child: const Text('تأكيد وحفظ الفاتورة'),
-            );
-          }),
-        ],
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: controller.invoiceItems.length,
+            separatorBuilder: (context, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = controller.invoiceItems[index];
+              // --- بداية التعديل: تحسين عرض تفاصيل الصنف ---
+              return ListTile(
+                dense: true,
+                title: Text(item.product.name),
+                subtitle: Text(
+                  '${item.quantity.toInt()} × ${item.salePrice.toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                trailing: Text(
+                  '${item.subtotal.toStringAsFixed(2)} ريال',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ودجت بناء قسم الخصم
+  Widget _buildDiscountSection(AddSalesInvoiceController controller) {
+    return Column(
+      children: [
+        Obx(() =>
+            SegmentedButton<DiscountType>(
+              segments: const [
+                ButtonSegment(
+                    value: DiscountType.amount, label: Text('خصم مبلغ')),
+                ButtonSegment(
+                    value: DiscountType.percentage, label: Text('خصم نسبة %')),
+              ],
+              selected: {controller.discountType.value},
+              onSelectionChanged: (newSelection) {
+                controller.discountType.value = newSelection.first;
+                controller.updateTotals();
+              },
+            )),
+        const SizedBox(height: 12),
+        Obx(() =>
+            TextField(
+              controller: controller.discountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true),
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(
+                labelText: controller.discountType.value == DiscountType.amount
+                    ? 'قيمة الخصم'
+                    : 'نسبة الخصم %',
+                border: const OutlineInputBorder(),
+              ),
+            )),
+      ],
+    );
+  }
+
+  // ودجت بناء قسم الدفع
+  Widget _buildPaymentSection(AddSalesInvoiceController controller) {
+    final formatCurrency = (double val) => '${val.toStringAsFixed(2)} ريال';
+    return Obx(() =>
+        Column(
+          children: [
+            _buildDialogInfoRow(
+                'الإجمالي الفرعي:', formatCurrency(controller.subtotal)),
+            _buildDialogInfoRow(
+              'قيمة الخصم:',
+              '- ${formatCurrency(controller.discountValue.value)}',
+            ),
+            const Divider(thickness: 1.5),
+            _buildDialogInfoRow(
+              'الإجمالي النهائي:', formatCurrency(controller.grandTotal),),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller.paidAmountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true),
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(
+                labelText: 'المبلغ المدفوع',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: _buildDialogInfoRow(
+                'المبلغ المتبقي:', formatCurrency(controller.remainingAmount),),
+            ),
+          ],
+        ));
+  }
+
+  Widget _buildItemCard(BuildContext context,
+      AddSalesInvoiceController controller, SalesInvoiceItem item) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: ListTile(
+        title: Text(item.product.name,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(
+          'الكمية: ${item.quantity.toStringAsFixed(0)} × ${item.salePrice
+              .toStringAsFixed(2)}  =  ${item.subtotal.toStringAsFixed(
+              2)} ريال',
+        ),
+        trailing: IconButton(
+          icon: Icon(Icons.delete_outline, color: Colors.red.shade700),
+          onPressed: () =>
+              controller.removeProductFromInvoice(item.product.id!),
+        ),
+        onTap: () => _showEditItemDialog(context, controller, item),
       ),
     );
   }

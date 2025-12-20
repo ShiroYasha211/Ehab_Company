@@ -126,4 +126,58 @@ class CustomerRepository {
     if (maps.isEmpty) return [];
     return List.generate(maps.length, (i) => CustomerModel.fromMap(maps[i]));
   }
+  Future<List<CustomerTransactionModel>> getReceiptVouchers({
+    int? customerId,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final db = await _dbService.database;
+
+    List<String> whereClauses = [
+      // الشرط الأساسي: جلب سندات القبض وسندات الرصيد الافتتاحي
+      "(ct.type = 'RECEIPT' OR ct.type = 'OPENING_BALANCE')"
+    ];
+    List<dynamic> whereArgs = [];
+
+    if (customerId != null) {
+      whereClauses.add('ct.customerId = ?');
+      whereArgs.add(customerId);
+    }
+
+    if (from != null) {
+      whereClauses.add('ct.transactionDate >= ?');
+      whereArgs.add(from.toIso8601String());
+    }
+
+    if (to != null) {
+      final inclusiveTo = to.add(const Duration(days: 1));
+      whereClauses.add('ct.transactionDate < ?');
+      whereArgs.add(inclusiveTo.toIso8601String());
+    }
+
+    final String whereStatement =
+    whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
+
+    final String query = '''
+      SELECT 
+        ct.*, 
+        c.name as customerName  -- جلب اسم العميل
+      FROM customer_transactions ct
+      JOIN customers c ON ct.customerId = c.id
+      $whereStatement
+      ORDER BY ct.transactionDate DESC
+    ''';
+
+    final List<Map<String, dynamic>> maps = await db.rawQuery(query, whereArgs);
+
+    if (maps.isEmpty) {
+      return [];
+    }
+
+    // سنحتاج إلى تعديل الـ model لاستقبال حقل customerName
+    return List.generate(maps.length, (i) {
+      final map = Map<String, dynamic>.from(maps[i]);
+      return CustomerTransactionModel.fromMap(map);
+    });
+  }
 }

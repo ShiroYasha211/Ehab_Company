@@ -1,222 +1,309 @@
 // File: lib/features/products/presentation/screens/products_screen.dart
 
-import 'package:ehab_company_admin/features/products/presentation/controllers/product_controller.dart';
+import 'package:ehab_company_admin/features/products/data/models/product_model.dart';import 'package:ehab_company_admin/features/products/presentation/controllers/product_controller.dart';
 import 'package:ehab_company_admin/features/products/presentation/widgets/product_list_item.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mobile_scanner/mobile_scanner.dart'; // <-- إضافة جديدة
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../../../core/services/report_service.dart';
 import 'add_edit_product_screen.dart';
+import 'package:ehab_company_admin/features/products/presentation/widgets/product_grid_item.dart';
 
 class ProductsScreen extends StatelessWidget {
   const ProductsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Get.find() سيعمل بشكل صحيح لأن الكنترولر تم إنشاؤه في شاشة لوحة التحكم
     final ProductController controller = Get.find<ProductController>();
     final TextEditingController searchController = TextEditingController();
 
-    /// دالة لفتح الكاميرا ومسح الباركود للبحث
-    Future<void> _scanBarcodeForSearch() async {
-      await Get.dialog(
+    return VisibilityDetector(
+      key: const Key('products-screen-visibility-detector'),
+      onVisibilityChanged: (visibilityInfo) {
+        if (visibilityInfo.visibleFraction == 1.0) {
+          controller.fetchAllProducts();
+        }
+      },
+      child: Scaffold(
+        // --- 1. بداية التعديل: AppBar جديد ومحسن ---
+        appBar: AppBar(
+          title: const Text('قائمة المنتجات'),
+          actions: [
+            Obx(() => IconButton(
+              icon: Icon(controller.viewMode.value == ProductViewMode.list
+                  ? Icons.grid_view_outlined
+                  : Icons.view_list_outlined),
+              onPressed: controller.toggleViewMode,
+              tooltip: 'تغيير طريقة العرض',
+            )),
+            // زر طباعة التقرير
+            IconButton(
+              icon: const Icon(Icons.print_outlined),
+              onPressed: () {
+                ReportService.printInventoryReport(controller.filteredProducts);
+              },
+              tooltip: 'طباعة تقرير الجرد',
+            ),
+            // زر خيارات الفرز
+            _buildSortMenu(controller),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(120.0), // زيادة الارتفاع
+            child: Column(
+              children: [
+                _buildSearchBar(searchController, controller),
+                _buildExpiryFilter(controller),
+              ],
+            ),
+          ),
+        ),
+        // --- نهاية التعديل ---
+        body: SafeArea(
+          child: Obx(() {
+            if (controller.isLoading.isTrue) {
+              return const Center(child: CircularProgressIndicator());
+            }
+          
+            if (controller.filteredProducts.isEmpty && (controller.searchQuery.value.isNotEmpty || controller.expiryFilter.value != ExpiryFilterOption.all)) {
+              return _buildEmptyState(
+                icon: Icons.search_off,
+                title: 'لا توجد منتجات تطابق بحثك أو فلترتك.',
+                onClear: () {
+                  searchController.clear();
+                  controller.searchQuery.value = '';
+                  controller.expiryFilter.value = ExpiryFilterOption.all;
+                },
+              );
+            } else if (controller.filteredProducts.isEmpty) {
+              return _buildEmptyState(
+                icon: Icons.inventory_2_outlined,
+                title: 'مخزونك فارغ!',
+                subtitle: 'قم بإضافة منتجك الأول لتبدأ.',
+              );
+            }
+          
+            return Obx(() {
+              if (controller.viewMode.value == ProductViewMode.list) {
+                // عرض القائمة (نفس الكود السابق)
+                return ListView.builder(
+                  padding: const EdgeInsets.only(top: 8, bottom: 80),
+                  itemCount: controller.filteredProducts.length,
+                  itemBuilder: (context, index) {
+                    final product = controller.filteredProducts[index];
+                    Color? cardColor;
+                    if (product.isExpired) {
+                      cardColor = Colors.red.withOpacity(0.1);
+                    } else if (product.isExpiringSoon) {
+                      cardColor = Colors.orange.withOpacity(0.1);
+                    }
+                    return ProductListItem(
+                      product: product,
+                      cardColor: cardColor,
+                      onDelete: () => _showDeleteDialog(product, controller),
+                    );
+                  },
+                );
+              } else {
+                // عرض الشبكة
+                return GridView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: controller.filteredProducts.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2, // عدد الأعمدة
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 0.75, // نسبة العرض إلى الارتفاع للبطاقة
+                  ),
+                  itemBuilder: (context, index) {
+                    final product = controller.filteredProducts[index];
+                    Color? cardColor;
+                    if (product.isExpired) {
+                      cardColor = Colors.red.withOpacity(0.1);
+                    } else if (product.isExpiringSoon) {
+                      cardColor = Colors.orange.withOpacity(0.1);
+                    }
+                    return ProductGridItem(
+                      product: product,
+                      cardColor: cardColor,
+                    );
+                  },
+                );
+              }
+            });
+          }),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => Get.to(() => const AddEditProductScreen()),
+          icon: const Icon(Icons.add),
+          label: const Text('إضافة منتج'),
+        ),
+      ),
+    );
+  }
+
+  // ودجت بناء شريط البحث
+  Widget _buildSearchBar(TextEditingController searchController, ProductController controller) {
+    Future<void> scanBarcode() async {
+      final code = await Get.dialog<String>(
         Scaffold(
-          appBar: AppBar(title: const Text('امسح الباركود للبحث'),
-           ),
+          appBar: AppBar(title: const Text('امسح الباركود للبحث')),
           body: MobileScanner(
             onDetect: (capture) {
-              final List<Barcode> barcodes = capture.barcodes;
-              if (barcodes.isNotEmpty) {
-                final String code = barcodes.first.rawValue ?? "";
-                if (code.isNotEmpty) {
-                  // تحديث حقل البحث والكنترولر
-                  searchController.text = code;
-                  controller.searchQuery.value = code;
-                }
-                Get.back(); // إغلاق شاشة الماسح
+              if (capture.barcodes.isNotEmpty) {
+                Get.back(result: capture.barcodes.first.rawValue);
               }
             },
           ),
         ),
       );
+      if (code != null) {
+        searchController.text = code;
+        controller.searchQuery.value = code;
+      }
     }
 
-
-    return VisibilityDetector(
-        key: const Key('products-screen-visibility-detector'),
-        onVisibilityChanged: (visibilityInfo) {
-          if (visibilityInfo.visibleFraction == 1.0) {
-            // استدعاء دالة التحديث في الـ Controller
-            controller.fetchAllProducts();
-          }
-        },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('قائمة المنتجات'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.print_outlined),
-              onPressed: () {
-                // استدعاء دالة طباعة التقرير وتمرير قائمة المنتجات الحالية
-                // نمرر القائمة الكاملة وليس المصفاة
-                ReportService.printInventoryReport(controller.filteredProducts);
-              },
-              tooltip: 'طباعة تقرير الجرد',
-            ),
-          ],
-          // --- نهاية الإضافة ---
-
-          // استخدام flexibleSpace لوضع حقل البحث تحت العنوان
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor,
-            ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: TextField(
+        controller: searchController,
+        onChanged: (value) => controller.searchQuery.value = value,
+        decoration: InputDecoration(
+          hintText: 'ابحث بالاسم أو الباركود...',
+          prefixIcon: const Icon(Icons.search),
+          filled: true,
+          fillColor: Colors.grey.shade100,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
           ),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(60.0),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: searchController,
-                      onChanged: (value) => controller.searchQuery.value = value,
-                      decoration: InputDecoration(
-                        hintText: 'ابحث عن اسم المنتج أو الباركود...',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
-                        prefixIcon: const Icon(Icons.search, color: Colors.white),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.2),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        // إضافة زر لمسح حقل البحث
-                        suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-                            ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.white70),
-                          onPressed: () {
-                            searchController.clear();
-                            controller.searchQuery.value = '';
-                          },
-                        )
-                            : const SizedBox.shrink()),
-                      ),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  // --- بداية الإضافة: زر مسح الباركود ---
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    child: IconButton(
-                      icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
-                      onPressed: _scanBarcodeForSearch,
-                      tooltip: 'بحث بالباركود',
-                    ),
-                  ),
-                  // --- نهاية الإضافة ---
-                ],
-              ),
-            ),
-          ),
-        ),
-        body: Obx(() {
-          if (controller.isLoading.isTrue) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          // --- بداية التعديل: تحسين منطق الواجهة الفارغة ---
-          // الحالة الأولى: لا توجد نتائج للبحث
-          if (controller.filteredProducts.isEmpty && controller.searchQuery.value.isNotEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.search_off, size: 80, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'لا توجد منتجات تطابق بحثك.',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      searchController.clear();
-                      controller.searchQuery.value = '';
-                    },
-                    icon: const Icon(Icons.filter_alt_off_outlined),
-                    label: const Text('إلغاء الفلترة'),
-                  )
-                ],
-              ),
-            );
-          }
-          // الحالة الثانية: لا توجد منتجات على الإطلاق
-          else if (controller.filteredProducts.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'مخزونك فارغ!',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'قم بإضافة منتجك الأول لتبدأ.',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: () => Get.to(() => const AddEditProductScreen()),
-                    icon: const Icon(Icons.add),
-                    label: const Text('إضافة منتج جديد'),
-                  )
-                ],
-              ),
-            );
-          }
-          // --- نهاية التعديل ---
-
-          // الحالة الطبيعية: عرض قائمة المنتجات
-          return ListView.builder(
-            padding: const EdgeInsets.only(top: 8, bottom: 80), // هامش للـ FAB
-            itemCount: controller.filteredProducts.length,
-            itemBuilder: (context, index) {
-              final product = controller.filteredProducts[index];
-              return ProductListItem(
-                product: product,
-                onDelete: () {
-                  Get.defaultDialog(
-                    title: 'تأكيد الحذف',
-                    middleText: 'هل أنت متأكد من رغبتك في حذف المنتج "${product.name}"؟',
-                    textConfirm: 'حذف',
-                    textCancel: 'إلغاء',
-                    confirmTextColor: Colors.white,
-                    onConfirm: () {
-                      controller.deleteProduct(product.id!);
-                      Get.back(); // إغلاق نافذة التأكيد
-                    },
-                  );
+          isDense: true,
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Obx(() => controller.searchQuery.value.isNotEmpty
+                  ? IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  searchController.clear();
+                  controller.searchQuery.value = '';
                 },
-              );
-            },
-          );
-        }),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () {
-            Get.to(() => const AddEditProductScreen());
-          },
-          icon: const Icon(Icons.add),
-          label: const Text('إضافة منتج'),
+              )
+                  : const SizedBox.shrink()),
+              IconButton(
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                onPressed: scanBarcode,
+                tooltip: 'بحث بالباركود',
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  // ودجت بناء قائمة الفرز
+  Widget _buildSortMenu(ProductController controller) {
+    return PopupMenuButton<ProductSortOption>(
+      icon: const Icon(Icons.sort),
+      tooltip: 'ترتيب حسب',
+      onSelected: (option) {
+        controller.sortOption.value = option;
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: ProductSortOption.newest,
+          child: Text('الأحدث أولاً'),
+        ),
+        const PopupMenuItem(
+          value: ProductSortOption.oldest,
+          child: Text('الأقدم أولاً'),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: ProductSortOption.nameAsc,
+          child: Text('الاسم (أ - ي)'),
+        ),
+        const PopupMenuItem(
+          value: ProductSortOption.nameDesc,
+          child: Text('الاسم (ي - أ)'),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: ProductSortOption.quantityDesc,
+          child: Text('الأكثر توفرًا'),
+        ),
+        const PopupMenuItem(
+          value: ProductSortOption.quantityAsc,
+          child: Text('الأقل توفرًا'),
+        ),
+      ],
+    );
+  }
+
+  // ودجت بناء فلتر الصلاحية
+  Widget _buildExpiryFilter(ProductController controller) {
+    return Obx(() => SegmentedButton<ExpiryFilterOption>(
+      segments: const [
+        ButtonSegment(value: ExpiryFilterOption.all, label: Text('الكل')),
+        ButtonSegment(
+            value: ExpiryFilterOption.expiringSoon, label: Text('قريب الانتهاء')),
+        ButtonSegment(
+            value: ExpiryFilterOption.expired, label: Text('منتهي الصلاحية')),
+      ],
+      selected: {controller.expiryFilter.value},
+      onSelectionChanged: (newSelection) {
+        controller.expiryFilter.value = newSelection.first;
+      },
+    ));
+  }
+
+  // ودجت بناء الحالات الفارغة
+  Widget _buildEmptyState({required IconData icon, required String title, String? subtitle, VoidCallback? onClear}) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 80, color: Colors.grey),
+          const SizedBox(height: 16),
+          Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          if (subtitle != null) ...[
+            const SizedBox(height: 8),
+            Text(subtitle, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+          ],
+          if (onClear != null) ...[
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: onClear,
+              icon: const Icon(Icons.filter_alt_off_outlined),
+              label: const Text('إلغاء كل الفلاتر'),
+            )
+          ] else ...[
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => Get.to(() => const AddEditProductScreen()),
+              icon: const Icon(Icons.add),
+              label: const Text('إضافة منتج جديد'),
+            )
+          ]
+        ],
+      ),
+    );
+  }
+
+  // دالة ديالوج الحذف
+  void _showDeleteDialog(ProductModel product, ProductController controller) {
+    Get.defaultDialog(
+      title: 'تأكيد الحذف',
+      middleText: 'هل أنت متأكد من رغبتك في حذف المنتج "${product.name}"؟',
+      textConfirm: 'حذف',
+      textCancel: 'إلغاء',
+      confirmTextColor: Colors.white,
+      onConfirm: () {
+        controller.deleteProduct(product.id!);
+        Get.back();
+      },
     );
   }
 }

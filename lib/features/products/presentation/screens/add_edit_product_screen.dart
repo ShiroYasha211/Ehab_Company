@@ -124,14 +124,57 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     );
   }
 
+  // --- 1. بداية التعديل: تحديث دالة اختيار الصورة ---
   Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    // عرض ديالوج أو BottomSheet للاختيار
+    await Get.dialog(
+      SimpleDialog(
+        title: const Text('اختيار مصدر الصورة'),
+        children: <Widget>[
+          SimpleDialogOption(
+            onPressed: () {
+              Get.back(); // إغلاق الديالوج
+              _getImage(ImageSource.camera); // استدعاء دالة الالتقاط من الكاميرا
+            },
+            padding: const EdgeInsets.all(20),
+            child: const Row(
+              children: [
+                Icon(Icons.camera_alt_outlined),
+                SizedBox(width: 16),
+                Text('التقاط صورة بالكاميرا'),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () {
+              Get.back(); // إغلاق الديالوج
+              _getImage(ImageSource.gallery); // استدعاء دالة الاختيار من المعرض
+            },
+            padding: const EdgeInsets.all(20),
+            child: const Row(
+              children: [
+                Icon(Icons.photo_library_outlined),
+                SizedBox(width: 16),
+                Text('اختيار صورة من المعرض'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 2. بداية الإضافة: دالة مساعدة جديدة لجلب الصورة ---
+  Future<void> _getImage(ImageSource source) async {
+    final XFile? image = await _picker.pickImage(source: source);
     if (image != null) {
       setState(() {
         _selectedImage = File(image.path);
       });
     }
   }
+  // --- نهاية الإضافة ---
+
 
   Future<void> _selectDate(BuildContext context, {required bool isProductionDate}) async {
     final DateTime? picked = await showDatePicker(
@@ -205,103 +248,99 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       appBar: AppBar(
         title: Text(_isEditMode ? 'تعديل المنتج' : 'إضافة منتج جديد'),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20.0),
-          children: [
-            _buildImageAndBarcodeField(),
-            const SizedBox(height: 16),
-            _buildTextField(controller: _nameController, label: 'اسم المنتج', icon: Icons.shopping_bag_outlined, isRequired: true),
-            const SizedBox(height: 16),
-            Obx(() => DropdownButtonFormField<String>(
-              value: _selectedCategory,
-              items: _categoryController.categories.map((cat) {
-                return DropdownMenuItem<String>(
-                  value: cat.name,
-                  child: Text(cat.name),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedCategory = value;
-                });
-              },
-              decoration: const InputDecoration(
-                labelText: 'القسم',
-                prefixIcon: Icon(Icons.folder_open_outlined),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(20.0),
+            children: [
+              _buildImageAndBarcodeField(),
+              const SizedBox(height: 16),
+              _buildTextField(controller: _nameController, label: 'اسم المنتج', icon: Icons.shopping_bag_outlined, isRequired: true),
+              const SizedBox(height: 16),
+              Obx(() => DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                items: _categoryController.categories.map((cat) {
+                  return DropdownMenuItem<String>(
+                    value: cat.name,
+                    child: Text(cat.name),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
+                  });
+                },
+                decoration: const InputDecoration(
+                  labelText: 'القسم',
+                  prefixIcon: Icon(Icons.folder_open_outlined),
+                ),
+                hint: const Text('اختر قسمًا'),
+              )),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: _buildTextField(controller: _salePriceController, label: 'سعر البيع', icon: Icons.attach_money, keyboardType: TextInputType.number, isRequired: true,isNumber: true)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildTextField(controller: _purchasePriceController, label: 'التكلفة (شراء)', icon: Icons.money_off, keyboardType: TextInputType.number, isRequired: true, isNumber: true)),
+                ],
               ),
-              hint: const Text('اختر قسمًا'),
-            )),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: _buildTextField(controller: _salePriceController, label: 'سعر البيع', icon: Icons.attach_money, keyboardType: TextInputType.number, isRequired: true)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildTextField(controller: _purchasePriceController, label: 'التكلفة (شراء)', icon: Icons.money_off, keyboardType: TextInputType.number, isRequired: true)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                // --- بداية التعديل: حقل الوحدة ---
-                Expanded(
-                  flex: 3,
-                  child: Obx(() => DropdownButtonFormField<String>(
-                    value: _selectedUnit,
-                    items: _unitController.units.map((unit) {
-                      return DropdownMenuItem<String>(
-                        value: unit.name,
-                        child: Text(unit.name),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedUnit = value;
-                      });
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  // --- بداية التعديل: حقل الوحدة ---
+                  Expanded(
+                    flex: 3,
+                    child: Obx(() => DropdownButtonFormField<String>(
+                      value: _selectedUnit,
+                      items: _unitController.units.map((unit) {
+                        return DropdownMenuItem<String>(
+                          value: unit.name,
+                          child: Text(unit.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedUnit = value;
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'الوحدة *',
+                        prefixIcon: Icon(Icons.all_inbox_outlined),
+                      ),
+                      validator: (value) => value == null || value.isEmpty ? 'الرجاء اختيار وحدة' : null,
+                    )),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.settings, color: Theme.of(context).primaryColor),
+                    onPressed: () async {
+                      await Get.to(() => const UnitsScreen());
+                      // تحديث قائمة الوحدات بعد العودة من شاشة الإدارة
+                      _unitController.fetchAllUnits();
                     },
-                    decoration: const InputDecoration(
-                      labelText: 'الوحدة *',
-                      prefixIcon: Icon(Icons.all_inbox_outlined),
-                    ),
-                    validator: (value) => value == null || value.isEmpty ? 'الرجاء اختيار وحدة' : null,
-                  )),
-                ),
-                IconButton(
-                  icon: Icon(Icons.settings, color: Theme.of(context).primaryColor),
-                  onPressed: () async {
-                    await Get.to(() => const UnitsScreen());
-                    // تحديث قائمة الوحدات بعد العودة من شاشة الإدارة
-                    _unitController.fetchAllUnits();
-                  },
-                  tooltip: 'إدارة الوحدات',
-                ),
-                // --- نهاية التعديل ---
-                const SizedBox(width: 8),
-                Expanded(flex: 2, child: _buildTextField(controller: _quantityController, label: 'الكمية', icon: Icons.format_list_numbered, keyboardType: TextInputType.number, isRequired: true)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-                controller: _minStockLevelController,
-                label: 'الحد الأدنى للتنبيه',
-                icon: Icons.warning_amber_rounded,
-                keyboardType: TextInputType.number),
-            const SizedBox(height: 24),
-            _buildDateField(controller: _productionDateController, label: 'تاريخ الإنتاج (اختياري)', onTap: () => _selectDate(context, isProductionDate: true)),
-            const SizedBox(height: 16),
-            _buildDateField(controller: _expiryDateController, label: 'تاريخ الانتهاء (اختياري)', onTap: () => _selectDate(context, isProductionDate: false)),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: _submitForm,
-              icon: Icon(_isEditMode ? Icons.edit_outlined : Icons.save),
-              label: Text(_isEditMode ? 'حفظ التعديلات' : 'حفظ المنتج'),
-              style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                    tooltip: 'إدارة الوحدات',
+                  ),
+                  // --- نهاية التعديل ---
+                  const SizedBox(width: 1),
+                  Expanded(flex: 2, child: _buildTextField(controller: _quantityController, label: 'الكمية', icon: Icons.format_list_numbered, keyboardType: TextInputType.number, isRequired: true, isNumber: true)),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              _buildDateField(controller: _productionDateController, label: 'تاريخ الإنتاج (اختياري)', onTap: () => _selectDate(context, isProductionDate: true)),
+              const SizedBox(height: 16),
+              _buildDateField(controller: _expiryDateController, label: 'تاريخ الانتهاء (اختياري)', onTap: () => _selectDate(context, isProductionDate: false)),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: _submitForm,
+                icon: Icon(_isEditMode ? Icons.edit_outlined : Icons.save),
+                label: Text(_isEditMode ? 'حفظ التعديلات' : 'حفظ المنتج'),
+                style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -339,6 +378,8 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                 label: 'باركود',
                 icon: Icons.qr_code,
                 keyboardType: TextInputType.number,
+                isRequired: true,
+                isNumber: true,
               ),
               const SizedBox(height: 4),
               TextButton.icon(
@@ -358,14 +399,18 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     required String label,
     required IconData icon,
     bool isRequired = false,
+    bool isNumber = false,
     TextInputType keyboardType = TextInputType.text,
   }) {
     return TextFormField(
+      textDirection: isNumber? TextDirection.ltr : TextDirection.rtl,
       controller: controller,
+
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: isRequired ? '$label *' : label,
         prefixIcon: Icon(icon, size: 22),
+
       ),
       validator: (value) {
         if (isRequired && (value == null || value.isEmpty)) {

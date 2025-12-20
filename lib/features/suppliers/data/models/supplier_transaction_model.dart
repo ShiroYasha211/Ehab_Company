@@ -9,6 +9,7 @@ class SupplierTransactionModel {
   final String? notes;
   final DateTime transactionDate;
   final bool affectsFund;
+  final String? supplierName; // <-- 1. إضافة حقل اسم المورد
 
   SupplierTransactionModel({
     this.id,
@@ -18,19 +19,22 @@ class SupplierTransactionModel {
     this.notes,
     required this.transactionDate,
     required this.affectsFund,
+    this.supplierName, // <-- 2. إضافته إلى الكونستركتور
   });
 
   factory SupplierTransactionModel.fromMap(Map<String, dynamic> map) {
     return SupplierTransactionModel(
       id: map['id'],
       supplierId: map['supplierId'],
-      type: map['type'] == 'PAYMENT'
-          ? SupplierTransactionType.PAYMENT
-          : SupplierTransactionType.OPENING_BALANCE,
-      amount: map['amount'],
+        type: SupplierTransactionType.values.firstWhere(
+              (e) => e.toString().split('.').last == map['type'],
+          orElse: () => SupplierTransactionType.PAYMENT, // قيمة افتراضية آمنة
+        ),
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
       notes: map['notes'],
       transactionDate: DateTime.parse(map['transactionDate']),
       affectsFund: map['affectsFund'] == 1,
+      supplierName: map['supplierName'],
     );
   }
 
@@ -38,7 +42,7 @@ class SupplierTransactionModel {
     return {
       'id': id,
       'supplierId': supplierId,
-      'type': type == SupplierTransactionType.PAYMENT ? 'PAYMENT' : 'OPENING_BALANCE',
+      'type': type.toString().split('.').last,
       'amount': amount,
       'notes': notes,
       'transactionDate': transactionDate.toIso8601String(),

@@ -4,6 +4,7 @@ import 'package:ehab_company_admin/features/customers/presentation/screens/custo
 import 'package:ehab_company_admin/features/expenses/presentation/screens/expenses_binding.dart';
 // --- 1. بداية الإضافة: إضافة import جديد ---
 import 'package:ehab_company_admin/features/expenses/presentation/screens/expenses_dashboard_screen.dart';
+import 'package:ehab_company_admin/features/financial_docs/presentation/screens/financial_docs_binding.dart';
 // --- نهاية الإضافة ---
 import 'package:ehab_company_admin/features/home/presentation/widgets/feature_card.dart';
 import 'package:ehab_company_admin/features/home/presentation/widgets/stats_carousel.dart';
@@ -16,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:get/get.dart';
 
+import '../../../financial_docs/presentation/screens/financial_docs_dashboard_screen.dart';
 import '../../../fund/presentation/screens/fund_screen.dart';
 import '../../../products/presentation/screens/inventory_dashboard_binding.dart';
 import '../../../products/presentation/screens/inventory_dashboard_screen.dart';
@@ -116,6 +118,10 @@ class HomeScreen extends StatelessWidget {
                         else if(featureTitle == 'التقارير'){
                           Get.to(() => const ReportsDashboardScreen(),
                           binding: ReportsBinding());
+                        }
+                        else if(featureTitle == 'الفواتير'){
+                          Get.to(() => const FinancialDocsDashboardScreen(),
+                          binding: FinancialDocsBinding());
                         }
                         else {
                           print('$featureTitle card tapped');
