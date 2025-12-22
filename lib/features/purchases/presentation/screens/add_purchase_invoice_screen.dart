@@ -1,107 +1,12 @@
-// File: lib/features/purchases/presentation/screens/add_purchase_invoice_screen.dart
-
-import 'package:ehab_company_admin/features/products/presentation/screens/add_edit_product_screen.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/controllers/add_purchase_controller.dart';
 import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart' as intl;
+import 'package:ehab_company_admin/features/products/data/models/product_model.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-// ------------------- ودجت بطاقة الصنف -------------------
-class InvoiceItemCard extends StatelessWidget {
-  final InvoiceItem item;
-  final VoidCallback onDelete;
-  final VoidCallback onTap;
-
-  const InvoiceItemCard({
-    super.key,
-    required this.item,
-    required this.onDelete,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                    child: Text(
-                      item.product.name.length >= 2 ? item.product.name.substring(0, 2).toUpperCase() : item.product.name.toUpperCase(),
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor, fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      item.product.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.close_rounded, color: Colors.red, size: 20),
-                      onPressed: onDelete,
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.red.withOpacity(0.1),
-                      ),
-                    ),
-                  )
-                ],
-              ),
-              const Divider(height: 12, thickness: 0.5),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildInfoColumn('الكمية', '${item.quantity.toStringAsFixed(0)} ${item.product.unit ?? ''}'),
-                  _buildInfoColumn('التكلفة', '${item.purchasePrice.toStringAsFixed(2)} ريال'),
-                  _buildInfoColumn('الإجمالي', '${item.subtotal.toStringAsFixed(2)} ريال', isTotal: true),
-                ],
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoColumn(String label, String value, {bool isTotal = false}) {
-    return Column(
-      children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: isTotal ? 16 : 14,
-            fontWeight: FontWeight.bold,
-            color: isTotal ? Get.theme.primaryColor : null,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ------------------- الشاشة الرئيسية -------------------
 class AddPurchaseInvoiceScreen extends StatelessWidget {
   const AddPurchaseInvoiceScreen({super.key});
 
@@ -111,67 +16,81 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('فاتورة شراء جديدة'),
+        title: const Text('فاتورة مشتريات جديدة'),
       ),
       bottomNavigationBar: _buildNewFooter(context, controller),
       body: Column(
         children: [
+          // --- الترتيب الجديد ---
+          _buildMagicSearchBar(controller),
+          const Divider(height: 1),
           _buildHeader(context, controller),
-          const Divider(height: 1, thickness: 1),
+          const Divider(height: 1),
           Expanded(
-            child: Obx(() {
-              if (controller.invoiceItems.isEmpty) {
-                return const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('فاتورة فارغة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      Text('اضغط على زر + لإضافة أول صنف', style: TextStyle(color: Colors.grey)),
-                    ],
-                  ),
-                );
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.only(top: 8, bottom: 80),
+            child: Obx(
+                  () => controller.invoiceItems.isEmpty
+                  ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.receipt_long_outlined,
+                        size: 80, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text('الفاتورة فارغة',
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('استخدم شريط البحث أعلاه لإضافة الأصناف',
+                        style: TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              )
+                  : ListView.builder(
                 itemCount: controller.invoiceItems.length,
                 itemBuilder: (context, index) {
                   final item = controller.invoiceItems[index];
-                  return InvoiceItemCard(
-                    item: item,
-                    onDelete: () => controller.removeProductFromInvoice(item.product.id!),
-                    onTap: () => _showEditItemDialog(context, controller, item),
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    child: ListTile(
+                      title: Text(item.product.name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold)),
+                      subtitle: Text(
+                          'الكمية: ${item.quantity.toInt()} × ${item.purchasePrice.toStringAsFixed(2)} ريال'),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete_outline,
+                            color: Colors.red.shade700),
+                        onPressed: () =>
+                            controller.removeProductFromInvoice(item.product.id!),
+                      ),
+                      onTap: () =>
+                          _showEditItemDialog(context, controller, item),
+                    ),
                   );
                 },
-              );
-            }),
+              ),
+            ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showSearchDialog(context, controller),
-        label: const Text('إضافة صنف'),
-        icon: const Icon(Icons.add),
       ),
     );
   }
 
+  // ودجت الهيدر لعرض المورد والتاريخ
   Widget _buildHeader(BuildContext context, AddPurchaseController controller) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('اختيار المورد', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
           Obx(() {
             if (controller.supplierController.isLoading.isTrue) {
               return const Center(child: Text("جاري تحميل قائمة الموردين..."));
             }
             return DropdownButtonFormField<SupplierModel>(
               value: controller.selectedSupplier.value,
-              items: controller.supplierController.filteredSuppliers.map((supplier) {
+              items:
+              controller.supplierController.filteredSuppliers.map((supplier) {
                 return DropdownMenuItem<SupplierModel>(
                   value: supplier,
                   child: Text(supplier.name),
@@ -181,7 +100,7 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
                 controller.selectedSupplier.value = value;
               },
               decoration: const InputDecoration(
-                hintText: 'اختر اسم المورد',
+                hintText: 'اختر اسم المورد *',
                 prefixIcon: Icon(Icons.person_search_outlined),
                 border: OutlineInputBorder(),
                 isDense: true,
@@ -190,172 +109,25 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
             );
           }),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('رقم الفاتورة', style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: controller.invoiceIdController,
-                      readOnly: true,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.confirmation_number_outlined),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        filled: true,
-                        fillColor: Color.fromARGB(255, 236, 236, 236),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('تاريخ الفاتورة', style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: controller.dateController,
-                      readOnly: true,
-                      onTap: () => controller.selectInvoiceDate(context),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.calendar_today_outlined),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          TextField(
+            controller: controller.dateController,
+            readOnly: true,
+            onTap: () => controller.selectInvoiceDate(context),
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            decoration: const InputDecoration(
+              labelText: 'تاريخ الفاتورة',
+              prefixIcon: Icon(Icons.calendar_today_outlined),
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _showSearchDialog(BuildContext context, AddPurchaseController mainController) {
-    final searchController = TextEditingController(text: mainController.productController.searchQuery.value);
-
-    Get.dialog(
-      AlertDialog(
-        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        title: const Text('بحث عن صنف'),
-        content: SizedBox(
-          width: Get.width * 0.9,
-          height: Get.height * 0.5,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                child: TextField(
-                  controller: searchController,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: 'ابحث بالاسم أو الباركود...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.qr_code_scanner),
-                      onPressed: () async {
-                        Get.back();
-                        final code = await Get.dialog<String>(
-                          Scaffold(
-                            appBar: AppBar(title: const Text('امسح الباركود')),
-                            body: MobileScanner(
-                              onDetect: (capture) {
-                                final String? detectedCode = capture.barcodes.first.rawValue;
-                                if (detectedCode != null) {
-                                  Get.back(result: detectedCode);
-                                }
-                              },
-                            ),
-                          ),
-                        );
-                        if (code != null) {
-                          mainController.productController.searchQuery.value = code;
-                          _showSearchDialog(context, mainController);
-                        }
-                      },
-                    ),
-                  ),
-                  onChanged: (value) => mainController.productController.searchQuery.value = value,
-                ),
-              ),
-              const Divider(),
-              Expanded(
-                child: Obx(() {
-                  final products = mainController.productController.filteredProducts;
-                  final query = mainController.productController.searchQuery.value;
-
-                  if (products.isEmpty && query.isEmpty) {
-                    return const Center(child: Text('تصفح المنتجات أو ابدأ البحث...'));
-                  }
-
-                  return ListView.builder(
-                    itemCount: products.length,
-                    itemBuilder: (context, index) {
-                      final product = products[index];
-                      return Card(
-                        elevation: 1,
-                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        child: ListTile(
-                          leading: CircleAvatar(
-
-                            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                            foregroundColor: Theme.of(context).primaryColor,
-
-                            child: Text(product.quantity.toInt().toString()),
-                          ),
-                          title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                          subtitle: Text('سعر الشراء: ${product.purchasePrice} ريال'),
-                          onTap: () {
-                            mainController.addProductToInvoice(
-                              product,
-                              1,
-                              product.purchasePrice,
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  );
-                }),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          OutlinedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('منتج جديد'),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.green.shade700),
-            onPressed: () {
-              Get.back();
-              Get.to(() => const AddEditProductScreen());
-            },
-          ),
-          const Spacer(),
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('إغلاق'),
-          ),
-        ],
-      ),
-      barrierDismissible: false,
-    ).whenComplete(() => mainController.clearProductSearch());
-  }
-
+  // ديالوج تعديل الصنف
   void _showEditItemDialog(BuildContext context, AddPurchaseController controller, InvoiceItem item) {
     final qtyController = TextEditingController(text: item.quantity.toStringAsFixed(0));
     final purchasePriceController = TextEditingController(text: item.purchasePrice.toString());
@@ -363,21 +135,57 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
 
     Get.dialog(
       AlertDialog(
-        title: Text(item.product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(item.product.name,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDialogInfoRow('الكمية الحالية في المخزن:', '${item.product.quantity} ${item.product.unit ?? ''}'),
-              const Divider(),
-              _buildDialogEditableRow('الكمية الجديدة في الفاتورة:', qtyController),
-              const Divider(),
-              _buildDialogInfoRow('آخر سعر شراء:', '${item.product.purchasePrice} ريال'),
-              _buildDialogEditableRow('سعر الشراء الجديد:', purchasePriceController),
-              const Divider(),
-              _buildDialogInfoRow('سعر البيع الحالي:', '${item.product.salePrice} ريال'),
-              _buildDialogEditableRow('سعر البيع الجديد:', salePriceController),
-              const Divider(),
+              // حقول التعديل
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: TextField(
+                  controller: qtyController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(
+
+                    labelText: 'الكمية في الفاتورة',
+                    helperText: 'المتوفر في المخزن: ${item.product.quantity.toInt()}',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: TextField(
+                  controller: purchasePriceController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(
+                    labelText: 'سعر الشراء الجديد',
+                    helperText: 'آخر سعر شراء: ${item.product.purchasePrice}',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: TextField(
+                  controller: salePriceController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  textDirection: TextDirection.ltr,
+
+                  decoration: InputDecoration(
+                    labelText: 'سعر البيع الجديد',
+                    helperText: 'سعر البيع الحالي: ${item.product.salePrice}',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -403,37 +211,7 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDialogInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDialogEditableRow(String label, TextEditingController controller) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: TextField(
-
-        controller: controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        textDirection: TextDirection.ltr,
-        decoration: InputDecoration(
-
-          labelText: label,
-          border: const OutlineInputBorder(),
-          isDense: true,
-        ),
-      ),
-    );
-  }
-
+  // ودجت الفوتر لعرض الإجمالي وزر الحفظ
   Widget _buildNewFooter(BuildContext context, AddPurchaseController controller) {
     return SafeArea(
       child: Container(
@@ -460,11 +238,11 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Get.theme.primaryColor,
+                      color: Theme.of(context).primaryColor,
                     ),
                   ),
                   Text(
-                    'عدد الأصناف: ${controller.invoiceItems.length} | عدد القطع: ${controller.totalItemsCount}',
+                    'عدد الأصناف: ${controller.invoiceItems.length} | إجمالي القطع: ${controller.totalItemsCount}',
                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ],
@@ -474,18 +252,22 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
             SizedBox(
               width: 150,
               child: ElevatedButton.icon(
+                // استدعاء دالة عرض شاشة المراجعة الجديدة
                 onPressed: () {
                   if (controller.invoiceItems.isEmpty) {
                     Get.snackbar('خطأ', 'لا يمكن المتابعة، الفاتورة فارغة.');
                     return;
                   }
-                  _showPaymentDialog(context, controller);
+                  if (controller.selectedSupplier.value == null) {
+                    Get.snackbar('خطأ', 'الرجاء اختيار مورد أولاً.');
+                    return;
+                  }
+                   _showReviewBottomSheet(context, controller);
                 },
                 icon: const Icon(Icons.payment_rounded),
                 label: const Text('مراجعة وحفظ'),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
+                    padding: const EdgeInsets.symmetric(vertical: 12)),
               ),
             ),
           ],
@@ -493,79 +275,302 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
       ),
     );
   }
-  void _showPaymentDialog(BuildContext context, AddPurchaseController controller) {
-    controller.preparePaymentDialog(); // تهيئة حقول الديالوج
 
-    Get.dialog(
-        AlertDialog(
-            title: const Text('مراجعة الدفع والحفظ'),
-            content: Obx(() => SingleChildScrollView(
-                child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                // طريقة الدفع
-                DropdownButtonFormField<String>(
-                value: controller.paidAmount.value == 0
-                ? 'آجل'
-                    : controller.paidAmount.value == controller.grandTotal
-                ? 'نقداً'
-                    : 'مختلط',
-                    items: const [
-                    DropdownMenuItem(value: 'نقداً', child: Text('نقداً')),
-                    DropdownMenuItem(value: 'آجل', child: Text('آجل')),
-                    DropdownMenuItem(value: 'مختلط', child: Text('نقداً وآجل')),
-                    ],
-                    onChanged: (value) {
-                      if (value == 'نقداً') {
-                        controller.paidAmountController.text = controller.grandTotal.toStringAsFixed(2);
-                      } else if (value == 'آجل') {
-                        controller.paidAmountController.text = '0.0';
-                      }
-                    },
-                  decoration: const InputDecoration(labelText: 'طريقة الدفع', border: OutlineInputBorder()),
-                ),
-                const Divider(height: 20),
-                // الحسابات المالية
-                _buildDialogInfoRow('الإجمالي الفرعي:', '${controller.subtotal.toStringAsFixed(2)} ريال'),
-                _buildDialogEditableRow('الخصم (مبلغ)', controller.discountController),
-                _buildDialogEditableRow('الضريبة (%)', controller.taxController),
-                const SizedBox(height: 10),
-                _buildDialogInfoRow('الإجمالي النهائي:', '${controller.grandTotal.toStringAsFixed(2)} ريال'),
-
-                const Divider(height: 20),
-                _buildDialogEditableRow('المبلغ المدفوع:', controller.paidAmountController),
-                const SizedBox(height: 10),
-                _buildDialogInfoRow('المبلغ المتبقي:', '${controller.remainingAmount.toStringAsFixed(2)} ريال',),
-              const Divider(height: 20),
-
-              // --- بداية الإضافة ---
-              SwitchListTile(
-                title: const Text('خصم المبلغ المدفوع من الصندوق'),
-                value: controller.shouldDeductFromFund.value,
-                onChanged: (value) {
-                  controller.shouldDeductFromFund.value = value;
+  // --- ودجت شريط البحث السحري الجديد ---
+  Widget _buildMagicSearchBar(AddPurchaseController controller) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      child: TypeAheadField<ProductModel>(
+        suggestionsCallback: (pattern) async {
+          // التأكد من جلب المنتجات أولاً
+          if (controller.productController.allProducts.isEmpty) {
+            await controller.productController.fetchAllProducts();
+          }
+          if (pattern.isEmpty) {
+            return [];
+          }
+          return controller.productController.allProducts.where((product) {
+            final nameMatches =
+            product.name.toLowerCase().contains(pattern.toLowerCase());
+            final codeMatches = product.code
+                ?.toLowerCase()
+                .contains(pattern.toLowerCase()) ??
+                false;
+            return nameMatches || codeMatches;
+          }).toList();
+        },
+        itemBuilder: (context, suggestion) {
+          return ListTile(
+            leading: Text(suggestion.quantity.toInt().toString(),
+                style: const TextStyle(fontSize: 16, color: Colors.blue)),
+            title: Text(suggestion.name),
+            trailing: Text(
+                '${suggestion.purchasePrice.toStringAsFixed(2)} ريال'),
+          );
+        },
+        onSelected: (suggestion) {
+          controller.addProductToInvoice(
+            suggestion,
+            1, // كمية افتراضية
+            suggestion.purchasePrice, // سعر الشراء الافتراضي
+          );
+          controller.productSearchController.clear();
+        },
+        builder: (context, textEditingController, focusNode) {
+          //controller.productSearchController = textEditingController;
+          return TextField(
+            controller: textEditingController,
+            focusNode: focusNode,
+            decoration: InputDecoration(
+              hintText: 'ابحث بالاسم أو الباركود لإضافة صنف...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                onPressed: () async {
+                  final code = await Get.dialog<String>(
+                    Scaffold(
+                      appBar: AppBar(title: const Text('امسح الباركود')),
+                      body: MobileScanner(
+                        onDetect: (capture) {
+                          if (capture.barcodes.isNotEmpty) {
+                            Get.back(result: capture.barcodes.first.rawValue);
+                          }
+                        },
+                      ),
+                    ),
+                  );
+                  if (code != null) {
+                    textEditingController.text = code;
+                  }
                 },
-                dense: true,
-                contentPadding: EdgeInsets.zero,
+                tooltip: 'بحث بالباركود',
               ),
-
-                    ],
-                ),
-            )),
-            actions: [
-            TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
-    Obx(() {
-    if (controller.isSaving.isTrue) {
-    return const CircularProgressIndicator();
-    }
-    return ElevatedButton.icon(
-    onPressed: controller.savePurchaseInvoice,
-    icon: const Icon(Icons.save_alt_rounded),
-      label: const Text('تأكيد وحفظ'),
-    );
-    }),
-            ],
+              border:
+              OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              isDense: true,
+            ),
+          );
+        },
+        emptyBuilder: (context) => const Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text('لم يتم العثور على منتج يطابق بحثك.',
+              style: TextStyle(color: Colors.grey)),
         ),
+      ),
     );
   }
+
+  // --- بداية الإضافة: دوال بناء شاشة المراجعة الجديدة ---
+
+  /// الدالة الرئيسية لبناء وعرض شاشة المراجعة
+  void _showReviewBottomSheet(BuildContext context,
+      AddPurchaseController controller) {
+    controller.updateTotals(); // حساب الإجماليات أولاً
+
+    Get.bottomSheet(
+      isScrollControlled: true, // للسماح للواجهة بأخذ ارتفاع الشاشة
+      ignoreSafeArea: false,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      Container(
+        height: MediaQuery
+            .of(context)
+            .size
+            .height * 0.9,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // 1. هيدر الـ BottomSheet
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('مراجعة وحفظ الفاتورة',
+                      style:
+                      TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Get.back(),
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. محتوى قابل للتمرير
+            Expanded(
+              child: ListView(
+                children: [
+                  _buildItemsSummary(controller),
+                  const Divider(height: 24),
+                  _buildDiscountSection(controller),
+                  const Divider(height: 24),
+                  _buildPaymentSection(controller),
+                ],
+              ),
+            ),
+
+            // 3. زر الحفظ في الأسفل
+            SafeArea(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.done_all_rounded),
+                label: const Text('تأكيد وحفظ الفاتورة'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  textStyle: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                onPressed: controller.savePurchaseInvoice
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ودجت بناء ملخص الأصناف
+  Widget _buildItemsSummary(AddPurchaseController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ملخص الأصناف',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Container(
+          constraints:
+          const BoxConstraints(maxHeight: 150), // تحديد ارتفاع أقصى
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: controller.invoiceItems.length,
+            separatorBuilder: (context, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = controller.invoiceItems[index];
+              return ListTile(
+                dense: true,
+                title: Text(item.product.name),
+                subtitle: Text(
+                  '${item.quantity.toInt()} × ${item.purchasePrice
+                      .toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                trailing: Text(
+                  '${(item.quantity * item.purchasePrice).toStringAsFixed(
+                      2)} ريال',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// ودجت بناء قسم الخصم
+  Widget _buildDiscountSection(AddPurchaseController controller) {
+    return Column(
+      children: [
+        Obx(() =>
+            SegmentedButton<DiscountType>(
+              segments: const [
+                ButtonSegment(
+                    value: DiscountType.amount, label: Text('خصم مبلغ')),
+                ButtonSegment(
+                    value: DiscountType.percentage, label: Text('خصم نسبة %')),
+              ],
+              selected: {controller.discountType.value},
+              onSelectionChanged: (newSelection) {
+                controller.discountType.value = newSelection.first;
+                controller.updateTotals();
+              },
+            )),
+        const SizedBox(height: 12),
+        Obx(() =>
+            TextField(
+              controller: controller.discountController,
+              keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(
+                labelText: controller.discountType.value == DiscountType.amount
+                    ? 'قيمة الخصم'
+                    : 'نسبة الخصم %',
+                border: const OutlineInputBorder(),
+              ),
+            )),
+      ],
+    );
+  }
+
+  /// ودجت بناء قسم الدفع والملخص المالي
+  Widget _buildPaymentSection(AddPurchaseController controller) {
+    final formatCurrency = (double val) => '${val.toStringAsFixed(2)} ريال';
+    return Obx(() =>
+        Column(
+          children: [
+            _buildDialogInfoRow(
+                'الإجمالي الفرعي:', formatCurrency(controller.subtotal)),
+            _buildDialogInfoRow('قيمة الخصم:',
+                '- ${formatCurrency(controller.discountValue.value)}',
+                color: Colors.orange.shade700),
+            const Divider(thickness: 1.5),
+            _buildDialogInfoRow(
+                'الإجمالي النهائي:', formatCurrency(controller.grandTotal),
+                isLarge: true, isBold: true, color: Get.theme.primaryColor),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller.paidAmountController,
+              keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(
+                labelText: 'المبلغ المدفوع',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: _buildDialogInfoRow(
+                  'المبلغ المتبقي:', formatCurrency(controller.remainingAmount),
+                  isLarge: true, isBold: true),
+            ),
+          ],
+        ));
+  }
+
+  /// ودجت مساعد لعرض صف معلومات داخل شاشة المراجعة
+  Widget _buildDialogInfoRow(String label, String value,
+      {bool isLarge = false, bool isBold = false, Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 15)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              fontSize: isLarge ? 18 : 16,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+// --- نهاية الإضافة ---
 }

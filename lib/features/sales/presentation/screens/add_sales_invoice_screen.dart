@@ -232,16 +232,32 @@ class AddSalesInvoiceScreen extends StatelessWidget {
           TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () {
-              final newQty = double.tryParse(qtyController.text) ??
-                  item.quantity;
-              final newSalePrice = double.tryParse(salePriceController.text) ??
-                  item.salePrice;
+              final newQty = double.tryParse(qtyController.text) ?? item.quantity;
+              final newSalePrice = double.tryParse(salePriceController.text) ?? item.salePrice;
+              if (newQty > item.product.quantity) {
+                Get.snackbar(
+                  'خطأ في الكمية',
+                  'الكمية المطلوبة (${newQty.toInt()}) أكبر من المتوفر في المخزون (${item.product.quantity.toInt()})',
+                  backgroundColor: Colors.red,
+                  colorText: Colors.white,
+                );
+                return;
+              }
+              if (newQty <= 0) {
+                Get.snackbar(
+                  'خطأ في الكمية',
+                  'الكمية يجب أن تكون أكبر من صفر.',
+                  backgroundColor: Colors.red,
+                  colorText: Colors.white,
+                );
+                return;
+              }
               controller.updateItemQuantity(item.product.id!, newQty);
               controller.updateItemPrice(item.product.id!, newSalePrice);
-              Get.back();
+              Get.back(); // أغلق الديالوج
             },
             child: const Text('حفظ التعديلات'),
-          ),
+          )
         ],
       ),
     );
@@ -277,15 +293,12 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNewFooter(BuildContext context,
-      AddSalesInvoiceController controller) {
+  Widget _buildNewFooter(BuildContext context,AddSalesInvoiceController controller) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Theme
-              .of(context)
-              .canvasColor,
+          color: Theme.of(context).canvasColor,
           boxShadow: [
             BoxShadow(color: Colors.black.withOpacity(0.1),
                 blurRadius: 8,

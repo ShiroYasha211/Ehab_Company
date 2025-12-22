@@ -11,187 +11,272 @@ import 'package:intl/intl.dart' as intl;
 class PurchaseInvoicePdfService {
   static Future<void> printInvoice(Map<String, dynamic> invoiceDetails) async {
     final pdf = pw.Document();
-    final fontData = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
-    final arabicFont = pw.Font.ttf(fontData);
+
+    // --- 1. بداية التعديل: استخدام خطين (عادي وداكن) وتحميل الشعار ---
+    final font = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
+    final boldFont = await rootBundle.load("assets/fonts/Tajawal-Bold.ttf");
+    final ttf = pw.Font.ttf(font);
+    final boldTtf = pw.Font.ttf(boldFont);
+
+    final logoImage = pw.MemoryImage(
+      (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List(),
+    );
+    // --- نهاية التعديل ---
 
     final invoiceData = invoiceDetails['invoice'] as Map<String, dynamic>;
     final itemsData = invoiceDetails['items'] as List<dynamic>;
     final int invoiceId = invoiceData['id'];
 
     pdf.addPage(
-        pw.MultiPage(
-            pageFormat: PdfPageFormat.a4,
-            textDirection: pw.TextDirection.rtl,
-            header: (context) => _buildPageHeader(arabicFont),
-            footer: (context) => _buildPageFooter(context, arabicFont),
-            build: (context) => [
-            _buildInvoiceHeader(invoiceData, invoiceId, arabicFont),
-        pw.SizedBox(height: 20),
-        _buildItemsTable(itemsData, arabicFont),
-        pw.SizedBox(height: 20),
-              _buildFinancialSummary(invoiceData, arabicFont),
-              pw.SizedBox(height: 20),
-              if (invoiceData['notes'] != null && invoiceData['notes'].isNotEmpty)
-                _buildNotes(invoiceData['notes'], arabicFont),
-            ],
-        ),
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
+        // تطبيق الخطوط
+        header: (context) => _buildHeader(logoImage),
+        // <-- رأس الصفحة الموحد
+        build: (context) =>
+        [
+          _buildInvoiceTitle(invoiceId, invoiceData['invoiceDate']),
+          // <-- عنوان الفاتورة
+          _buildSupplierInfo(invoiceData),
+          // <-- معلومات المورد
+          pw.SizedBox(height: 20),
+          _buildItemsTable(itemsData),
+          // <-- جدول الأصناف المحدث
+          pw.SizedBox(height: 20),
+          _buildFinancialSummary(invoiceData),
+          // <-- الملخص المالي المحدث
+          pw.Spacer(),
+          // لدفع الملاحظات إلى أسفل الصفحة إذا كانت هناك مساحة
+          if (invoiceData['notes'] != null && invoiceData['notes'].isNotEmpty)
+            _buildNotes(invoiceData['notes']),
+        ],
+        footer: (context) => _buildFooter(context), // <-- تذييل الصفحة الموحد
+      ),
     );
 
     // حفظ وفتح الملف
-         final dir = await getApplicationDocumentsDirectory();
-         final file = File('${dir.path}/purchase_invoice_$invoiceId.pdf');
-         await file.writeAsBytes(await pdf.save());
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/purchase_invoice_$invoiceId.pdf');
+    await file.writeAsBytes(await pdf.save());
     await OpenFile.open(file.path);
-       }
-
-       static pw.Widget _buildPageHeader(pw.Font font) {
-         return pw.Container(
-           alignment: pw.Alignment.center,
-           margin: const pw.EdgeInsets.only(bottom: 20.0),
-           child: pw.Text('فاتورة شراء', style: pw.TextStyle(font: font, fontSize: 18, fontWeight: pw.FontWeight.bold)),
-         );
-       }
-
-  static pw.Widget _buildInvoiceHeader(Map<String, dynamic> data, int invoiceId, pw.Font font) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [pw.Row(
-    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-    pw.Text('فاتورة رقم: #$invoiceId', style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold, fontSize: 14)),
-    pw.Text('التاريخ: ${intl.DateFormat('yyyy-MM-dd').format(DateTime.parse(data['invoiceDate']))}',
-        style: pw.TextStyle(font: font)),
-        ],
-    ),
-    pw.Divider(),
-    pw.Text('المورد: ${data['supplierName'] ?? 'غير محدد'}', style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold)),
-    pw.Text('الهاتف: ${data['supplierPhone'] ?? 'غير محدد'}', style: pw.TextStyle(font: font)),
-        if (data['invoiceNumber'] != null && data['invoiceNumber'].isNotEmpty)
-          pw.Text('رقم فاتورة المورد: ${data['invoiceNumber']}', style: pw.TextStyle(font: font)),
-      ],
-    );
   }
 
-  static pw.Widget _buildItemsTable(List<dynamic> items, pw.Font font) {
-    final headers = ['الإجمالي', 'السعر', 'الكميه', 'الصنف'];
-    final formatNumber = intl.NumberFormat("#,##0.00", "en_US");
-
-    final data = items.map((item) {
-      return [
-        '${formatNumber.format(item['totalPrice'])} ر.ي',
-        '${formatNumber.format(item['purchasePrice'])}ر.ي',
-        item['quantity'].toString(),
-        item['productName'],
-
-      ];
-    }).toList();
-
-    return pw.Table.fromTextArray(
-        headers: headers,
-        data: data,
-      border: pw.TableBorder.all(color: PdfColors.grey, width: 0.5),
-      headerStyle: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold, fontSize: 10),
-      headerCellDecoration: pw.BoxDecoration(color: PdfColors.grey200),
-      cellStyle: pw.TextStyle(font: font, fontSize: 10),
-        cellHeight: 30,
-        cellAlignments: {
-          0: pw.Alignment.center,
-          1: pw.Alignment.center,
-          2: pw.Alignment.center,
-          3: pw.Alignment.centerRight,
-        },
-        headerPadding: const pw.EdgeInsets.all(8),
-      cellPadding: const pw.EdgeInsets.all(6),
-    );
-  }
-
-
-  static pw.Widget _buildFinancialSummary(Map<String, dynamic> data, pw.Font font) {
-    final formatNumber = intl.NumberFormat("#,##0.00", "en_US");
-    String formatValue(dynamic value) {
-      return '${formatNumber.format(value)} ر.ي';
-    }
-    return pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-        pw.Spacer(), // لدفع الملخص إلى اليمين
-    pw.Expanded(
-    flex: 2,
-    child: pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.start,
-    children: [
-    _buildSummaryRow('الإجمالي الفرعي:', formatValue(data['totalAmount'] + data['discountAmount']), font),
-    _buildSummaryRow('الخصم:', formatValue(data['discountAmount']), font),
-      pw.Divider(),
-      _buildSummaryRow('الإجمالي النهائي:', formatValue(data['totalAmount']), font, isTotal: true),
-      _buildSummaryRow('المبلغ المدفوع:', formatValue(data['paidAmount']), font, color: PdfColors.green700),
-      _buildSummaryRow('المبلغ المتبقي:', formatValue(data['remainingAmount']), font, color: PdfColors.red700),
-
-    ],
-    ),
-    ),
-        ],
-    );
-  }
-
-  static pw.Widget _buildNotes(String notes, pw.Font font) {
+  // --- 2. بداية التعديل: استخدام نفس تصميم رأس الصفحة من التقارير الأخرى ---
+  static pw.Widget _buildHeader(pw.MemoryImage logo) {
     return pw.Container(
+      padding: const pw.EdgeInsets.only(bottom: 15),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+            bottom: pw.BorderSide(color: PdfColors.grey, width: 1.5)),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('شركة إيهاب للتجارة', style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold, fontSize: 18)),
+              pw.SizedBox(height: 5),
+              pw.Text(
+                  'هاتف: 777-777-777', style: const pw.TextStyle(fontSize: 10)),
+              pw.Text('البريد الإلكتروني: info@ehab-company.com',
+                  style: const pw.TextStyle(fontSize: 10)),
+            ],
+          ),
+          pw.SizedBox(height: 60, width: 60, child: pw.Image(logo)),
+        ],
+      ),
+    );
+  }
+
+  // --- نهاية التعديل ---
+
+  // ودجت جديد لعرض عنوان الفاتورة ورقمها
+  static pw.Widget _buildInvoiceTitle(int invoiceId, String dateString) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 20),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text('فاتورة مشتريات', style: pw.TextStyle(
+              fontSize: 22, fontWeight: pw.FontWeight.bold)),
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Text('رقم الفاتورة: #$invoiceId',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.Text('التاريخ: ${intl.DateFormat('yyyy-MM-dd').format(
+                  DateTime.parse(dateString))}'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ودجت جديد لعرض معلومات المورد
+  static pw.Widget _buildSupplierInfo(Map<String, dynamic> data) {
+    return pw.Container(
+        margin: const pw.EdgeInsets.only(top: 20),
         padding: const pw.EdgeInsets.all(10),
         decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey, width: 0.5),
-            borderRadius: pw.BorderRadius.circular(5),
+          border: pw.Border.all(color: PdfColors.grey300),
+          borderRadius: pw.BorderRadius.circular(5),
         ),
         child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-            pw.Text('ملاحظات:', style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 5),
-        pw.Text(notes, style: pw.TextStyle(font: font), textDirection: pw.TextDirection.rtl),
-            ],),
+              pw.Text('فاتورة من المورد:', style: const pw.TextStyle(
+                  fontSize: 10, color: PdfColors.grey600)),
+              pw.SizedBox(height: 4),
+              pw.Text(data['supplierName'] ?? 'مورد غير محدد',
+                  style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold, fontSize: 14)),
+              if(data['supplierPhone'] != null)
+                pw.Text('الهاتف: ${data['supplierPhone']}',
+                    style: const pw.TextStyle(fontSize: 11)),
+              if (data['invoiceNumber'] != null &&
+                  data['invoiceNumber'].isNotEmpty)
+                pw.Text('رقم فاتورة المورد: ${data['invoiceNumber']}',
+                    style: const pw.TextStyle(fontSize: 11)),
+            ]));
+  }
+
+  // --- 3. بداية التعديل: استخدام نفس تصميم جدول الأصناف ---
+  static pw.Widget _buildItemsTable(List<dynamic> items) {
+    final formatNumber = (double value) =>
+        intl.NumberFormat.decimalPattern('ar').format(value);
+
+    final headers = ['الإجمالي', 'سعر الشراء', 'الكمية', 'الصنف'];
+
+    final data = items.map((item) {
+      return [
+        formatNumber(item['totalPrice']),
+        formatNumber(item['purchasePrice']),
+        item['quantity'].toString(),
+        item['productName'],
+      ];
+    }).toList();
+
+    return pw.TableHelper.fromTextArray(
+      cellAlignment: pw.Alignment.centerRight,
+      headerStyle: pw.TextStyle(
+          fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
+      rowDecoration: const pw.BoxDecoration(
+          border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200))),
+      headers: headers,
+      data: data,
+      columnWidths: {
+        0: const pw.FlexColumnWidth(2.5),
+        1: const pw.FlexColumnWidth(2.5),
+        2: const pw.FlexColumnWidth(1.5),
+        3: const pw.FlexColumnWidth(4),
+      },
     );
   }
 
-  static pw.Widget _buildSummaryRow(String label, String value, pw.Font font, {bool isTotal = false, PdfColor? color}) {
-    return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 2),
-        child: pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+  // --- نهاية التعديل ---
+
+  // --- 4. بداية التعديل: إعادة تصميم الملخص المالي ---
+  static pw.Widget _buildFinancialSummary(Map<String, dynamic> data) {
+    final formatCurrency = (double value) => '${intl.NumberFormat
+        .decimalPattern('ar').format(value)} ريال';
+    final double totalBeforeDiscount = data['totalAmount'] +
+        data['discountAmount'];
+
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Spacer(), // لدفع الملخص إلى اليسار
+        pw.Expanded(
+          flex: 2,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-            pw.Text(label, style: pw.TextStyle(font: font, fontWeight: isTotal ? pw.FontWeight.bold : pw.FontWeight.normal)),
-        pw.Text(value,
-            style: pw.TextStyle(                  font: font,
-                fontWeight: pw.FontWeight.bold,
-                color: color)),
+              _buildSummaryRow(
+                  'الإجمالي قبل الخصم:', formatCurrency(totalBeforeDiscount)),
+              _buildSummaryRow(
+                  'الخصم:', '- ${formatCurrency(data['discountAmount'])}',
+                  color: PdfColors.orange800),
+              pw.Container(
+                margin: const pw.EdgeInsets.symmetric(vertical: 4),
+                decoration: const pw.BoxDecoration(border: pw.Border(
+                    top: pw.BorderSide(color: PdfColors.grey))),
+                padding: const pw.EdgeInsets.only(top: 4),
+                child: _buildSummaryRow(
+                    'الإجمالي بعد الخصم:', formatCurrency(data['totalAmount']),
+                    isTotal: true),
+              ),
+              _buildSummaryRow(
+                  'المبلغ المدفوع:', formatCurrency(data['paidAmount']),
+                  color: PdfColors.green700),
+              pw.Container(
+                color: PdfColors.grey200,
+                padding: const pw.EdgeInsets.all(6),
+                child: _buildSummaryRow(
+                    'المبلغ المتبقي:', formatCurrency(data['remainingAmount']),
+                    isTotal: true),
+              ),
             ],
+          ),
         ),
+      ],
     );
   }
 
-  static pw.Widget _buildPageFooter(pw.Context context, pw.Font font) {
+  // --- نهاية التعديل ---
+
+  static pw.Widget _buildNotes(String notes) {
     return pw.Container(
-        alignment: pw.Alignment.center,
-        child: pw.Text('صفحة ${context.pageNumber} من ${context.pagesCount}',
-            style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey)),
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(10),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey, width: 0.5),
+        borderRadius: pw.BorderRadius.circular(5),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+              'ملاحظات:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 5),
+          pw.Text(notes),
+        ],
+      ),
     );
   }
+
+  static pw.Widget _buildSummaryRow(String label, String value,
+      {bool isTotal = false, PdfColor? color}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: pw.TextStyle(
+              fontWeight: isTotal ? pw.FontWeight.bold : pw.FontWeight.normal,
+              fontSize: 11)),
+          pw.Text(value, style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold, color: color, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  // --- 5. بداية التعديل: استخدام نفس تصميم تذييل الصفحة ---
+  static pw.Widget _buildFooter(pw.Context context) {
+    return pw.Container(
+      alignment: pw.Alignment.center,
+      margin: const pw.EdgeInsets.only(top: 10),
+      child: pw.Text(
+        'صفحة ${context.pageNumber} من ${context.pagesCount} - © شركة إيهاب',
+        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+      ),
+    );
+  }
+// --- نهاية التعديل ---
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

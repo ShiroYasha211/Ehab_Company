@@ -180,4 +180,34 @@ class CustomerRepository {
       return CustomerTransactionModel.fromMap(map);
     });
   }
+  // --- بداية الإضافة: دالة للتحقق من وجود علاقات للعميل ---  /// يتحقق مما إذا كان للعميل أي فواتير مبيعات أو حركات مالية مرتبطة به
+  Future<bool> checkCustomerHasRelations(int customerId) async {
+    final db = await _dbService.database;
+
+    // 1. التحقق من وجود فواتير مبيعات
+    final salesCount = Sqflite.firstIntValue(await db.rawQuery(
+      'SELECT COUNT(*) FROM sales_invoices WHERE customerId = ?',
+      [customerId],
+    ));
+
+    if (salesCount != null && salesCount > 0) {
+      return true; // وجدنا فواتير، لا داعي لإكمال البحث
+    }
+
+    // 2. التحقق من وجود حركات مالية (إذا لم نجد فواتير)
+    final transactionsCount = Sqflite.firstIntValue(await db.rawQuery(
+      'SELECT COUNT(*) FROM customer_transactions WHERE customerId = ?',
+      [customerId],
+    ));
+
+    if (transactionsCount != null && transactionsCount > 0) {
+      return true; // وجدنا حركات مالية
+    }
+
+    // إذا وصلنا إلى هنا، فالعميل ليس له أي علاقات
+    return false;
+  }
+// --- نهاية الإضافة ---
+
+
 }

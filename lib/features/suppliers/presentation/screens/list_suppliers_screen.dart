@@ -181,7 +181,7 @@ class SupplierCard extends StatelessWidget {
                         title: 'تأكيد الحذف',
                         middleText: 'هل أنت متأكد من حذف المورد "${supplier.name}"؟',
                         onConfirm: () {
-                          Get.find<SupplierController>().removeSupplier(supplier.id!);
+                          Get.find<SupplierController>().deleteSupplier(supplier);
                           Get.back();
                         },
                         textConfirm: 'حذف',

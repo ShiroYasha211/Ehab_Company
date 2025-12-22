@@ -92,14 +92,87 @@ class CustomerController extends GetxController {
     }
   }
 
-  Future<void> removeCustomer(int id) async {
+  Future<void> deleteCustomer(CustomerModel customer) async {
+    // 1. التحقق مما إذا كان للعميل أي علاقات (فواتير أو سندات)
+    final bool hasRelations = await _repository.checkCustomerHasRelations(customer.id!);
+
+    if (hasRelations) {
+      // 2. إذا وجدت علاقات، اعرض ديالوج التحذير الشديد
+      _showStrongWarningDialog(customer);
+    } else {
+      // 3. إذا لم توجد علاقات، اعرض ديالوج الحذف العادي
+      _showSimpleDeleteDialog(customer);
+    }
+  }
+
+  /// ديالوج الحذف العادي (للعملاء الذين ليس لديهم معاملات)
+  void _showSimpleDeleteDialog(CustomerModel customer) {
+    Get.defaultDialog(
+      title: 'تأكيد الحذف',
+      middleText: 'هل أنت متأكد من رغبتك في حذف العميل "${customer.name}"؟',
+      textConfirm: 'حذف',
+      textCancel: 'إلغاء',
+      confirmTextColor: Colors.white,
+      onConfirm: () {
+        Get.back(); // أغلق الديالوج
+        _performDelete(customer.id!);
+      },
+    );
+  }
+
+  /// ديالوج التحذير الشديد (للعملاء الذين لديهم معاملات)
+  void _showStrongWarningDialog(CustomerModel customer) {
+    Get.defaultDialog(
+      title: '⚠️ تحذير خطير!',
+      titleStyle: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold),
+      content: const Column(
+        children: [
+          Text(
+            'هذا العميل لديه فواتير أو حركات مالية مسجلة.',
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'حذف العميل سيؤدي إلى فقدان ربط هذه الفواتير والسندات به، وهو إجراء غير قابل للتراجع. هل أنت متأكد تمامًا من رغبتك في المتابعة؟',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.red),
+          ),
+        ],
+      ),
+      confirm: ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+        onPressed: () {
+          Get.back(); // أغلق الديالوج
+          _performDelete(customer.id!);
+        },
+        child: const Text('نعم، أحذف العميل على مسؤوليتي'),
+      ),
+      cancel: TextButton(
+        onPressed: () => Get.back(),
+        child: const Text('إلغاء'),
+      ),
+    );
+  }
+
+  /// دالة مساعدة لتنفيذ الحذف الفعلي بعد التأكيد
+  Future<void> _performDelete(int id) async {
     try {
       await _repository.deleteCustomer(id);
       _allCustomers.removeWhere((customer) => customer.id == id);
-      _filterCustomers();
-      Get.snackbar('نجاح', 'تم حذف العميل بنجاح', backgroundColor: Colors.blue, colorText: Colors.white);
+      _filterCustomers(); // تحديث الواجهة
+      Get.snackbar(
+        'نجاح',
+        'تم حذف العميل بنجاح.',
+        backgroundColor: Colors.blue,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل في حذف العميل: $e', backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشل في حذف العميل: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 

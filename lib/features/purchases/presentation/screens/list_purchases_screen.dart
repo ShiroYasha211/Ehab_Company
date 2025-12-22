@@ -110,26 +110,28 @@ class ListPurchasesScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: Obx(() {
-        if (controller.isLoading.isTrue) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (controller.invoices.isEmpty) {
-          // --- بداية التعديل: رسالة أكثر تعبيرًا ---
-          return const Center(
-            child: Text('لا توجد فواتير تطابق بحثك.', style: TextStyle(color: Colors.grey)),
+      body: SafeArea(
+        child: Obx(() {
+          if (controller.isLoading.isTrue) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (controller.invoices.isEmpty) {
+            // --- بداية التعديل: رسالة أكثر تعبيرًا ---
+            return const Center(
+              child: Text('لا توجد فواتير تطابق بحثك.', style: TextStyle(color: Colors.grey)),
+            );
+            // --- نهاية التعديل ---
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: controller.invoices.length,
+            itemBuilder: (context, index) {
+              final invoice = controller.invoices[index];
+              return PurchaseInvoiceCard(invoice: invoice);
+            },
           );
-          // --- نهاية التعديل ---
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: controller.invoices.length,
-          itemBuilder: (context, index) {
-            final invoice = controller.invoices[index];
-            return PurchaseInvoiceCard(invoice: invoice);
-          },
-        );
-      }),
+        }),
+      ),
     );
   }
 }

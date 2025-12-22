@@ -99,24 +99,26 @@ class ListSalesInvoicesScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: Obx(() {
-        if (controller.isLoading.isTrue) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (controller.invoices.isEmpty) {
-          return const Center(
-            child: Text('لا توجد فواتير تطابق بحثك.', style: TextStyle(color: Colors.grey)),
+      body: SafeArea(
+        child: Obx(() {
+          if (controller.isLoading.isTrue) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (controller.invoices.isEmpty) {
+            return const Center(
+              child: Text('لا توجد فواتير تطابق بحثك.', style: TextStyle(color: Colors.grey)),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: controller.invoices.length,
+            itemBuilder: (context, index) {
+              final invoice = controller.invoices[index];
+              return SalesInvoiceCard(invoice: invoice); // استخدام بطاقة المبيعات
+            },
           );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: controller.invoices.length,
-          itemBuilder: (context, index) {
-            final invoice = controller.invoices[index];
-            return SalesInvoiceCard(invoice: invoice); // استخدام بطاقة المبيعات
-          },
-        );
-      }),
+        }),
+      ),
     );
   }
 }

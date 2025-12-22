@@ -184,7 +184,7 @@ class CustomerCard extends StatelessWidget {
                         title: 'تأكيد الحذف',
                         middleText: 'هل أنت متأكد من حذف العميل "${customer.name}"؟',
                         onConfirm: () {
-                          Get.find<CustomerController>().removeCustomer(customer.id!);
+                          Get.find<CustomerController>().deleteCustomer(customer);
                           Get.back();
                         },
                         textConfirm: 'حذف',

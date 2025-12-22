@@ -13,12 +13,14 @@ class SupplierController extends GetxController {
 
   final RxList<SupplierModel> suppliers = <SupplierModel>[].obs;
   final RxList<SupplierModel> _allSuppliers = <SupplierModel>[].obs;
-  final RxList<SupplierModel> filteredSuppliers = <SupplierModel>[].obs; // قائمة للعرض
+  final RxList<SupplierModel> filteredSuppliers = <SupplierModel>[]
+      .obs; // قائمة للعرض
   final RxBool isLoading = true.obs;
 
   // --- بداية الإضافة: متغيرات البحث والفلترة ---
   final RxString searchQuery = ''.obs;
   final Rx<SupplierFilter> currentFilter = SupplierFilter.all.obs;
+
   // --- نهاية الإضافة ---
 
   @override
@@ -26,7 +28,8 @@ class SupplierController extends GetxController {
     super.onInit();
     fetchAllSuppliers();
 
-    debounce(searchQuery, (_) => _filterSuppliers(), time: const Duration(milliseconds: 300));
+    debounce(searchQuery, (_) => _filterSuppliers(),
+        time: const Duration(milliseconds: 300));
     ever(currentFilter, (_) => _filterSuppliers());
   }
 
@@ -59,13 +62,15 @@ class SupplierController extends GetxController {
     if (query.isNotEmpty) {
       _filtered.retainWhere((supplier) {
         final nameMatches = supplier.name.toLowerCase().contains(query);
-        final phoneMatches = supplier.phone?.toLowerCase().contains(query) ?? false;
+        final phoneMatches = supplier.phone?.toLowerCase().contains(query) ??
+            false;
         return nameMatches || phoneMatches;
       });
     }
 
     filteredSuppliers.assignAll(_filtered);
   }
+
   // --- نهاية الإضافة ---
   Future<void> addSupplier({
     required String name,
@@ -94,23 +99,17 @@ class SupplierController extends GetxController {
       await _repository.addSupplier(newSupplier);
       await fetchAllSuppliers(); // تحديث القائمة
       Get.back(); // إغلاق شاشة الإضافة
-      Get.snackbar('نجاح', 'تمت إضافة المورد بنجاح', backgroundColor: Colors.green, colorText: Colors.white);
+      Get.snackbar(
+          'نجاح', 'تمت إضافة المورد بنجاح', backgroundColor: Colors.green,
+          colorText: Colors.white);
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل في إضافة المورد: $e', backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+          'خطأ', 'فشل في إضافة المورد: $e', backgroundColor: Colors.red,
+          colorText: Colors.white);
     }
   }
-  // --- نهاية التعديل ---
 
-  // سنضيف دوال التعديل والحذف لاحقًا عند بناء الواجهة الكاملة
-  Future<void> removeSupplier(int id) async {
-    try {
-      await _repository.deleteSupplier(id);
-      suppliers.removeWhere((supplier) => supplier.id == id);
-      Get.snackbar('نجاح', 'تم حذف المورد بنجاح', backgroundColor: Colors.blue, colorText: Colors.white);
-    } catch (e) {
-      Get.snackbar('خطأ', 'فشل في حذف المورد: $e', backgroundColor: Colors.red, colorText: Colors.white);
-    }
-  }
+  // --- نهاية التعديل ---
 
   Future<void> executeSupplierTransaction({
     required SupplierModel supplier,
@@ -128,7 +127,8 @@ class SupplierController extends GetxController {
       if (supplier.balance <= 0) {
         Get.snackbar(
           'لا يمكن إتمام الدفعة',
-          'رصيد المورد الحالي (${supplier.balance} ريال) لا يسمح بدفعات نقدية له.',
+          'رصيد المورد الحالي (${supplier
+              .balance} ريال) لا يسمح بدفعات نقدية له.',
           backgroundColor: Colors.orange.shade800,
           colorText: Colors.white,
           duration: const Duration(seconds: 5),
@@ -140,7 +140,8 @@ class SupplierController extends GetxController {
       if (amount > supplier.balance) {
         Get.snackbar(
           'مبلغ غير صحيح',
-          'مبلغ الدفعة (${amount} ريال) أكبر من الرصيد المستحق للمورد (${supplier.balance} ريال).',
+          'مبلغ الدفعة (${amount} ريال) أكبر من الرصيد المستحق للمورد (${supplier
+              .balance} ريال).',
           backgroundColor: Colors.orange.shade800,
           colorText: Colors.white,
           duration: const Duration(seconds: 5),
@@ -159,7 +160,8 @@ class SupplierController extends GetxController {
         notes: notes,
       );
 
-      final transactionId = await _repository.addSupplierTransaction(newTransaction);
+      final transactionId = await _repository.addSupplierTransaction(
+          newTransaction);
 
       // تحديث قائمة الموردين لجلب الأرصدة الجديدة
       await fetchAllSuppliers();
@@ -181,6 +183,7 @@ class SupplierController extends GetxController {
       );
     }
   }
+
 // --- نهاية الإضافة ---
 
   Future<void> updateSupplier({
@@ -201,8 +204,10 @@ class SupplierController extends GetxController {
 
     final updatedSupplier = SupplierModel(
       id: id,
-      createdAt: createdAt, // الحفاظ على تاريخ الإنشاء الأصلي
-      balance: balance,     // الحفاظ على الرصيد الأصلي
+      createdAt: createdAt,
+      // الحفاظ على تاريخ الإنشاء الأصلي
+      balance: balance,
+      // الحفاظ على الرصيد الأصلي
       name: name,
       phone: phone,
       address: address,
@@ -227,11 +232,12 @@ class SupplierController extends GetxController {
           backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
+
   // --- بداية الإضافة: دالة لمعالجة فاتورة الشراء ---
   /// تستدعى هذه الدالة بعد حفظ فاتورة شراء بنجاح
   /// لتقوم بتحديث رصيد المورد في كشف الحساب
   Future<void> handlePurchaseInvoiceCreation({
-  required int supplierId,
+    required int supplierId,
     required int invoiceId,
     required double remainingAmount,
     required DateTime invoiceDate,
@@ -243,10 +249,11 @@ class SupplierController extends GetxController {
     }
     // إذا كان هناك مبلغ متبق، قم بإنشاء حركة في كشف الحساب
     final transaction = SupplierTransactionModel(
-        supplierId: supplierId,
-        type: SupplierTransactionType.PURCHASE, // النوع الجديد
-        amount: remainingAmount,
-        transactionDate: invoiceDate,
+      supplierId: supplierId,
+      type: SupplierTransactionType.PURCHASE,
+      // النوع الجديد
+      amount: remainingAmount,
+      transactionDate: invoiceDate,
       affectsFund: false,
       notes: 'فاتورة شراء آجلة رقم: $invoiceId',
     );
@@ -257,4 +264,92 @@ class SupplierController extends GetxController {
     // بعد
     await fetchAllSuppliers();
   }
+
+  // --- بداية التعديل: تعديل دالة الحذف بالكامل ---
+
+  /// يبدأ عملية حذف المورد مع التحقق من العلاقات المرتبطة به
+  Future<void> deleteSupplier(SupplierModel supplier) async {
+    // 1. التحقق مما إذا كان للمورد أي علاقات (فواتير أو سندات)
+    final bool hasRelations = await _repository.checkSupplierHasRelations(
+        supplier.id!);
+
+    if (hasRelations) {
+      // 2. إذا وجدت علاقات، اعرض ديالوج التحذير الشديد
+      _showStrongWarningDialog(supplier);
+    } else {
+      // 3. إذا لم توجد علاقات، اعرض ديالوج الحذف العادي
+      _showSimpleDeleteDialog(supplier);
+    }
   }
+
+  /// ديالوج الحذف العادي (للموردين الذين ليس لديهم معاملات)
+  void _showSimpleDeleteDialog(SupplierModel supplier) {
+    Get.defaultDialog(
+        title: 'تأكيد الحذف',
+        middleText: 'هل أنت متأكد من رغبتك في حذف المورد "${supplier.name}"؟',
+        textConfirm: 'حذف',
+        textCancel: 'إلغاء',
+        confirmTextColor: Colors.white,
+        onConfirm
+        : () {
+          Get.back(); // أغلق الديالوج
+          _performDelete(supplier.id!);
+        },
+    );
+  }
+
+  /// ديالوج التحذير الشديد (للموردين الذين لديهم معاملات)
+  void _showStrongWarningDialog(SupplierModel supplier) {
+    Get.defaultDialog(
+        title: '⚠️ تحذيرخطير!',
+        titleStyle: TextStyle(
+            color: Colors.red.shade700, fontWeight: FontWeight.bold),
+        content: const Column(
+          children: [ Text(
+          'هذا المورد لديه فواتير أو حركات مالية مسجلة.',
+          textAlign: TextAlign.center,
+        ), SizedBox(height: 16),
+        Text(
+          'حذف المورد سيؤدي إلى فقدان ربط هذه الفواتير والسندات به، وهو إجراء غير قابل للتراجع. هل أنت متأكد تمامًا من رغبتك في المتابعة؟',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.red),
+        ),
+          ],
+        ),
+        confirm: ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () {
+            Get.back(); // أغلق الديالوج
+            _performDelete(supplier.id!);
+          },
+          child: const Text('نعم، أحذف المورد على مسؤوليتي'),
+        ),
+      cancel: TextButton(
+        onPressed: () => Get.back(),
+        child: const Text('إلغاء'),
+      ),
+    );
+  }
+
+  /// دالة مساعدة لتنفيذ الحذف الفعلي بعد التأكيد
+  Future<void> _performDelete(int id) async {
+    try {
+      await _repository.deleteSupplier(id);
+      _allSuppliers.removeWhere((supplier) => supplier.id == id);
+      _filterSuppliers(); // تحديث الواجهة
+      Get.snackbar(
+          'نجاح',
+          'تم حذف المورد بنجاح.',
+          backgroundColor: Colors.blue, colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'خطأ',
+        'فشل في حذف المورد: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+// --- نهاية التعديل ---
+}

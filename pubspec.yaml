@@ -57,6 +57,7 @@ dependencies:
   fl_chart: ^0.69.0
   lottie: ^3.3.0
   flutter_typeahead: ^5.2.0
+  flutter_speed_dial: ^7.0.0
 
 dev_dependencies:
   flutter_test:

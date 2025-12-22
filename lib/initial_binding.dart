@@ -2,6 +2,7 @@
 
 import 'package:ehab_company_admin/features/categories/presentation/controllers/category_controller.dart';
 import 'package:ehab_company_admin/features/customers/presentation/controllers/customer_controller.dart';
+import 'package:ehab_company_admin/features/fund/presentation/controllers/fund_controller.dart';
 import 'package:ehab_company_admin/features/products/presentation/controllers/product_controller.dart';
 import 'package:ehab_company_admin/features/suppliers/presentation/controllers/supplier_controller.dart';
 import 'package:ehab_company_admin/features/units/presentation/controllers/unit_controller.dart';
@@ -24,5 +25,6 @@ class InitialBinding extends Bindings {
     Get.put<ProductController>(ProductController(), permanent: true);
     Get.lazyPut<HomeController>(() => HomeController(), fenix: true);
     Get.lazyPut<CustomerController>(() => CustomerController(), fenix: true);
+    Get.lazyPut<FundController>(() => FundController(), fenix: true);
   }
 }

@@ -47,13 +47,41 @@ class FundRepository {
   }
 
   /// دالة لجلب كل حركات الصندوق
-  Future<List<FundTransactionModel>> getAllTransactions(int fundId) async {
+  Future<List<FundTransactionModel>> getAllTransactions({
+    required int fundId,
+    DateTime? from,
+    DateTime? to,
+    TransactionType? type,
+  }) async {
     final db = await _dbService.database;
+
+    List<String> whereClauses = ['fundId = ?'];
+    List<dynamic> whereArgs = [fundId];
+
+    if (from != null) {
+      whereClauses.add('transactionDate >= ?');
+      whereArgs.add(from.toIso8601String());
+    }
+    if (to != null) {
+      final inclusiveTo = to.add(const Duration(days: 1));
+      whereClauses.add('transactionDate < ?');
+      whereArgs.add(inclusiveTo.toIso8601String());
+    }
+    if (type != null) {
+      whereClauses.add('type = ?');
+      whereArgs.add(type
+          .toString()
+          .split('.')
+          .last);
+    }
+
+    final String whereStatement = whereClauses.join(' AND ');
+
     final List<Map<String, dynamic>> maps = await db.query(
       'fund_transactions',
-      where: 'fundId = ?',
-      whereArgs: [fundId],
-      orderBy: 'transactionDate DESC', // الأحدث أولاً
+      where: whereStatement,
+      whereArgs: whereArgs,
+      orderBy: 'transactionDate DESC',
     );
 
     if (maps.isEmpty) {
@@ -62,6 +90,30 @@ class FundRepository {
     return List.generate(
         maps.length, (i) => FundTransactionModel.fromMap(maps[i]));
   }
+
+  Future<Map<String, double>> getTodaysSummary(int fundId) async {
+    final db = await _dbService.database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    final result = await db.rawQuery('''
+      SELECT SUM(CASE WHEN type = 'DEPOSIT' THEN amount ELSE 0 END) as totalDeposits,
+        SUM(CASE WHEN type = 'WITHDRAWAL' THEN amount ELSE 0 END) as totalWithdrawals
+      FROM fund_transactions
+      WHERE fundId = ? AND transactionDate >= ? AND transactionDate < ?
+    ''', [fundId, startOfDay.toIso8601String(), endOfDay.toIso8601String()]);
+
+    final summary = result.first;
+    return {
+      'todaysDeposits': (summary['totalDeposits'] as num?)?.toDouble() ?? 0.0,
+      'todaysWithdrawals': (summary['totalWithdrawals'] as num?)?.toDouble() ??
+          0.0,
+    };
+  }
+
+  // --- نهاية الإضافة ---
+
 
   /// دالة لجلب بيانات الصندوق الرئيسي (أو أي صندوق آخر)
   Future<FundModel?> getMainFund() async {
@@ -75,6 +127,7 @@ class FundRepository {
     }
     return null; // في حالة عدم وجود الصندوق
   }
+
 
   // --- بداية الحل: الدالة الداخلية الجديدة ---
   /// دالة داخلية لتنفيذ المنطق. تتطلب transaction موجودة مسبقًا.
@@ -149,4 +202,66 @@ class FundRepository {
           0.0,
     };
   }
+
+  // --- بداية الإضافة: دالة جديدة لتجهيز بيانات تقرير حركة الصندوق ---
+  Future<Map<String, dynamic>> generateFundFlowReportData({
+    required int fundId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final db = await _dbService.database;
+    final inclusiveTo = to.add(const Duration(days: 1));
+    final fromString = from.toIso8601String();
+    final toString = inclusiveTo.toIso8601String();
+
+    // 1. حساب الرصيد الافتتاحي (رصيد الصندوق قبل تاريخ "من")
+// --- بداية التعديل: فصل استعلامات حساب الرصيد الافتتاحي ---
+// 1. جلب الرصيد الأولي للصندوق
+    final fundData = await db.query('funds', where: 'id = ?', whereArgs: [fundId]);
+    final double initialBalance = fundData.isNotEmpty
+        ? (fundData.first['initialBalance'] as num?)?.toDouble() ?? 0.0
+        : 0.0;
+// 2. حساب صافي الحركات قبل تاريخ بداية التقرير
+    final priorTransactionsResult = await db.rawQuery('''
+  SELECT COALESCE(SUM(CASE WHEN type = 'DEPOSIT' THEN amount ELSE -amount END), 0) as netMovement
+  FROM fund_transactions
+  WHERE fundId = ? AND transactionDate < ?
+''', [fundId, fromString]);
+    final double priorNetMovement = (priorTransactionsResult.first['netMovement'] as num?)?.toDouble() ?? 0.0;
+
+// 3. حساب الرصيد الافتتاحي الفعلي بجمع النتيجتين
+    final double openingBalance = initialBalance + priorNetMovement;
+// --- نهاية التعديل ---
+
+    // 2. جلب كل الحركات خلال الفترة المحددة
+    final transactions = await db.rawQuery('''
+      SELECT *
+      FROM fund_transactions
+      WHERE fundId = ? AND transactionDate >= ? AND transactionDate < ?
+      ORDER BY transactionDate ASC
+    ''', [fundId, fromString, toString]);
+    final List<FundTransactionModel> transactionModels =
+    transactions.map((map) => FundTransactionModel.fromMap(map)).toList();
+
+    // 3. حساب الملخصات (إجمالي الوارد والصادر) خلال الفترة
+    double totalDeposits = 0.0;
+    double totalWithdrawals = 0.0;
+    for (var tx in transactionModels) {
+      if (tx.type == TransactionType.DEPOSIT) {
+        totalDeposits += tx.amount;
+      } else {
+        totalWithdrawals += tx.amount;
+      }
+    }
+
+    return {
+      'openingBalance': openingBalance,
+      'transactions': transactionModels,
+      'totalDeposits': totalDeposits,
+      'totalWithdrawals': totalWithdrawals,
+      'closingBalance': openingBalance + totalDeposits - totalWithdrawals,
+
+  };
+  }
+// --- نهاية الإضافة ---
 }

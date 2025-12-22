@@ -2,6 +2,8 @@
 
 import 'package:ehab_company_admin/core/database/database_service.dart';
 import 'package:ehab_company_admin/core/theme/app_theme.dart';
+import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_binding.dart';
+import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_invoice_screen.dart';
 import 'package:ehab_company_admin/features/splash/splash_screen.dart'; // <-- تغيير هنا
 import 'package:ehab_company_admin/initial_binding.dart';
 import 'package:flutter/material.dart';
@@ -48,7 +50,10 @@ class MyApp extends StatelessWidget {
       getPages: [
         GetPage(name: '/add_sales_invoice', page: () => const AddSalesInvoiceScreen(),
       binding: AddSalesInvoiceBinding(),
+
     ),
+        GetPage(name: '/add_purchase_invoice', page: () => const AddPurchaseInvoiceScreen(),
+        binding: AddPurchaseBinding()),
       ],
 
 

@@ -167,4 +167,37 @@ class SupplierRepository {
       return SupplierTransactionModel.fromMap(map);
     });
   }
+
+  // --- بداية الإضافة: دالة للتحقق من وجود علاقات للمورد ---
+  /// يتحقق مما إذا كان للمورد أي فواتير مشتريات أو حركات مالية مرتبطة به
+  Future<bool> checkSupplierHasRelations
+
+      (int supplierId) async {
+    final db = await _dbService.database;
+
+    // 1. التحقق من وجود فواتير مشتريات
+    final purchasesCount = Sqflite.firstIntValue(await db.rawQuery(
+      'SELECT COUNT(*) FROM purchase_invoices WHERE supplierId = ?',
+      [supplierId],
+    ));
+
+    if (purchasesCount != null && purchasesCount > 0) {
+      return true; // وجدنا فواتير، لا داعي لإكمال البحث
+    }
+
+    // 2. التحقق من وجود حركات مالية (إذا لم نجد فواتير)
+    // نستثني الرصيد الافتتاحي لأنه لا يعتبر حركة فعلية تمنع الحذف
+    final transactionsCount = Sqflite.firstIntValue(await db.rawQuery(
+      "SELECT COUNT(*) FROM supplier_transactions WHERE supplierId = ? AND type != 'OPENING_BALANCE'",
+      [supplierId],
+    ));
+
+    if (transactionsCount != null && transactionsCount > 0) {
+      return true; // وجدنا حركات مالية
+    }
+
+    // إذا وصلنا إلىهنا، فالمورد ليس له أي علاقات تمنع الحذف
+    return false;
+  }
+// --- نهاية الإضافة ---
 }
