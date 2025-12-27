@@ -23,26 +23,28 @@ class TopSellingProductsScreen extends StatelessWidget {
           child: _buildFilters(context, controller),
         ),
       ),
-      body: Obx(() {
-        if (controller.isLoading.isTrue) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (controller.topProducts.isEmpty) {
-          return const Center(
-            child: Text('لا توجد بيانات مبيعات في الفترة المحددة.',
-                style: TextStyle(color: Colors.grey, fontSize: 16)),
+      body: SafeArea(
+        child: Obx(() {
+          if (controller.isLoading.isTrue) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (controller.topProducts.isEmpty) {
+            return const Center(
+              child: Text('لا توجد بيانات مبيعات في الفترة المحددة.',
+                  style: TextStyle(color: Colors.grey, fontSize: 16)),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: controller.topProducts.length,
+            itemBuilder: (context, index) {
+              final productData = controller.topProducts[index];
+              return _buildProductCard(
+                  productData, index + 1, formatCurrency, controller.orderBy.value);
+            },
           );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: controller.topProducts.length,
-          itemBuilder: (context, index) {
-            final productData = controller.topProducts[index];
-            return _buildProductCard(
-                productData, index + 1, formatCurrency, controller.orderBy.value);
-          },
-        );
-      }),
+        }),
+      ),
     );
   }
 

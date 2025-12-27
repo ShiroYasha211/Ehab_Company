@@ -5,7 +5,9 @@ import 'package:path/path.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
+
   factory DatabaseService() => _instance;
+
   DatabaseService._internal();
 
   static Database? _database;
@@ -23,7 +25,7 @@ class DatabaseService {
     return await openDatabase(
       path,
       // --- بداية الإصلاح: زيادة رقم الإصدار ---
-      version: 9,
+      version: 10,
       // --- نهاية الإصلاح ---
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -64,6 +66,9 @@ class DatabaseService {
     if (oldVersion < 9) {
       await _createV9Tables(db);
     }
+    if (oldVersion < 10) {
+      await _createV10Tables(db);
+    }
   }
 
   /// الإصدار 1: جداول المخازن والصندوق الأساسية
@@ -90,8 +95,10 @@ class DatabaseService {
         FOREIGN KEY (fundId) REFERENCES funds(id) ON DELETE CASCADE
       )
     ''');
-    batch.execute('CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)');
-    batch.execute('CREATE TABLE units (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)');
+    batch.execute(
+        'CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)');
+    batch.execute(
+        'CREATE TABLE units (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)');
     batch.insert('funds', {'name': 'الصندوق الرئيسي', 'balance': 0.0});
     batch.insert('units', {'name': 'قطعة'});
     batch.insert('units', {'name': 'كرتون'});
@@ -140,7 +147,8 @@ class DatabaseService {
   /// الإصدار 4: إضافة حقل الرصيد للموردين وجدول حركات الموردين
   Future<void> _createV4Tables(Database db) async {
     // ... (هذا الجزء يبقى كما هو)
-    await db.execute('ALTER TABLE suppliers ADD COLUMN balance REAL NOT NULL DEFAULT 0.0');
+    await db.execute(
+        'ALTER TABLE suppliers ADD COLUMN balance REAL NOT NULL DEFAULT 0.0');
     await db.execute('''
       CREATE TABLE supplier_transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT, -- رقم السند (جعلته تلقائيًا لضمان عدم التضارب)
@@ -243,6 +251,7 @@ class DatabaseService {
     ''');
     await batch.commit(noResult: true);
   }
+
 // --- نهاية الإضافة ---
   /// الإصدار 8: إضافة جداول المصروفات وبنودها
   Future<void> _createV8Tables(Database db) async {
@@ -271,15 +280,27 @@ class DatabaseService {
     // إضافة بعض البنود الافتراضية
     batch.insert('expense_categories', {'name': 'إيجار'});
     batch.insert('expense_categories', {'name': 'رواتب وأجور'});
-    batch.insert('expense_categories', {'name': 'فواتير (كهرباء، ماء، إنترنت)'});
+    batch.insert(
+        'expense_categories', {'name': 'فواتير (كهرباء، ماء، إنترنت)'});
     batch.insert('expense_categories', {'name': 'مصاريف تسويق'});
     batch.insert('expense_categories', {'name': 'ضيافة ونثريات'});
 
     await batch.commit(noResult: true);
   }
+
   Future<void> _createV9Tables(Database db) async {
     // سيتم تعيين القيمة الافتراضية إلى تاريخ إنشاء العميل
-    await db.execute('ALTER TABLE customers ADD COLUMN lastTransactionDate TEXT');
+    await db.execute(
+        'ALTER TABLE customers ADD COLUMN lastTransactionDate TEXT');
     await db.execute('UPDATE customers SET lastTransactionDate = createdAt');
   }
+
+  // --- بداية الإضافة: دالة الترقية الجديدة ---
+  /// الإصدار 10: إضافة حقل الخصم من الصندوق للمصروفات
+  Future<void> _createV10Tables(Database db) async {
+    await db.execute('''
+      ALTER TABLE expenses ADD COLUMN deductFromFund INTEGER NOT NULL DEFAULT 1
+    ''');
+  }
+// --- نهاية الإضافة ---
 }

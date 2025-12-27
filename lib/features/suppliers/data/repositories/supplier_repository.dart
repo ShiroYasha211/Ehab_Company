@@ -184,9 +184,6 @@ class SupplierRepository {
     if (purchasesCount != null && purchasesCount > 0) {
       return true; // وجدنا فواتير، لا داعي لإكمال البحث
     }
-
-    // 2. التحقق من وجود حركات مالية (إذا لم نجد فواتير)
-    // نستثني الرصيد الافتتاحي لأنه لا يعتبر حركة فعلية تمنع الحذف
     final transactionsCount = Sqflite.firstIntValue(await db.rawQuery(
       "SELECT COUNT(*) FROM supplier_transactions WHERE supplierId = ? AND type != 'OPENING_BALANCE'",
       [supplierId],
@@ -198,6 +195,68 @@ class SupplierRepository {
 
     // إذا وصلنا إلىهنا، فالمورد ليس له أي علاقات تمنع الحذف
     return false;
+  }
+
+// --- نهاية الإضافة ---
+  // --- بداية الإضافة: دالة جديدة لتجهيز بيانات تقرير أرصدة الموردين ---
+
+  /// يجلب كل الموردين مع أرصدتهم مرتبة حسب الأعلى رصيدًا
+  Future<List<SupplierModel>> getSuppliersForReport() async {
+    final db = await _dbService.database;
+    // استعلام لجلب كل الموردين، مع ترتيبهم حسب الرصيد تنازليًا
+    final List<Map<String, dynamic>> maps = await db.query(
+      'suppliers',
+      orderBy: 'balance DESC',
+    );
+
+    if (maps.isEmpty) {
+      return [];
+    }
+
+    return List.generate(maps.length, (i) => SupplierModel.fromMap(maps[i]));
+  }
+
+// --- نهاية الإضافة ---
+  // --- بداية الإضافة: دالة جديدة لتجهيز بيانات كشف حساب المورد ---  /// يجلب كل الحركات لمورد معين لفترة محددة ويحسب الرصيد الافتتاحي
+  Future<Map<String, dynamic>> getSupplierStatementData({
+    required int supplierId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final db = await _dbService.database;
+    final inclusiveTo = to.add(const Duration(days: 1));
+
+    final fromString = from.toIso8601String();
+    final toString = inclusiveTo.toIso8601String();
+
+    // 1. حساب الرصيد الافتتاحي (رصيد المورد قبل تاريخ "من")
+    // هذا يحسب صافي كل الحركات التي حدثت قبل بداية الفترة
+    final openingBalanceResult = await db.rawQuery('''
+      SELECT 
+        COALESCE(SUM(CASE WHEN type = 'PURCHASE' OR type = 'OPENING_BALANCE' THEN amount ELSE -amount END), 0) as openingBalance
+      FROM supplier_transactions
+      WHERE supplierId = ? AND transactionDate < ?
+    ''', [supplierId, fromString]);
+    final double openingBalance = (openingBalanceResult
+        .first['openingBalance'] as num?)?.toDouble() ?? 0.0;
+
+    // 2. جلب كل الحركات خلال الفترة المحددة
+    final transactionsResult = await db.query(
+      'supplier_transactions',
+      where: 'supplierId = ? AND transactionDate >= ? AND transactionDate < ?',
+      whereArgs: [supplierId, fromString, toString],
+      orderBy: 'transactionDate ASC', // الترتيب من الأقدم للأحدث مهم جدًا
+    );
+
+    final List<SupplierTransactionModel> transactions =
+    transactionsResult
+        .map((map) => SupplierTransactionModel.fromMap(map))
+        .toList();
+
+    return {
+      'openingBalance': openingBalance,
+      'transactions': transactions,
+    };
   }
 // --- نهاية الإضافة ---
 }

@@ -13,13 +13,23 @@ import 'package:intl/intl.dart' as intl;
 class VoucherPdfService {
   static Future<void> printVoucher(dynamic transaction) async {
     final pdf = pw.Document();
-    final fontData = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
-    final arabicFont = pw.Font.ttf(fontData);
+
+    // --- 1. بداية التعديل: تحميل الخطوط والشعار بالكامل ---
+    final font = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
+    final boldFont = await rootBundle.load("assets/fonts/Tajawal-Bold.ttf");
+    final ttf = pw.Font.ttf(font);
+    final boldTtf = pw.Font.ttf(boldFont);
+
+    final logoImage = pw.MemoryImage(
+      (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List(),
+    );
+    // --- نهاية التعديل ---
+
 
     // --- تحديد البيانات بناءً على نوع السند ---
     final bool isSupplier = transaction is SupplierTransactionModel;
     final String docTitle; // "سند دفع" أو "سند قبض"
-    final String partyLabel; // "المورد" أو "العميل"
+    final String partyLabel; // "استلمنا من السيد/ة" أو "صرفنا للسيد/ة"
     final String partyName;
     final String transactionId = transaction.id.toString();
     final double amount = transaction.amount;
@@ -27,15 +37,15 @@ class VoucherPdfService {
     final String notes = transaction.notes ?? 'لا توجد ملاحظات';
 
     if (isSupplier) {
-      final voucher = transaction;
-      docTitle = voucher.type == SupplierTransactionType.PAYMENT ? 'سند دفع' : 'رصيد افتتاحي';
-      partyLabel = 'إلى المورد';
-      partyName = voucher.supplierName ?? 'غير محدد';
+      final voucher = transaction as SupplierTransactionModel;
+      docTitle = 'سند صرف';
+      partyLabel = 'صُرف للسيد/ة';
+      partyName = voucher.supplierName ?? 'مورد غير محدد';
     } else {
       final voucher = transaction as CustomerTransactionModel;
-      docTitle = voucher.type == CustomerTransactionType.RECEIPT ? 'سند قبض' : 'رصيد افتتاحي';
-      partyLabel = 'من العميل';
-      partyName = voucher.customerName ?? 'غير محدد';
+      docTitle = 'سند قبض';
+      partyLabel = 'استلمنا من السيد/ة';
+      partyName = voucher.customerName ?? 'عميل غير محدد';
     }
     // --- نهاية تحديد البيانات ---
 
@@ -43,19 +53,18 @@ class VoucherPdfService {
       pw.Page(
         pageFormat: PdfPageFormat.a5, // حجم A5 مناسب للسندات
         textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
         build: (context) {
-          return pw.Padding(
-            padding: const pw.EdgeInsets.all(20),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                _buildHeader(docTitle, transactionId, date, arabicFont),
-                pw.SizedBox(height: 30),
-                _buildBody(partyLabel, partyName, amount, notes, arabicFont),
-                pw.Spacer(),
-                _buildFooter(arabicFont),
-              ],
-            ),
+          return pw.Column(
+            children: [
+              _buildHeader(logoImage), // <-- رأس الصفحة الموحد
+              pw.SizedBox(height: 20),
+              _buildVoucherTitle(docTitle, transactionId, date), // <-- عنوان السند الجديد
+              pw.SizedBox(height: 30),
+              _buildVoucherBody(partyLabel, partyName, amount, notes), // <-- محتوى السند الجديد
+              pw.Spacer(),
+              _buildFooter(), // <-- تذييل التوقيعات الجديد
+            ],
           );
         },
       ),
@@ -68,95 +77,112 @@ class VoucherPdfService {
     await OpenFile.open(file.path);
   }
 
-  static pw.Widget _buildHeader(String title, String id, String date, pw.Font font) {
-    return pw.Column(
+  // --- 2. دوال بناء أجزاء السند (بتصميم متوافق مع الهوية البصرية) ---
+
+  static pw.Widget _buildHeader(pw.MemoryImage logo) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
-        pw.Text('شركة إيهاب', style: pw.TextStyle(font: font, fontSize: 20, fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(height: 20),
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('شركة إيهاب للتجارة', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+            pw.SizedBox(height: 5),
+            pw.Text('هاتف: 777-777-777', style: const pw.TextStyle(fontSize: 9)),
+          ],
+        ),
+        pw.SizedBox(height: 50, width: 50, child: pw.Image(logo)),
+      ],
+    );
+  }
+
+  static pw.Widget _buildVoucherTitle(String title, String id, String date) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.center,
+      children: [
         pw.Container(
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black),
-            borderRadius: pw.BorderRadius.circular(5),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 5),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(bottom: pw.BorderSide(width: 2, color: PdfColors.black)),
           ),
-          padding: const pw.EdgeInsets.all(8),
-          child: pw.Text(title, style: pw.TextStyle(font: font, fontSize: 22, fontWeight: pw.FontWeight.bold)),
+          child: pw.Text(title, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
         ),
         pw.SizedBox(height: 20),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text('رقم السند: $id', style: pw.TextStyle(font: font)),
-            pw.Text('التاريخ: $date', style: pw.TextStyle(font: font)),
+            pw.Text('رقم السند: $id', style: const pw.TextStyle(fontSize: 11)),
+            pw.Text('التاريخ: $date', style: const pw.TextStyle(fontSize: 11)),
           ],
         ),
-        pw.Divider(thickness: 1.5, height: 20),
       ],
     );
   }
 
-  static pw.Widget _buildBody(String partyLabel, String partyName, double amount, String notes, pw.Font font) {
-    // دالة لتحويل الرقم إلى نص (تفقيط)
+  static pw.Widget _buildVoucherBody(String partyLabel, String partyName, double amount, String notes) {
     String numberToWords(double number) {
-      // هذا مجرد مثال بسيط، يمكن استبداله بمكتبة تفقيط حقيقية إذا لزم الأمر
+      // يمكن استبداله بمكتبة تفقيط حقيقية إذا لزم الأمر
       return 'فقط ${intl.NumberFormat.decimalPattern('ar').format(number)} ريال لا غير.';
     }
 
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        _buildInfoRow('$partyLabel:', partyName, font, isLarge: true),
-        pw.SizedBox(height: 20),
-        _buildInfoRow('مبلغ وقدره:', '${intl.NumberFormat.currency(locale: 'ar', symbol: 'ر.ي').format(amount)}', font, isLarge: true),
+        _buildInfoRow(partyLabel, partyName),
+        pw.SizedBox(height: 15),
+        _buildInfoRow('مبلغ وقدره:', '${intl.NumberFormat.decimalPattern('ar').format(amount)} ريال'),
         pw.SizedBox(height: 10),
         pw.Container(
+          width: double.infinity,
           padding: const pw.EdgeInsets.all(8),
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey),
+            color: PdfColors.grey100,
             borderRadius: pw.BorderRadius.circular(5),
           ),
           child: pw.Text(
             numberToWords(amount),
-            style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold),
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
           ),
         ),
-        pw.SizedBox(height: 20),
-        _buildInfoRow('وذلك عن:', notes, font),
+        pw.SizedBox(height: 15),
+        _buildInfoRow('وذلك عن:', notes),
       ],
     );
   }
 
-  static pw.Widget _buildInfoRow(String label, String value, pw.Font font, {bool isLarge = false}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 4),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.SizedBox(
-            width: 100,
-            child: pw.Text(label, style: pw.TextStyle(font: font, fontSize: isLarge ? 14 : 12, fontWeight: pw.FontWeight.bold)),
-          ),
-          pw.Expanded(
-            child: pw.Text(value, style: pw.TextStyle(font: font, fontSize: isLarge ? 14 : 12)),
-          ),
-        ],
-      ),
+  static pw.Widget _buildInfoRow(String label, String value) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.SizedBox(
+          width: 90,
+          child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+        ),
+        pw.Expanded(
+          child: pw.Text(value, style: const pw.TextStyle(fontSize: 13)),
+        ),
+      ],
     );
   }
 
-  static pw.Widget _buildFooter(pw.Font font) {
+  static pw.Widget _buildFooter() {
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
       children: [
-        pw.Column(children: [
-          pw.Text('المحاسب', style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 5),
-          pw.Text('................', style: pw.TextStyle(font: font)),
-        ]),
-        pw.Column(children: [
-          pw.Text('المستلم', style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 5),
-          pw.Text('................', style: pw.TextStyle(font: font)),
-        ]),
+        _buildSignature('المحاسب'),
+        _buildSignature('المستلم'),
+      ],
+    );
+  }
+
+  static pw.Widget _buildSignature(String title) {
+    return pw.Column(
+      children: [
+        pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+        pw.SizedBox(height: 5),
+        pw.Text('.......................', style: const pw.TextStyle(color: PdfColors.grey600)),
+        pw.SizedBox(height: 5),
+        pw.Text('التوقيع:', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey)),
       ],
     );
   }

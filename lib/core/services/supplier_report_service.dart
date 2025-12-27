@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';
 import 'package:ehab_company_admin/features/suppliers/data/models/supplier_transaction_model.dart';
 import 'package:flutter/services.dart';
-import 'package:open_file/open_file.dart'; // تأكد من استخدام open_file_plus
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -14,175 +14,179 @@ class SupplierReportService {
   static Future<void> printSupplierStatement({
     required SupplierModel supplier,
     required List<SupplierTransactionModel> transactions,
+    required double openingBalance, // سنستقبل الرصيد الافتتاحي جاهزًا
   }) async {
     final pdf = pw.Document();
 
-    // 1. تحميل الخط العربي
-    final fontData = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
-    final arabicFont = pw.Font.ttf(fontData);
-    final textStyle = pw.TextStyle(font: arabicFont, fontSize: 10);
-    final headerStyle = pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 11);
+    // --- 1. بداية التعديل: تحميل الخطوط والشعار بالكامل ---
+    final font = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
+    final boldFont = await rootBundle.load("assets/fonts/Tajawal-Bold.ttf");
+    final ttf = pw.Font.ttf(font);
+    final boldTtf = pw.Font.ttf(boldFont);
 
-    final formatCurrency = intl.NumberFormat("#,##0.00", "ar_SA");
+    final logoImage = pw.MemoryImage(
+      (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List(),
+    );
+    // --- نهاية التعديل ---
 
-    // 2. بناء صفحات التقرير
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        textDirection: pw.TextDirection.rtl, // تحديد اتجاه النص من اليمين لليسار
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
+        header: (context) => _buildHeader(logoImage), // <-- رأس الصفحة الموحد
         build: (context) => [
-          _buildHeader(supplier, textStyle, headerStyle),
+          _buildReportTitle(supplier), // <-- عنوان التقرير ومعلومات المورد
           pw.SizedBox(height: 20),
-          _buildTable(transactions, supplier, textStyle, headerStyle, formatCurrency),
-          pw.Divider(),
+          _buildFinancialSummary(openingBalance, supplier.balance), // <-- الملخص المالي الجديد
+          pw.SizedBox(height: 20),
+          _buildTransactionsTable(transactions, openingBalance), // <-- جدول الحركات المحسن
         ],
-        header: (context) => _buildPageHeader(context, headerStyle),
-        footer: (context) => _buildPageFooter(context, textStyle),
+        footer: (context) => _buildFooter(context), // <-- تذييل الصفحة الموحد
       ),
     );
 
-    // 3. حفظ وفتح الملف
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/supplier_statement_${supplier.id}.pdf');
     await file.writeAsBytes(await pdf.save());
     await OpenFile.open(file.path);
   }
 
-  // ودجت لرأس التقرير
-  static pw.Widget _buildHeader(SupplierModel supplier, pw.TextStyle textStyle, pw.TextStyle boldStyle) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text('كشف حساب المورد', style: boldStyle.copyWith(fontSize: 18, color: PdfColors.blueGrey800)),
-        pw.Divider(height: 10),
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+  // --- 2. دوال بناء أجزاء التقرير (بتصميم متوافق مع الهوية البصرية) ---
+
+  static pw.Widget _buildHeader(pw.MemoryImage logo) {
+    // (نفس دالة الهيدر من التقارير السابقة)
+    return pw.Container(
+      padding: const pw.EdgeInsets.only(bottom: 15),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey, width: 1.5)),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('شركة إيهاب للتجارة', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+              pw.SizedBox(height: 5),
+              pw.Text('هاتف: 777-777-777', style: const pw.TextStyle(fontSize: 10)),
+              pw.Text('البريد الإلكتروني: info@ehab-company.com', style: const pw.TextStyle(fontSize: 10)),
+            ],
+          ),
+          pw.SizedBox(height: 60, width: 60, child: pw.Image(logo)),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildReportTitle(SupplierModel supplier) {
+    return pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 20),
+        child: pw.Column(
           children: [
-            pw.Text('اسم المورد: ${supplier.name}', style: boldStyle),
-            pw.Text('تاريخ الطباعة: ${intl.DateFormat('yyyy-MM-dd').format(DateTime.now())}', style: textStyle),
+            pw.Text('كشف حساب المورد', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800)),
+            pw.SizedBox(height: 10),
+            pw.Text(supplier.name, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 5),
+            pw.Text('تاريخ الطباعة: ${intl.DateFormat('yyyy-MM-dd').format(DateTime.now())}', style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey600)),
           ],
+        ));
+  }
+
+  static pw.Widget _buildFinancialSummary(double openingBalance, double closingBalance) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+          color: PdfColors.orange.shade(0.05),
+          borderRadius: pw.BorderRadius.circular(8),
+          border: pw.Border.all(color: PdfColors.orange200)),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+        children: [
+          _buildSummaryItem('الرصيد السابق', openingBalance),
+          _buildSummaryItem('الرصيد النهائي المستحق', closingBalance, isTotal: true),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _buildSummaryItem(String label, double value, {bool isTotal = false}) {
+    return pw.Column(
+      children: [
+        pw.Text(label, style: const pw.TextStyle(fontSize: 11)),
+        pw.SizedBox(height: 4),
+        pw.Text(
+          '${intl.NumberFormat.decimalPattern('ar').format(value)} ريال',
+          style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold,
+              fontSize: isTotal ? 16 : 14,
+              color: isTotal ? PdfColors.orange900 : PdfColors.black),
         ),
       ],
     );
   }
 
-  /// ودجت لجدول الحركات التحليلي
-  static pw.Widget _buildTable(
-      List<SupplierTransactionModel> transactions,
-      SupplierModel supplier,
-      pw.TextStyle textStyle,
-      pw.TextStyle headerStyle,
-      intl.NumberFormat formatCurrency,
-      ) {
-    // 1. تحديد الأعمدة
-    final headers = ['التاريخ', 'رقم السند', 'البيان', 'مدين (-)', 'دائن (+)', 'الرصيد'];
-
-    // 2. حساب الرصيد الافتتاحي للفترة
-    final orderedTransactions = transactions.reversed.toList();
-    double openingBalance = supplier.balance;
-    for (final trans in orderedTransactions) {
-      if (trans.type == SupplierTransactionType.PAYMENT) {
-        openingBalance += trans.amount; // أضف الدفعة مرة أخرى للوصول للرصيد قبلها
-      } else {
-        openingBalance -= trans.amount; // اطرح الرصيد الافتتاحي للوصول للرصيد قبله
-      }
-    }
-
-    // 3. بناء صفوف الجدول
-    final List<List<pw.Widget>> tableData = [];
+  static pw.Widget _buildTransactionsTable(List<SupplierTransactionModel> transactions, double openingBalance) {
+    final headers = ['الرصيد', 'مدين (-)', 'دائن (+)', 'البيان', 'التاريخ'];
     double runningBalance = openingBalance;
 
-    // إضافة صف الرصيد الافتتاحي
-    tableData.add([
-      pw.Text('', style: textStyle),
-      pw.Text('', style: textStyle),
-      pw.Text('رصيد بداية الفترة', style: headerStyle),
-      pw.Text('', style: textStyle),
-      pw.Text('', style: textStyle),
-      pw.Text(formatCurrency.format(runningBalance), style: textStyle),
-    ]);
-
-    // إضافة الحركات
-    for (final trans in orderedTransactions) {
+    final data = transactions.map((trans) {
       double debit = 0;
       double credit = 0;
 
       if (trans.type == SupplierTransactionType.PAYMENT) {
-        debit = trans.amount; // الدفعة هي "مدين" (تقلل الدين)
+        debit = trans.amount; // الدفعة للمورد (سند صرف) تقلل الدين
         runningBalance -= debit;
-      } else {
-        credit = trans.amount; // الرصيد الافتتاحي/الفواتير هي "دائن" (تزيد الدين)
+      } else { // فاتورة شراء أو رصيد افتتاحي
+        credit = trans.amount; // الشراء من المورد يزيد الدين
         runningBalance += credit;
       }
 
-      final description = trans.notes?.isNotEmpty == true ? trans.notes! : (trans.type == SupplierTransactionType.PAYMENT ? 'دفعة نقدية' : 'رصيد افتتاحي');
+      final description = trans.notes?.isNotEmpty == true
+          ? trans.notes!
+          : (trans.type == SupplierTransactionType.PAYMENT ? 'سند صرف' : (trans.type == SupplierTransactionType.PURCHASE ? 'فاتورة شراء #${trans.referenceId}' : 'رصيد افتتاحي'));
 
-      tableData.add([
-        pw.Text(intl.DateFormat('yyyy-MM-dd').format(trans.transactionDate), style: textStyle),
-        pw.Text(trans.id.toString(), style: textStyle),
-        pw.Text(description, style: textStyle),
-        pw.Text(debit > 0 ? formatCurrency.format(debit) : '', style: textStyle.copyWith(color: PdfColors.green800)),
-        pw.Text(credit > 0 ? formatCurrency.format(credit) : '', style: textStyle.copyWith(color: PdfColors.red800)),
-        pw.Text(formatCurrency.format(runningBalance), style: textStyle),
-      ]);
-    }
+      return [
+        '${intl.NumberFormat.decimalPattern('ar').format(runningBalance)}',
+        debit > 0 ? '${intl.NumberFormat.decimalPattern('ar').format(debit)}' : '',
+        credit > 0 ? '${intl.NumberFormat.decimalPattern('ar').format(credit)}' : '',
+        description,
+        intl.DateFormat('yyyy-MM-dd').format(trans.transactionDate),
+      ];
+    }).toList();
 
-    // إضافة صف الإجمالي النهائي
-    tableData.add([
-      pw.Text(''),
-      pw.Text(''),
-      pw.Text('الرصيد النهائي المستحق', style: headerStyle.copyWith(fontSize: 12)),
-      pw.Text(''),
-      pw.Text(''),
-      pw.Text(formatCurrency.format(supplier.balance), style: headerStyle.copyWith(fontSize: 12)),
-    ]);
-
-    return pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey, width: 0.5),
-      columnWidths: {
-        0: const pw.FlexColumnWidth(2),
-        1: const pw.FlexColumnWidth(1.5),
-        2: const pw.FlexColumnWidth(4),
-        3: const pw.FlexColumnWidth(2),
-        4: const pw.FlexColumnWidth(2),
-        5: const pw.FlexColumnWidth(2.5),
-      },
-      children: [
-        // صف الهيدر
-        pw.TableRow(
-          decoration: const pw.BoxDecoration(color: PdfColors.blueGrey700),
-          children: headers.map((header) => pw.Padding(
-            padding: const pw.EdgeInsets.all(5),
-            child: pw.Text(header, style: headerStyle.copyWith(color: PdfColors.white)),
-          )).toList(),
-        ),
-        // صفوف البيانات
-        ...tableData.map((row) => pw.TableRow(
-          children: row.map((cell) => pw.Padding(
-            padding: const pw.EdgeInsets.all(5),
-            child: pw.Directionality(
-              textDirection: pw.TextDirection.rtl,
-              child: cell,
-            ),
-          )).toList(),
-        )),
-      ],
-    );
+    return pw.Table.fromTextArray(
+        cellAlignment: pw.Alignment.centerRight,
+        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
+        headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+        rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200))),
+        headers: headers,
+        data: data,
+        columnWidths: {
+          0: const pw.FlexColumnWidth(2.5), // الرصيد
+          1: const pw.FlexColumnWidth(2),   // مدين
+          2: const pw.FlexColumnWidth(2),   // دائن
+          3: const pw.FlexColumnWidth(4),   // البيان
+          4: const pw.FlexColumnWidth(2),   // التاريخ
+        },
+        cellStyle: const pw.TextStyle(fontSize: 10),
+        cellAlignments: { // محاذاة الأعمدة الرقمية لليسار
+          0: pw.Alignment.centerLeft,
+          1: pw.Alignment.centerLeft,
+          2: pw.Alignment.centerLeft,
+          4: pw.Alignment.centerLeft,
+        });
   }
 
-  static pw.Widget _buildPageHeader(pw.Context context, pw.TextStyle boldStyle) {
+  static pw.Widget _buildFooter(pw.Context context) {
+    // (نفس دالة التذييل من التقارير السابقة)
     return pw.Container(
       alignment: pw.Alignment.center,
-      margin: const pw.EdgeInsets.only(bottom: 20.0),
-      child: pw.Text('شركة إيهاب', style: boldStyle.copyWith(fontSize: 16)),
-    );
-  }
-
-  static pw.Widget _buildPageFooter(pw.Context context, pw.TextStyle textStyle) {
-    return pw.Container(
-      alignment: pw.Alignment.center,
-      margin: const pw.EdgeInsets.only(top: 20.0),
-      child: pw.Text('صفحة ${context.pageNumber} من ${context.pagesCount}', style: textStyle),
+      margin: const pw.EdgeInsets.only(top: 10),
+      child: pw.Text(
+        'صفحة ${context.pageNumber} من ${context.pagesCount} - © شركة إيهاب',
+        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+      ),
     );
   }
 }

@@ -5,9 +5,12 @@ import 'package:ehab_company_admin/features/suppliers/presentation/controllers/s
 import 'package:ehab_company_admin/features/suppliers/presentation/screens/add_edit_supplier_screen.dart';
 import 'package:ehab_company_admin/features/suppliers/presentation/screens/supplier_details_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../../../core/services/supplier_pdf_service.dart';
 
 class ListSuppliersScreen extends StatelessWidget {
   const ListSuppliersScreen({super.key});
@@ -20,6 +23,33 @@ class ListSuppliersScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('قائمة الموردين'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print_outlined),
+            tooltip: 'طباعة تقرير أرصدة الموردين',
+            onPressed: () async {
+              try {
+                Get.dialog(
+                  const Center(child: CircularProgressIndicator()),
+                  barrierDismissible: false,
+                );
+
+                // جلب قائمة الموردين المرتبة من الـ Repository
+                // هذا السطر سيعمل بشكل صحيح بعد إضافة الـ getter في الخطوة التالية
+                final suppliers = await controller.repository.getSuppliersForReport();
+
+                if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
+
+                // طباعة التقرير
+                await SupplierPdfService.printSuppliersReport(suppliers);
+              } catch (e) {
+                if (Get.isDialogOpen!) Get.back();
+                Get.snackbar('خطأ', 'فشل في إنشاء التقرير: $e');
+              }
+
+            },
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(120.0),
           child: Column(
@@ -70,22 +100,24 @@ class ListSuppliersScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: Obx(() {
-        if (controller.isLoading.isTrue) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (controller.filteredSuppliers.isEmpty) {
-          return const Center(child: Text('لا يوجد موردين يطابقون بحثك.', style: TextStyle(color: Colors.grey)));
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.only(top: 8, bottom: 80),
-          itemCount: controller.filteredSuppliers.length,
-          itemBuilder: (context, index) {
-            final supplier = controller.filteredSuppliers[index];
-            return SupplierCard(supplier: supplier); // استخدام ودجت البطاقة
-          },
-        );
-      }),
+      body: SafeArea(
+        child: Obx(() {
+          if (controller.isLoading.isTrue) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (controller.filteredSuppliers.isEmpty) {
+            return const Center(child: Text('لا يوجد موردين يطابقون بحثك.', style: TextStyle(color: Colors.grey)));
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.only(top: 8, bottom: 80),
+            itemCount: controller.filteredSuppliers.length,
+            itemBuilder: (context, index) {
+              final supplier = controller.filteredSuppliers[index];
+              return SupplierCard(supplier: supplier); // استخدام ودجت البطاقة
+            },
+          );
+        }),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Get.to(() => const AddEditSupplierScreen()),
         child: const Icon(Icons.add),
@@ -151,19 +183,19 @@ class SupplierCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   if (supplier.phone != null && supplier.phone!.isNotEmpty) ...[
+                    // --- بداية التعديل: أيقونات جديدة ---
                     IconButton(
-               icon: Icon(Icons.phone_in_talk_rounded, color: Colors.green.shade700),
+                      icon: FaIcon(FontAwesomeIcons.phone, color: Colors.green.shade700, size: 20),
                       onPressed: () async {
                         final Uri url = Uri(scheme: 'tel', path: supplier.phone);
                         if (await canLaunchUrl(url)) {
-
                           await launchUrl(url);
                         }
                       },
                       tooltip: 'اتصال',
                     ),
                     IconButton(
-                      icon: const Icon(Icons.message_outlined), // يمكنك تغييرها لأيقونة واتساب
+                      icon: FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green.shade800, size: 22),
                       onPressed: () async {
                         final Uri url = Uri.parse('https://wa.me/${supplier.phone}');
                         if (await canLaunchUrl(url)) {
@@ -174,21 +206,16 @@ class SupplierCard extends StatelessWidget {
                     ),
                   ],
                   const Spacer(),
+                  // --- نهاية التعديل ---
                   IconButton(
-                    icon: Icon(Icons.delete_forever_rounded, color: Theme.of(context).colorScheme.error),
+                    // --- بداية التعديل: أيقونة وتصحيح منطق الحذف ---
+                    icon: FaIcon(FontAwesomeIcons.trashCan, color: Theme.of(context).colorScheme.error, size: 20),
                     onPressed: () {
-                      Get.defaultDialog(
-                        title: 'تأكيد الحذف',
-                        middleText: 'هل أنت متأكد من حذف المورد "${supplier.name}"؟',
-                        onConfirm: () {
-                          Get.find<SupplierController>().deleteSupplier(supplier);
-                          Get.back();
-                        },
-                        textConfirm: 'حذف',
-                        textCancel: 'إلغاء',
-                      );
+                      // استدعاء الدالة مباشرة، وهي ستقوم بعرض الديالوج المناسب
+                      Get.find<SupplierController>().deleteSupplier(supplier);
                     },
                     tooltip: 'حذف',
+                    // --- نهاية التعديل ---
                   ),
                 ],
               ),

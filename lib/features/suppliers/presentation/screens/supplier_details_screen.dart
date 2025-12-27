@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../controllers/supplier_controller.dart';
+
 class SupplierDetailsScreen extends StatelessWidget {
   final SupplierModel supplier;
 
@@ -32,12 +34,13 @@ class SupplierDetailsScreen extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.print_outlined),
+            // --- بداية التعديل: استدعاء الدالة الصحيحة من SupplierController ---
             onPressed: () {
-              SupplierReportService.printSupplierStatement(
-                supplier: controller.supplier.value,
-                transactions: controller.transactions,
-              );
+              // الآن، نحن لا نمرر البيانات، بل نستدعي الدالة التي ستقوم بكل العمل
+              final supplierController = Get.find<SupplierController>();
+              supplierController.printSupplierStatement(supplier);
             },
+            // --- نهاية التعديل ---
             tooltip: 'طباعة كشف حساب',
           ),
         ],
@@ -50,24 +53,26 @@ class SupplierDetailsScreen extends StatelessWidget {
             ),
           ];
         },
-        body: Obx(() {
-          if (controller.isLoading.isTrue) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (controller.transactions.isEmpty) {
-            return const Center(
-              child: Text('لا توجد حركات مالية مسجلة لهذا المورد.', style: TextStyle(color: Colors.grey)),
+        body: SafeArea(
+          child: Obx(() {
+            if (controller.isLoading.isTrue) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (controller.transactions.isEmpty) {
+              return const Center(
+                child: Text('لا توجد حركات مالية مسجلة لهذا المورد.', style: TextStyle(color: Colors.grey)),
+              );
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.all(8),
+              itemCount: controller.transactions.length,
+              itemBuilder: (context, index) {
+                final transaction = controller.transactions[index];
+                return _buildTransactionCard(transaction, formatCurrency);
+              },
             );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: controller.transactions.length,
-            itemBuilder: (context, index) {
-              final transaction = controller.transactions[index];
-              return _buildTransactionCard(transaction, formatCurrency);
-            },
-          );
-        }),
+          }),
+        ),
       ),
     ));
   }

@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'customer_debts_report_screen.dart';
 import 'fund_flow_report_screen.dart';
 import 'inventory_value_screen.dart';
+import 'invoices_report_screen.dart';
 
 class ReportsDashboardScreen extends StatelessWidget {
   const ReportsDashboardScreen({super.key});
@@ -19,63 +20,75 @@ class ReportsDashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('مركز التقارير'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          _buildSectionHeader(context, 'التقارير المالية'),
-          _buildDashboardItem(
-            context: context,
-            icon: Icons.monetization_on_outlined,
-            title: 'تقرير الأرباح والخسائر',
-            subtitle: 'عرض صافي الربح بناءً على المبيعات والتكاليف والمصروفات.',
-            onTap: () {
-               Get.to(() => const ProfitAndLossScreen());
-            },
-          ),
-          _buildDashboardItem(
-            context: context,
-            icon: Icons.swap_horiz_rounded,
-            title: 'تقرير حركة الصندوق',
-            subtitle: 'تحليل السيولة النقدية الداخلة والخارجة.',
-            onTap: () {
-            Get.to(() => const FundFlowReportScreen());
-            },
-          ),
-          const SizedBox(height: 20),
-          _buildSectionHeader(context, 'تقارير المبيعات والعملاء'),
-          _buildDashboardItem(
-            context: context,
-            icon: Icons.trending_up_rounded,
-            title: 'أفضل المنتجات مبيعًا',
-            subtitle: 'عرض المنتجات الأكثر مبيعًا أو الأعلى تحقيقًا للإيراد.',
-            onTap: () {
-               Get.to(() => const TopSellingProductsScreen());
-            },
-            isAdvanced: true,
-          ),
-          _buildDashboardItem(
-            context: context,
-            icon: Icons.people_alt_outlined,
-            title: 'تقرير ديون العملاء',
-            subtitle: 'عرض قائمة بالعملاء الذين عليهم أرصدة مستحقة.',
-            onTap: () {
-               Get.to(() => const CustomerDebtsReportScreen(),
-               binding: ReportsBinding());
-            },
-            isAdvanced: true,
-          ),
-          const SizedBox(height: 20),
-          _buildSectionHeader(context, 'تقارير المخزون'),
-          _buildDashboardItem(context: context,
-            icon: Icons.inventory_2_outlined,
-            title: 'تقرير قيمة المخزون',
-            subtitle: 'حساب القيمة الإجمالية للمخزون الحالي بسعر الشراء.',
-            onTap: () {
-               Get.to(() => const InventoryValueScreen());
-            },
-            isAdvanced: true,
-          ),
-        ],
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            _buildSectionHeader(context, 'التقارير المالية'),
+            _buildDashboardItem(
+              context: context,
+              icon: Icons.monetization_on_outlined,
+              title: 'تقرير الأرباح والخسائر',
+              subtitle: 'عرض صافي الربح بناءً على المبيعات والتكاليف والمصروفات.',
+              onTap: () {
+                 Get.to(() => const ProfitAndLossScreen());
+              },
+            ),
+            _buildDashboardItem(
+              context: context,
+              icon: Icons.swap_horiz_rounded,
+              title: 'تقرير حركة الصندوق',
+              subtitle: 'تحليل السيولة النقدية الداخلة والخارجة.',
+              onTap: () {
+              Get.to(() => const FundFlowReportScreen());
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, 'تقارير المبيعات والعملاء'),
+            _buildDashboardItem(
+              context: context,
+              icon: Icons.trending_up_rounded,
+              title: 'أفضل المنتجات مبيعًا',
+              subtitle: 'عرض المنتجات الأكثر مبيعًا أو الأعلى تحقيقًا للإيراد.',
+              onTap: () {
+                 Get.to(() => const TopSellingProductsScreen());
+              },
+              isAdvanced: true,
+            ),
+            _buildDashboardItem(
+              context: context,
+              icon: Icons.people_alt_outlined,
+              title: 'تقرير ديون العملاء',
+              subtitle: 'عرض قائمة بالعملاء الذين عليهم أرصدة مستحقة.',
+              onTap: () {
+                 Get.to(() => const CustomerDebtsReportScreen(),
+                 binding: ReportsBinding());
+              },
+              isAdvanced: true,
+            ),
+            _buildDashboardItem(
+              context: context,
+              icon: Icons.receipt_long_rounded,
+              title: 'تقرير الفواتير المفصل',
+              subtitle: 'عرض وتحليل فواتير المبيعات والمشتريات مع فلاتر متقدمة.',
+              onTap: () {
+                 Get.to(() => const InvoicesReportScreen());
+              },
+              isAdvanced: true,
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader(context, 'تقارير المخزون'),
+            _buildDashboardItem(context: context,
+              icon: Icons.inventory_2_outlined,
+              title: 'تقرير قيمة المخزون',
+              subtitle: 'حساب القيمة الإجمالية للمخزون الحالي بسعر الشراء.',
+              onTap: () {
+                 Get.to(() => const InventoryValueScreen());
+              },
+              isAdvanced: true,
+            ),
+          ],
+        ),
       ),
     );
   }

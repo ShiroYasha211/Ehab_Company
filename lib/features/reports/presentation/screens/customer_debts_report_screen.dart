@@ -25,59 +25,61 @@ class CustomerDebtsReportScreen extends StatelessWidget {
       ),
       body: RefreshIndicator(
         onRefresh: controller.generateReport,
-        child: Obx(() {
-          if (controller.isLoading.isTrue) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (controller.indebtedCustomers.isEmpty) {
-            return const Center(
-              child: Text('لا يوجد عملاء عليهم ديون حاليًا.',
-                  style: TextStyle(color: Colors.grey, fontSize: 16)),
-            );
-          }
-
-          return Column(
-            children: [
-              // 1. بطاقة الملخص
-              _buildSummaryCard(controller, formatCurrency),
-
-              // 2. خيارات الفرز
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Obx(() => SegmentedButton<CustomerDebtSortOrder>(
-                  segments: const [
-                    ButtonSegment(
-                        value: CustomerDebtSortOrder.byHighestDebt,
-                        label: Text('الأعلى دينًا')),
-                    ButtonSegment(
-                        value: CustomerDebtSortOrder.byOldestDebt,
-                        label: Text('الأقدم دينًا')),
-                    ButtonSegment(
-                        value: CustomerDebtSortOrder.byName,
-                        label: Text('ترتيب أبجدي')),
-                  ],
-                  selected: {controller.sortOrder.value},
-                  onSelectionChanged: (newSelection) {
-                    controller.sortOrder.value = newSelection.first;
-                  },
-                )),
-              ),
-              const Divider(),
-
-              // 3. قائمة العملاء
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: controller.indebtedCustomers.length,
-                  itemBuilder: (context, index) {
-                    final customer = controller.indebtedCustomers[index];
-                    return _buildCustomerDebtCard(customer, formatCurrency);
-                  },
+        child: SafeArea(
+          child: Obx(() {
+            if (controller.isLoading.isTrue) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (controller.indebtedCustomers.isEmpty) {
+              return const Center(
+                child: Text('لا يوجد عملاء عليهم ديون حاليًا.',
+                    style: TextStyle(color: Colors.grey, fontSize: 16)),
+              );
+            }
+          
+            return Column(
+              children: [
+                // 1. بطاقة الملخص
+                _buildSummaryCard(controller, formatCurrency),
+          
+                // 2. خيارات الفرز
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Obx(() => SegmentedButton<CustomerDebtSortOrder>(
+                    segments: const [
+                      ButtonSegment(
+                          value: CustomerDebtSortOrder.byHighestDebt,
+                          label: Text('الأعلى دينًا')),
+                      ButtonSegment(
+                          value: CustomerDebtSortOrder.byOldestDebt,
+                          label: Text('الأقدم دينًا')),
+                      ButtonSegment(
+                          value: CustomerDebtSortOrder.byName,
+                          label: Text('ترتيب أبجدي')),
+                    ],
+                    selected: {controller.sortOrder.value},
+                    onSelectionChanged: (newSelection) {
+                      controller.sortOrder.value = newSelection.first;
+                    },
+                  )),
                 ),
-              ),
-            ],
-          );
-        }),
+                const Divider(),
+          
+                // 3. قائمة العملاء
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: controller.indebtedCustomers.length,
+                    itemBuilder: (context, index) {
+                      final customer = controller.indebtedCustomers[index];
+                      return _buildCustomerDebtCard(customer, formatCurrency);
+                    },
+                  ),
+                ),
+              ],
+            );
+          }),
+        ),
       ),
     );
   }

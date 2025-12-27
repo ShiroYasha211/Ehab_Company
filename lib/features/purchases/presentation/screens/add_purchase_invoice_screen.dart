@@ -87,7 +87,8 @@ class AddPurchaseInvoiceScreen extends StatelessWidget {
               return const Center(child: Text("جاري تحميل قائمة الموردين..."));
             }
             return DropdownButtonFormField<SupplierModel>(
-              value: controller.selectedSupplier.value,
+              value: controller.supplierController.filteredSuppliers
+                  .firstWhereOrNull((s) => s.id == controller.selectedSupplier.value?.id),
               items:
               controller.supplierController.filteredSuppliers.map((supplier) {
                 return DropdownMenuItem<SupplierModel>(

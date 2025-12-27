@@ -51,26 +51,6 @@ class SuppliersDashboardScreen extends StatelessWidget {
             },
             isAdvanced: true,
           ),
-          _buildDashboardItem(
-            context: context,
-            icon: Icons.receipt_long_outlined,
-            title: 'المبالغ المتبقية (فواتير آجلة)',
-            subtitle: 'عرض تفصيلي للمبالغ المستحقة لكل مورد',
-            onTap: () {
-              // TODO: Implement navigation
-              print('Navigate to Supplier Due Amounts');
-            },
-          ),
-          _buildDashboardItem(
-            context: context,
-            icon: Icons.assessment_outlined,
-            title: 'تقارير الموردين',
-            subtitle: 'كشوفات حساب وتقارير الأرصدة المتبقية',
-            onTap: () {
-              Get.to(() => const SuppliersReportsScreen());
-            },
-            isAdvanced: true,
-          ),
         ],
       ),
     );

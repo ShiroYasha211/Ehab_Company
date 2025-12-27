@@ -33,25 +33,27 @@ class ListPaymentVouchersScreen extends StatelessWidget {
           child: _buildFilters(context, controller),
         ),
       ),
-      body: Obx(() {
-        if (controller.isLoading.isTrue) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (controller.vouchers.isEmpty) {
-          return const Center(
-            child: Text('لا توجد سندات دفع تطابق بحثك.',
-                style: TextStyle(color: Colors.grey)),
+      body: SafeArea(
+        child: Obx(() {
+          if (controller.isLoading.isTrue) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (controller.vouchers.isEmpty) {
+            return const Center(
+              child: Text('لا توجد سندات دفع تطابق بحثك.',
+                  style: TextStyle(color: Colors.grey)),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: controller.vouchers.length,
+            itemBuilder: (context, index) {
+              final voucher = controller.vouchers[index];
+              return _buildVoucherCard(voucher, formatCurrency);
+            },
           );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: controller.vouchers.length,
-          itemBuilder: (context, index) {
-            final voucher = controller.vouchers[index];
-            return _buildVoucherCard(voucher, formatCurrency);
-          },
-        );
-      }),
+        }),
+      ),
     );
   }
 

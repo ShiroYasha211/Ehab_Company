@@ -1,8 +1,12 @@
 // File: lib/features/suppliers/presentation/controllers/supplier_controller.dart
 
 import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';import 'package:ehab_company_admin/features/suppliers/data/repositories/supplier_repository.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide DateRangePickerDialog;
 import 'package:get/get.dart';
+import 'package:ehab_company_admin/core/services/supplier_report_service.dart'; // <-- إضافة هذا السطر
+import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range_picker_dialog.dart'; // <-- إضافة هذا السطر
+import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';
+
 
 import '../../data/models/supplier_transaction_model.dart';
 
@@ -10,11 +14,10 @@ enum SupplierFilter { all, hasBalance, noBalance }
 
 class SupplierController extends GetxController {
   final SupplierRepository _repository = SupplierRepository();
-
+  SupplierRepository get repository => _repository;
   final RxList<SupplierModel> suppliers = <SupplierModel>[].obs;
   final RxList<SupplierModel> _allSuppliers = <SupplierModel>[].obs;
-  final RxList<SupplierModel> filteredSuppliers = <SupplierModel>[]
-      .obs; // قائمة للعرض
+  final RxList<SupplierModel> filteredSuppliers = <SupplierModel>[].obs; // قائمة للعرض
   final RxBool isLoading = true.obs;
 
   // --- بداية الإضافة: متغيرات البحث والفلترة ---
@@ -350,6 +353,41 @@ class SupplierController extends GetxController {
         colorText: Colors.white,
       );
     }
+  }
+  void printSupplierStatement(SupplierModel supplier) {
+    // 1. عرض ديالوج اختيار فترة التقرير
+    Get.dialog(
+      DateRangePickerDialog(
+        onConfirm: (from, to) async {
+          // 2. بعد أن يؤكد المستخدم، قم بإنشاء التقرير
+          try {
+            Get.dialog(
+              const Center(child: CircularProgressIndicator()),
+              barrierDismissible: false,
+            );
+
+            // 3. جلب بيانات كشف الحساب (الرصيد الافتتاحي والحركات)
+            final reportData = await _repository.getSupplierStatementData(
+              supplierId: supplier.id!,
+              from: from,
+              to: to,
+            );
+
+            if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
+
+            // 4. طباعة التقرير باستخدام البيانات التي تم جلبها
+            await SupplierReportService.printSupplierStatement(
+              supplier: supplier, // تمرير بيانات المورد
+              openingBalance: reportData['openingBalance'], // تمرير الرصيد الافتتاحي
+              transactions: reportData['transactions'], // تمرير قائمة الحركات
+            );
+          } catch (e) {
+            if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل في حال حدوث خطأ
+            Get.snackbar('خطأ', 'فشل في إنشاء كشف الحساب: $e');
+          }
+        },
+      ),
+    );
   }
 // --- نهاية التعديل ---
 }

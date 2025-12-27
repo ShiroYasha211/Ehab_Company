@@ -159,7 +159,7 @@ class ExpenseRepository {
         ec.name as categoryName FROM expenses e
       JOIN expense_categories ec ON e.categoryId = ec.id
       WHERE e.expenseDate >= ? AND e.expenseDate < ?
-      ORDER BY ec.name ASC, e.expenseDate ASC
+      ORDER BY e.expenseDate ASC
     ''', [fromString, toString]);
 
     if (maps.isEmpty) {
