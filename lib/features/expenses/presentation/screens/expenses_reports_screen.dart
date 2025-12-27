@@ -49,81 +49,83 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
           child: _buildFilters(context, controller),
         ),
       ),
-      body: Obx(() {
-        if (controller.isLoading.isTrue) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (controller.reportDataMap.isEmpty) {
-          return const Center(
-            child: Text('لا توجد مصروفات لعرضها في التقرير.',
-                style: TextStyle(color: Colors.grey, fontSize: 16)),
-          );
-        }
-
-        final reportDataList = controller.reportDataMap.values.toList();
-        reportDataList.sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
-
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // 1. الرسم البياني الدائري
-            SizedBox(
-              height: 250,
-              child: PieChart(
-                PieChartData(
-                  pieTouchData: PieTouchData(
-                    touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                      setState(() {
-                        if (!event.isInterestedForInteractions ||
-                            pieTouchResponse == null ||
-                            pieTouchResponse.touchedSection == null) {
-                          touchedIndex = -1;
-                          return;
-                        }
-                        touchedIndex =
-                            pieTouchResponse.touchedSection!.touchedSectionIndex;
-                      });
-                    },
+      body: SafeArea(
+        child: Obx(() {
+          if (controller.isLoading.isTrue) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (controller.reportDataMap.isEmpty) {
+            return const Center(
+              child: Text('لا توجد مصروفات لعرضها في التقرير.',
+                  style: TextStyle(color: Colors.grey, fontSize: 16)),
+            );
+          }
+        
+          final reportDataList = controller.reportDataMap.values.toList();
+          reportDataList.sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+        
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // 1. الرسم البياني الدائري
+              SizedBox(
+                height: 250,
+                child: PieChart(
+                  PieChartData(
+                    pieTouchData: PieTouchData(
+                      touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                        setState(() {
+                          if (!event.isInterestedForInteractions ||
+                              pieTouchResponse == null ||
+                              pieTouchResponse.touchedSection == null) {
+                            touchedIndex = -1;
+                            return;
+                          }
+                          touchedIndex =
+                              pieTouchResponse.touchedSection!.touchedSectionIndex;
+                        });
+                      },
+                    ),
+                    borderData: FlBorderData(show: false),
+                    sectionsSpace: 2,
+                    centerSpaceRadius: 40,
+                    sections: List.generate(reportDataList.length, (index) {
+                      final reportData = reportDataList[index];
+                      final isTouched = index == touchedIndex;
+                      final fontSize = isTouched ? 16.0 : 14.0;
+                      final radius = isTouched ? 60.0 : 50.0;
+                      final color = _chartColors[index % _chartColors.length];
+        
+                      return PieChartSectionData(
+                        color: color,
+                        value: reportData.totalAmount,
+                        title: '${reportData.percentage.toStringAsFixed(1)}%',
+                        radius: radius,
+                        titleStyle: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      );
+                    }),
                   ),
-                  borderData: FlBorderData(show: false),
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 40,
-                  sections: List.generate(reportDataList.length, (index) {
-                    final reportData = reportDataList[index];
-                    final isTouched = index == touchedIndex;
-                    final fontSize = isTouched ? 16.0 : 14.0;
-                    final radius = isTouched ? 60.0 : 50.0;
-                    final color = _chartColors[index % _chartColors.length];
-
-                    return PieChartSectionData(
-                      color: color,
-                      value: reportData.totalAmount,
-                      title: '${reportData.percentage.toStringAsFixed(1)}%',
-                      radius: radius,
-                      titleStyle: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    );
-                  }),
                 ),
               ),
-            ),
-            const Divider(height: 30),
-
-            // 2. القائمة التفصيلية
-            Text('ملخص المصروفات (الإجمالي: ${formatCurrency.format(controller.totalReportAmount)})',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 10),
-            ...List.generate(reportDataList.length, (index) {
-              final reportData = reportDataList[index];
-              final color = _chartColors[index % _chartColors.length];
-              return _buildReportListItem(reportData, color, formatCurrency);
-            }),
-          ],
-        );
-      }),
+              const Divider(height: 30),
+        
+              // 2. القائمة التفصيلية
+              Text('ملخص المصروفات (الإجمالي: ${formatCurrency.format(controller.totalReportAmount)})',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 10),
+              ...List.generate(reportDataList.length, (index) {
+                final reportData = reportDataList[index];
+                final color = _chartColors[index % _chartColors.length];
+                return _buildReportListItem(reportData, color, formatCurrency);
+              }),
+            ],
+          );
+        }),
+      ),
     );
   }
 

@@ -37,14 +37,16 @@ class ExpenseRepository {
   /// حذف بند مصروف (سيتم رفضه إذا كان مستخدمًا)
   Future<int> deleteCategory(int id) async {
     final db = await _dbService.database;
-    return await db.delete('expense_categories', where: 'id = ?', whereArgs: [id]);
+    return await db.delete(
+        'expense_categories', where: 'id = ?', whereArgs: [id]);
   }
 
 
   // --- دوال خاصة بالمصروفات (Expenses) ---
 
   /// جلب كل المصروفات مع اسم البند الخاص بها
-  Future<List<ExpenseModel>> getAllExpenses({DateTime? from, DateTime? to}) async {
+  Future<List<ExpenseModel>> getAllExpenses(
+      {DateTime? from, DateTime? to}) async {
     final db = await _dbService.database;
 
     List<String> whereClauses = [];
@@ -59,7 +61,9 @@ class ExpenseRepository {
       whereArgs.add(to.toIso8601String());
     }
 
-    final String whereStatement = whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
+    final String whereStatement = whereClauses.isEmpty
+        ? ''
+        : 'WHERE ${whereClauses.join(' AND ')}';
 
     final String query = '''
       SELECT 
@@ -91,7 +95,8 @@ class ExpenseRepository {
       // 2. إذا كان مطلوبًا، قم بخصم المبلغ من الصندوق
       if (deductFromFund) {
         // جلب اسم البند لتسجيله في وصف حركة الصندوق
-        final category = (await txn.query('expense_categories', where: 'id = ?', whereArgs: [expense.categoryId])).first;
+        final category = (await txn.query('expense_categories', where: 'id = ?',
+            whereArgs: [expense.categoryId])).first;
         final categoryName = category['name'] as String;
 
         // إضافة حركة سحب إلى الصندوق
@@ -114,6 +119,7 @@ class ExpenseRepository {
 
     return expenseId;
   }
+
   /// دالة لحساب إجمالي المصروفات خلال فترة محددة
   Future<double> getTotalExpenses(
       {required DateTime from, required DateTime to}) async {
@@ -132,4 +138,47 @@ class ExpenseRepository {
     }
     return 0.0;
   }
+
+  // --- بداية التعديل: إعادة كتابة الدالة لجلب البيانات خام ---
+  /// يجلب المصروفات لفترة محددة، مرتبة حسب البند ثم التاريخ
+  Future<Map<String, dynamic>> getExpensesForReport({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final db = await _dbService.database;
+    // إضافة يوم واحد لتاريخ النهاية ليشمل اليوم نفسه بالكامل
+    final inclusiveTo = to.add(const Duration(days: 1));
+
+    final fromString = from.toIso8601String();
+    final toString = inclusiveTo.toIso8601String();
+
+    // استعلام SQL بسيط لجلب كل المصروفات مع اسم البند
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT 
+        e.*,
+        ec.name as categoryName FROM expenses e
+      JOIN expense_categories ec ON e.categoryId = ec.id
+      WHERE e.expenseDate >= ? AND e.expenseDate < ?
+      ORDER BY ec.name ASC, e.expenseDate ASC
+    ''', [fromString, toString]);
+
+    if (maps.isEmpty) {
+      return {'expenses': [], // <-- اسم المفتاح تغير
+        'grandTotal': 0.0,
+      };
+    }
+
+    // حساب الإجمالي الكلي للمصروفات
+    double grandTotal = 0.0;
+    for (var map in maps) {
+      grandTotal += (map['amount'] as num).toDouble();
+    }
+
+    return {
+      'expenses': maps, // <-- اسم المفتاح تغير إلى 'expenses'
+      'grandTotal': grandTotal,
+    };
+  }
+// --- نهاية التعديل ---
+
 }

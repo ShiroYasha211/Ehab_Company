@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../../../../core/services/customer_report_service.dart';
+import '../controllers/customer_controller.dart';
 
 class CustomerDetailsScreen extends StatelessWidget {
   final CustomerModel customer;
@@ -27,17 +28,13 @@ class CustomerDetailsScreen extends StatelessWidget {
           // --- بداية التعديل ---
           IconButton(
             icon: const Icon(Icons.print_outlined),
+            // --- بداية التعديل: استدعاء الدالة الصحيحة من الـ Controller ---
             onPressed: () {
-              // التأكد من أن قائمة الحركات ليست فارغة قبل الطباعة
-              if (controller.transactions.isNotEmpty) {
-                CustomerReportService.printCustomerStatement(
-                  customer: controller.customer.value,
-                  transactions: controller.transactions,
-                );
-              } else {
-                Get.snackbar('لا يمكن الطباعة', 'لا توجد حركات مالية لطباعتها.');
-              }
+              // الآن، نحن لا نمرر البيانات، بل نستدعي الدالة التي ستقوم بكل العمل
+              final customerController = Get.find<CustomerController>();
+              customerController.printCustomerStatement(customer);
             },
+            // --- نهاية التعديل ---
             tooltip: 'طباعة كشف حساب',
           ),
           // --- نهاية التعديل ---
@@ -52,54 +49,36 @@ class CustomerDetailsScreen extends StatelessWidget {
           ),
         ],
       ),
-      // --- بداية التعديل: استخدام bottomNavigationBar ---
-      bottomNavigationBar: Obx(() {
-        // أظهر زر الدفع فقط إذا كان على العميل رصيد
-        if (controller.customer.value.balance <= 0) {
-          return const SizedBox.shrink();
-        }
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add_card_rounded),
-              label: const Text('تسجيل دفعة (سند قبض)'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                textStyle: const TextStyle(fontSize: 18),
-              ),
-              onPressed: () => _showAddPaymentDialog(context, controller),
-            ),
-          ),
-        );
-      }),
+
       // --- نهاية التعديل ---
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverToBoxAdapter(
-              child: _buildHeader(context, formatCurrency, controller.customer.value),
-            ),
-          ];
-        },
-        body: Obx(() {
-          if (controller.isLoading.isTrue) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (controller.transactions.isEmpty) {
-            return const Center(
-              child: Text('لا توجد حركات مالية مسجلة لهذا العميل.', style: TextStyle(color: Colors.grey)),
+      body: SafeArea(
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverToBoxAdapter(
+                child: _buildHeader(context, formatCurrency, controller.customer.value),
+              ),
+            ];
+          },
+          body: Obx(() {
+            if (controller.isLoading.isTrue) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (controller.transactions.isEmpty) {
+              return const Center(
+                child: Text('لا توجد حركات مالية مسجلة لهذا العميل.', style: TextStyle(color: Colors.grey)),
+              );
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.all(8),
+              itemCount: controller.transactions.length,
+              itemBuilder: (context, index) {
+                final transaction = controller.transactions[index];
+                return _buildTransactionCard(transaction, formatCurrency);
+              },
             );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: controller.transactions.length,
-            itemBuilder: (context, index) {
-              final transaction = controller.transactions[index];
-              return _buildTransactionCard(transaction, formatCurrency);
-            },
-          );
-        }),
+          }),
+        ),
       ),
     ));
   }
@@ -155,52 +134,91 @@ class CustomerDetailsScreen extends StatelessWidget {
   }
 
   // ودجت عرض بطاقة الحركة (مطابق لتصميم الموردين)
+  // ودجت عرض بطاقة الحركة (بتصميم محسن)
   Widget _buildTransactionCard(CustomerTransactionModel transaction, intl.NumberFormat formatCurrency) {
     bool isReceipt = transaction.type == CustomerTransactionType.RECEIPT;
     Color color;
     IconData icon;
-    String title = transaction.notes ?? 'حركة غير مسماة';
+    String title = transaction.notes ?? '';
     String amountSign = isReceipt ? '-' : '+'; // القبض يقلل الدين، والبيع يزيده
 
+    // تحديد العنوان والأيقونة واللون بناءً على نوع الحركة
     if (isReceipt) {
       color = Colors.green.shade700;
-      icon = Icons.arrow_downward_rounded; // سهم لأسفل (قبض)
+      icon = Icons.arrow_downward_rounded;
+      if (title.isEmpty) title = 'سند قبض'; // عنوان افتراضي
     } else if (transaction.type == CustomerTransactionType.SALE) {
-      color = Colors.red.shade800; // فاتورة (دين جديد)
+      color = Colors.red.shade800;
       icon = Icons.receipt_long_outlined;
+      if (title.isEmpty) title = 'فاتورة بيع'; // عنوان افتراضي
     } else { // OPENING_BALANCE
       color = Colors.purple.shade700;
       icon = Icons.play_for_work_rounded;
+      if (title.isEmpty) title = 'رصيد افتتاحي'; // عنوان افتراضي
     }
 
+    // --- بداية التعديل: إعادة تصميم الـ ListTile بالكامل ---
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         leading: CircleAvatar(
+          radius: 24, // تكبير الأيقونة قليلاً
           backgroundColor: color.withOpacity(0.1),
           child: Icon(icon, color: color),
         ),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // استخدام Column لترتيب العناصر عموديًا
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
-            Text(
-              'سند قبض رقم: ${transaction.id}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.bold),
+            // الصف العلوي: العنوان الرئيسي والمبلغ
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start, // لمحاذاة العناصر من الأعلى
+              children: [
+                // --- بداية التعديل ---
+                // 1. استخدام Flexible بدلاً من Expanded للسماح بالالتفاف
+                Flexible(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    // 2. لا حاجة لـ overflow الآن، النص سيلتف تلقائيًا
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // المبلغ في أقصى اليسار
+                Text(
+                  '$amountSign ${formatCurrency.format(transaction.amount)}',
+                  style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
+                  textDirection: TextDirection.ltr, // لضمان ظهور الإشارة صحيحة
+                ),
+              ],
+            ),
+            const SizedBox(height: 6), // مسافة بين العنوان والتفاصيل
+
+            // الصف السفلي: التاريخ ورقم المرجع
+            Row(
+              children: [
+                // التاريخ
+                Text(
+                  intl.DateFormat('yyyy-MM-dd – hh:mm a', 'ar').format(transaction.transactionDate),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                const Spacer(), // Spacer لدفع العنصر التالي إلى أقصى اليسار
+                // رقم المرجع (الفاتورة أو السند)
+                Text(
+                  '#${transaction.id}', // يمكن تغييره إلى referenceId إذا تم إضافته
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.bold),
+                )
+              ],
             )
           ],
         ),
-        subtitle: Text(
-          intl.DateFormat('yyyy-MM-dd – hh:mm a', 'ar').format(transaction.transactionDate),
-          style: const TextStyle(color: Colors.grey, fontSize: 13),
-        ),
-        trailing: Text(
-          '$amountSign ${formatCurrency.format(transaction.amount)}',
-          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
-        ),
+        // لم نعد بحاجة إلى subtitle أو trailing لأن كل شيء تم وضعه في title
       ),
     );
+    // --- نهاية التعديل ---
   }
+
 
   // ديالوج إضافة دفعة (يبقى كما هو)
   void _showAddPaymentDialog(BuildContext context, CustomerDetailsController controller) {

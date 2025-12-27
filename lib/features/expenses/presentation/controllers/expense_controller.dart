@@ -6,6 +6,7 @@ import 'package:ehab_company_admin/features/expenses/data/repositories/expense_r
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../fund/presentation/controllers/fund_controller.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
 
 
@@ -24,10 +25,14 @@ class ReportData {
 class ExpenseController extends GetxController {
   final ExpenseRepository _repository = ExpenseRepository();
 
+  ExpenseRepository get expenseRepository => _repository;
+
   // Observables for UI state
   final RxBool isLoading = true.obs;
   final RxList<ExpenseModel> expenses = <ExpenseModel>[].obs;
   final RxList<ExpenseCategoryModel> categories = <ExpenseCategoryModel>[].obs;
+
+  final FundController _fundController = Get.find<FundController>();
 
   final RxList<ExpenseModel> filteredExpenses = <ExpenseModel>[].obs;
   final Rx<DateTime?> fromDate = Rx<DateTime?>(null);
@@ -100,45 +105,67 @@ class ExpenseController extends GetxController {
   }
 
   /// إضافة مصروف جديد
-  void addExpense() async {
-    if (formKey.currentState!.validate()) {
-      final newExpense = ExpenseModel(
-        categoryId: selectedCategoryId.value!,
-        amount: double.parse(amountController.text),
-        expenseDate: selectedDate.value,
-        notes: notesController.text,
-      );
+  // --- بداية التعديل: تعديل دالة الحفظ بالكامل ---
+  /// دالة لإضافة مصروف جديد مع التحقق من رصيد الصندوق
+  Future<void> addExpense() async {
+    // 1. التحقق من أن الفورم صالح
+    if (!formKey.currentState!.validate()) {
+      return;
+    }
 
-      try {
-        final expenseId =
-        await _repository.addExpense(newExpense, deductFromFund.value);
+    final double amount = double.tryParse(amountController.text) ?? 0.0;
 
-        // تحديث البيانات بعد النجاح
-        await fetchAllExpenses();
-        if (deductFromFund.value) {
-          Get.find<HomeController>().refreshStats(); // تحديث إحصائيات الصندوق
-        }
-
-        // إعادة تعيين الحقول وإغلاق الشاشة
-        _resetForm();
-        Get.back();
-
+    // 2. التحقق من رصيد الصندوق (فقط إذا كان خيار الخصم مفعلًا)
+    if (deductFromFund.value) {
+      final double currentFundBalance = _fundController.currentFund.value?.balance ?? 0.0;
+      if (amount > currentFundBalance) {
+        // إذا كان الرصيد غير كافٍ، اعرض رسالة خطأ وأوقف العملية
         Get.snackbar(
-          'نجاح',
-          'تم تسجيل المصروف بنجاح. رقم السند: $expenseId',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } catch (e) {
-        Get.snackbar(
-          'فشل العملية',
-          'حدث خطأ غير متوقع: ${e.toString()}',
+          'رصيد الصندوق غير كافٍ',
+          'رصيد الصندوق الحالي (${currentFundBalance.toStringAsFixed(2)}) أقل من مبلغ المصروف.',
           backgroundColor: Colors.red,
           colorText: Colors.white,
+          duration: const Duration(seconds: 4),
         );
+        return; // أوقف العملية هنا
       }
     }
+
+    // 3. إذا كانت كل التحققات ناجحة، قم بتنفيذ الحفظ
+    try {
+      final newExpense = ExpenseModel(
+        categoryId: selectedCategoryId.value!,
+        amount: amount,
+        expenseDate: selectedDate.value,
+        notes: notesController.text,
+        deductFromFund: deductFromFund.value,
+      );
+      await _repository.addExpense(newExpense, deductFromFund.value);
+
+      // تحديث البيانات في الواجهات الأخرى
+      fetchAllExpenses(); // تحديث قائمة المصروفات
+      if (deductFromFund.value) {
+        _fundController.loadFundData(); // تحديث بيانات الصندوق
+      }
+
+      Get.back(); // العودة من شاشة الإضافة
+      Get.snackbar(
+        'نجاح',
+        'تم تسجيل المصروف بنجاح.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'خطأ في الحفظ',
+        'حدث خطأ غير متوقع: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
+  // --- نهاية التعديل ---
+
 
   /// دالة لإعادة تعيين حقول الإدخال
   void _resetForm() {

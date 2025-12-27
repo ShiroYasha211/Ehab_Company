@@ -2,7 +2,6 @@ import 'package:ehab_company_admin/features/purchases/presentation/controllers/a
 import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart' as intl;
 import 'package:ehab_company_admin/features/products/data/models/product_model.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';

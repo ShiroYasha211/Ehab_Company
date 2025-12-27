@@ -3,10 +3,12 @@
 import 'package:ehab_company_admin/features/customers/data/models/customer_model.dart';
 import 'package:ehab_company_admin/features/customers/presentation/controllers/customer_controller.dart';
 import 'package:ehab_company_admin/features/customers/presentation/screens/add_edit_customer_screen.dart';
+import 'package:ehab_company_admin/core/services/customer_pdf_service.dart'; // <-- إضافة هذا السطر
 // --- 1. بداية التعديل: إضافة import ---
 import 'package:ehab_company_admin/features/customers/presentation/screens/customer_details_screen.dart';
 // --- نهاية التعديل ---
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -22,6 +24,31 @@ class ListCustomersScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('قائمة العملاء'),
+        actions: [
+          IconButton(
+            icon: const FaIcon(Icons.print_outlined),
+            tooltip: 'طباعة تقرير أرصدة العملاء',
+            onPressed: () async {
+              try {
+                Get.dialog(
+                  const Center(child: CircularProgressIndicator()),
+                  barrierDismissible: false,
+                );
+
+                // جلب قائمة العملاء المرتبة
+                final customers = await controller.repository.getCustomersForReport();
+
+                if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
+
+                // طباعة التقرير
+                await CustomerPdfService.printCustomersReport(customers);
+              } catch (e) {
+                if (Get.isDialogOpen!) Get.back();
+                Get.snackbar('خطأ', 'فشل في إنشاء التقرير: $e');
+              }
+            },
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(120.0),
           child: Column(
@@ -156,7 +183,8 @@ class CustomerCard extends StatelessWidget {
                 children: [
                   if (customer.phone != null && customer.phone!.isNotEmpty) ...[
                     IconButton(
-                      icon: Icon(Icons.phone_in_talk_rounded, color: Colors.green.shade700),
+                      icon: FaIcon(FontAwesomeIcons.phone,
+                          color: Colors.green.shade700, size: 20),
                       onPressed: () async {
                         final Uri url = Uri(scheme: 'tel', path: customer.phone);
                         if (await canLaunchUrl(url)) {
@@ -166,8 +194,9 @@ class CustomerCard extends StatelessWidget {
                       tooltip: 'اتصال',
                     ),
                     IconButton(
-                      icon: const Icon(Icons.message_outlined),
-                      onPressed: () async {
+                      icon: FaIcon(FontAwesomeIcons.whatsapp,
+                          color: Colors.green.shade800,
+                          size: 22),                      onPressed: () async {
                         final Uri url = Uri.parse('https://wa.me/${customer.phone}');
                         if (await canLaunchUrl(url)) {
                           await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -178,7 +207,9 @@ class CustomerCard extends StatelessWidget {
                   ],
                   const Spacer(),
                   IconButton(
-                    icon: Icon(Icons.delete_forever_rounded, color: Theme.of(context).colorScheme.error),
+                    icon: FaIcon(FontAwesomeIcons.trashCan,
+                        color: Theme.of(context).colorScheme.error,
+                        size: 20),
                     onPressed: () {
                       Get.defaultDialog(
                         title: 'تأكيد الحذف',

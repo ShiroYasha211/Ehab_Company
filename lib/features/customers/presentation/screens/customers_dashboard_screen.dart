@@ -52,16 +52,6 @@ class CustomersDashboardScreen extends StatelessWidget {
             },
             isAdvanced: true,
           ),
-          _buildDashboardItem(
-            context: context,
-            icon: Icons.assessment_outlined,
-            title: 'تقارير العملاء',
-            subtitle: 'كشوفات حساب وتقارير الأرصدة المستحقة',
-            onTap: () {
-              // Get.to(() => const CustomersReportsScreen()); // سيتم تفعيله لاحقًا
-            },
-            isAdvanced: true,
-          ),
         ],
       ),
     );

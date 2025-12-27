@@ -83,8 +83,10 @@ class CustomerRepository {
         final customerName = customer['name'] as String;
 
         final fundTransaction = FundTransactionModel(
-          fundId: 1, // الصندوق الرئيسي
-          type: TransactionType.DEPOSIT, // توريد
+          fundId: 1,
+          // الصندوق الرئيسي
+          type: TransactionType.DEPOSIT,
+          // توريد
           amount: transaction.amount,
           description: 'دفعة من العميل: $customerName (سند رقم: $transactionId)',
           referenceId: transactionId,
@@ -115,8 +117,10 @@ class CustomerRepository {
     }
     return 0.0;
   }
+
   Future<List<CustomerModel>> getIndebtedCustomers(
-      {String orderBy = 'balance DESC'}) async { // الافتراضي هو الترتيب حسب الأعلى دينًا
+      {String orderBy = 'balance DESC'}) async {
+    // الافتراضي هو الترتيب حسب الأعلى دينًا
     final db = await _dbService.database;
     final List<Map<String, dynamic>> maps = await db.query(
       'customers',
@@ -126,6 +130,7 @@ class CustomerRepository {
     if (maps.isEmpty) return [];
     return List.generate(maps.length, (i) => CustomerModel.fromMap(maps[i]));
   }
+
   Future<List<CustomerTransactionModel>> getReceiptVouchers({
     int? customerId,
     DateTime? from,
@@ -180,6 +185,7 @@ class CustomerRepository {
       return CustomerTransactionModel.fromMap(map);
     });
   }
+
   // --- بداية الإضافة: دالة للتحقق من وجود علاقات للعميل ---  /// يتحقق مما إذا كان للعميل أي فواتير مبيعات أو حركات مالية مرتبطة به
   Future<bool> checkCustomerHasRelations(int customerId) async {
     final db = await _dbService.database;
@@ -207,7 +213,66 @@ class CustomerRepository {
     // إذا وصلنا إلى هنا، فالعميل ليس له أي علاقات
     return false;
   }
+
 // --- نهاية الإضافة ---
 
+  /// يجلب كل العملاء مع أرصدتهم مرتبة حسب الأعلى دينًا
+  Future<List<CustomerModel>> getCustomersForReport() async {
+    final db = await _dbService.database;
+    // استعلام لجلب كل العملاء، مع ترتيبهم حسب الرصيد تنازليًا
+    final
+    List
+    <
+        Map<String, dynamic>> maps = await db.query(
+      'customers',
+      orderBy: 'balance DESC',
+    );
 
+    if (maps.isEmpty) {
+      return [];
+    }
+    return List.generate(maps.length, (i) => CustomerModel.fromMap(maps[i]));
+  } // --- نهاية الإضافة ---
+  // --- بداية الإضافة: دالة جديدة لتجهيز بيانات كشف الحساب ---
+  Future<Map<String, dynamic>> getCustomerStatementData({
+    required int customerId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final db = await _dbService.database;
+    final inclusiveTo = to.add(const Duration(days: 1));
+
+    final fromString = from.toIso8601String();
+    final toString = inclusiveTo.toIso8601String();
+
+// 1. حساب الرصيد الافتتاحي (رصيد العميل قبل تاريخ "من")
+// هذا يحسب صافي كل الحركات التي حدثت قبل بداية الفترة
+    final openingBalanceResult = await db.rawQuery('''
+      SELECT 
+        COALESCE(SUM(CASE WHEN type = 'SALE' OR type = 'OPENING_BALANCE' THEN amount ELSE -amount END), 0) as openingBalance
+      FROM customer_transactions
+      WHERE customerId = ? AND transactionDate < ?
+    ''', [customerId, fromString]);
+    final double openingBalance = (openingBalanceResult
+        .first['openingBalance'] as num?)?.toDouble() ?? 0.0;
+
+// 2. جلب كل الحركات خلال الفترة المحددة
+    final transactionsResult = await db.query(
+      'customer_transactions',
+      where: 'customerId = ? AND transactionDate >= ? AND transactionDate < ?',
+      whereArgs: [customerId, fromString, toString],
+      orderBy: 'transactionDate ASC', // الترتيب من الأقدم للأحدث مهم جدًا
+    );
+
+    final List<CustomerTransactionModel> transactions =
+    transactionsResult
+        .map((map) => CustomerTransactionModel.fromMap(map))
+        .toList();
+
+    return {
+      'openingBalance': openingBalance,
+      'transactions': transactions,
+    };
+  }
+// --- نهاية الإضافة ---
 }

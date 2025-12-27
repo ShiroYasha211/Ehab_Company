@@ -2,9 +2,12 @@
 
 import 'package:ehab_company_admin/features/expenses/data/models/expense_model.dart';
 import 'package:ehab_company_admin/features/expenses/presentation/controllers/expense_controller.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide DateRangePickerDialog;
+import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range_picker_dialog.dart'; // سنعيد استخدام نفس الديالوج
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
+
+import '../../../../core/services/expense_pdf_service.dart';
 
 class ListExpensesScreen extends StatelessWidget {
   const ListExpensesScreen({super.key});
@@ -21,6 +24,42 @@ class ListExpensesScreen extends StatelessWidget {
         title: const Text('أرشيف المصروفات'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.print_outlined),
+            tooltip: 'طباعة تقرير المصروفات',
+            onPressed: () {
+              // عرض ديالوج اختيار فترة التقرير
+              Get.dialog(
+                DateRangePickerDialog(
+                  onConfirm: (from, to) async {
+                    // بعد أن يؤكد المستخدم، قم بإنشاء التقرير
+                    try {
+                      Get.dialog(
+                        const Center(child: CircularProgressIndicator()),
+                        barrierDismissible: false,
+                      );
+
+                      final reportData = await controller.expenseRepository.getExpensesForReport(
+                        from: from,
+                        to: to,
+                      );
+
+                      if(Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
+
+                      await ExpensePdfService.printExpenseReport(
+                        reportData: reportData,
+                        from: from,
+                        to: to,
+                      );
+                    } catch (e) {
+                      if(Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل في حال حدوث خطأ
+                      Get.snackbar('خطأ', 'فشل في إنشاء التقرير: $e');
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.filter_alt_off_outlined),
             tooltip: 'مسح الفلاتر',
             onPressed: controller.clearFilters,
@@ -31,43 +70,45 @@ class ListExpensesScreen extends StatelessWidget {
           child: _buildFilters(context, controller),
         ),
       ),
-      body: Obx(() {
-        if (controller.isLoading.isTrue) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        // --- بداية الإصلاح: تحسين منطق عرض الرسائل ---
-
-        // الحالة 1: القائمة المفلترة فارغة، ولكن القائمة الأصلية ليست فارغة
-        // هذا يعني أن الفلتر هو السبب
-        if (controller.filteredExpenses.isEmpty && controller.expenses.isNotEmpty) {
-          return const Center(
-            child: Text(
-              'لا توجد مصروفات تطابق الفلتر الحالي.',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-            ),
+      body: SafeArea(
+        child: Obx(() {
+          if (controller.isLoading.isTrue) {
+            return const Center(child: CircularProgressIndicator());
+          }
+        
+          // --- بداية الإصلاح: تحسين منطق عرض الرسائل ---
+        
+          // الحالة 1: القائمة المفلترة فارغة، ولكن القائمة الأصلية ليست فارغة
+          // هذا يعني أن الفلتر هو السبب
+          if (controller.filteredExpenses.isEmpty && controller.expenses.isNotEmpty) {
+            return const Center(
+              child: Text(
+                'لا توجد مصروفات تطابق الفلتر الحالي.',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            );
+          }
+        
+          // الحالة 2: كل القوائم فارغة
+          // هذا يعني أنه لا توجد مصروفات مسجلة في النظام أصلًا
+          if (controller.filteredExpenses.isEmpty) {
+            return const Center(
+              child: Text(
+                'لم يتم تسجيل أي مصروفات بعد.',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: controller.filteredExpenses.length,
+            itemBuilder: (context, index) {
+              final expense = controller.filteredExpenses[index];
+              return _buildExpenseCard(expense, formatCurrency);
+            },
           );
-        }
-
-        // الحالة 2: كل القوائم فارغة
-        // هذا يعني أنه لا توجد مصروفات مسجلة في النظام أصلًا
-        if (controller.filteredExpenses.isEmpty) {
-          return const Center(
-            child: Text(
-              'لم يتم تسجيل أي مصروفات بعد.',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: controller.filteredExpenses.length,
-          itemBuilder: (context, index) {
-            final expense = controller.filteredExpenses[index];
-            return _buildExpenseCard(expense, formatCurrency);
-          },
-        );
-      }),
+        }),
+      ),
     );
   }
 
