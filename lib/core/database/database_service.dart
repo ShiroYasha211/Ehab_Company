@@ -18,6 +18,14 @@ class DatabaseService {
     return _database!;
   }
 
+  Future<void> close() async {
+    final db = _database;
+    if (db != null) {
+      await db.close();
+      _database = null;
+    }
+  }
+
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'ehab_company.db');
@@ -96,9 +104,11 @@ class DatabaseService {
       )
     ''');
     batch.execute(
-        'CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)');
+      'CREATE TABLE categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)',
+    );
     batch.execute(
-        'CREATE TABLE units (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)');
+      'CREATE TABLE units (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)',
+    );
     batch.insert('funds', {'name': 'الصندوق الرئيسي', 'balance': 0.0});
     batch.insert('units', {'name': 'قطعة'});
     batch.insert('units', {'name': 'كرتون'});
@@ -148,7 +158,8 @@ class DatabaseService {
   Future<void> _createV4Tables(Database db) async {
     // ... (هذا الجزء يبقى كما هو)
     await db.execute(
-        'ALTER TABLE suppliers ADD COLUMN balance REAL NOT NULL DEFAULT 0.0');
+      'ALTER TABLE suppliers ADD COLUMN balance REAL NOT NULL DEFAULT 0.0',
+    );
     await db.execute('''
       CREATE TABLE supplier_transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT, -- رقم السند (جعلته تلقائيًا لضمان عدم التضارب)
@@ -252,7 +263,7 @@ class DatabaseService {
     await batch.commit(noResult: true);
   }
 
-// --- نهاية الإضافة ---
+  // --- نهاية الإضافة ---
   /// الإصدار 8: إضافة جداول المصروفات وبنودها
   Future<void> _createV8Tables(Database db) async {
     final batch = db.batch();
@@ -280,8 +291,9 @@ class DatabaseService {
     // إضافة بعض البنود الافتراضية
     batch.insert('expense_categories', {'name': 'إيجار'});
     batch.insert('expense_categories', {'name': 'رواتب وأجور'});
-    batch.insert(
-        'expense_categories', {'name': 'فواتير (كهرباء، ماء، إنترنت)'});
+    batch.insert('expense_categories', {
+      'name': 'فواتير (كهرباء، ماء، إنترنت)',
+    });
     batch.insert('expense_categories', {'name': 'مصاريف تسويق'});
     batch.insert('expense_categories', {'name': 'ضيافة ونثريات'});
 
@@ -291,7 +303,8 @@ class DatabaseService {
   Future<void> _createV9Tables(Database db) async {
     // سيتم تعيين القيمة الافتراضية إلى تاريخ إنشاء العميل
     await db.execute(
-        'ALTER TABLE customers ADD COLUMN lastTransactionDate TEXT');
+      'ALTER TABLE customers ADD COLUMN lastTransactionDate TEXT',
+    );
     await db.execute('UPDATE customers SET lastTransactionDate = createdAt');
   }
 
@@ -302,5 +315,6 @@ class DatabaseService {
       ALTER TABLE expenses ADD COLUMN deductFromFund INTEGER NOT NULL DEFAULT 1
     ''');
   }
-// --- نهاية الإضافة ---
+
+  // --- نهاية الإضافة ---
 }

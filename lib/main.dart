@@ -2,6 +2,7 @@
 
 import 'package:ehab_company_admin/core/database/database_service.dart';
 import 'package:ehab_company_admin/core/theme/app_theme.dart';
+import 'package:ehab_company_admin/features/auth/presentation/screens/login_screen.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_binding.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_invoice_screen.dart';
 import 'package:ehab_company_admin/features/splash/splash_screen.dart'; // <-- تغيير هنا
@@ -14,7 +15,7 @@ import 'core/services/settings_service.dart';
 import 'features/sales/presentation/screens/add_sales_invoice_binding.dart';
 import 'features/sales/presentation/screens/add_sales_invoice_screen.dart';
 
-void main()async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await DatabaseService().database;
@@ -52,15 +53,18 @@ class MyApp extends StatelessWidget {
       home: const SplashScreen(), // <-- تغيير هنا: ابدأ من شاشة البداية
 
       getPages: [
-        GetPage(name: '/add_sales_invoice', page: () => const AddSalesInvoiceScreen(),
-      binding: AddSalesInvoiceBinding(),
-
-    ),
-        GetPage(name: '/add_purchase_invoice', page: () => const AddPurchaseInvoiceScreen(),
-        binding: AddPurchaseBinding()),
+        GetPage(
+          name: '/add_sales_invoice',
+          page: () => const AddSalesInvoiceScreen(),
+          binding: AddSalesInvoiceBinding(),
+        ),
+        GetPage(
+          name: '/add_purchase_invoice',
+          page: () => const AddPurchaseInvoiceScreen(),
+          binding: AddPurchaseBinding(),
+        ),
+        GetPage(name: '/login', page: () => const LoginScreen()),
       ],
-
-
     );
   }
 }

@@ -61,6 +61,7 @@ dependencies:
   font_awesome_flutter: ^10.9.1
   shared_preferences: ^2.5.3
   currency_picker: ^2.0.21
+  device_info_plus: ^12.3.0
 
 dev_dependencies:
   flutter_test:

@@ -1,7 +1,7 @@
 // File: lib/features/splash/splash_screen.dart
 
 import 'dart:async';
-import 'package:ehab_company_admin/features/home/presentation/screens/home_screen.dart';
+import 'package:ehab_company_admin/features/auth/presentation/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -19,7 +19,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // الانتقال بعد 3 ثوانٍ
     Timer(const Duration(seconds: 3), () {
       // استخدام GetX للانتقال مع إزالة الشاشة السابقة من الـ stack
-      Get.off(() => const HomeScreen());
+      Get.off(() => const LoginScreen());
     });
   }
 
