@@ -22,6 +22,8 @@ import '../../../fund/presentation/screens/fund_screen.dart';
 import '../../../products/presentation/screens/inventory_dashboard_binding.dart';
 import '../../../products/presentation/screens/inventory_dashboard_screen.dart';
 import '../../../reports/presentation/screens/reports_dashboard_screen.dart';
+import '../../../settings/presentation/controllers/settings_binding.dart';
+import '../../../settings/presentation/screens/settings_screen.dart';
 import '../controllers/home_controller.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -122,6 +124,9 @@ class HomeScreen extends StatelessWidget {
                         else if(featureTitle == 'الفواتير'){
                           Get.to(() => const FinancialDocsDashboardScreen(),
                           binding: FinancialDocsBinding());
+                        }
+                        else if(featureTitle == 'الإعدادات'){
+                          Get.to(() => const SettingsScreen(), binding: SettingsBinding());
                         }
                         else {
                           print('$featureTitle card tapped');

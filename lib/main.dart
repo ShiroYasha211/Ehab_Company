@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/services/settings_service.dart';
 import 'features/sales/presentation/screens/add_sales_invoice_binding.dart';
 import 'features/sales/presentation/screens/add_sales_invoice_screen.dart';
 
@@ -17,6 +18,9 @@ void main()async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await DatabaseService().database;
+
+  await Get.putAsync(() => SettingsService().init());
+
   runApp(const MyApp());
 }
 

@@ -59,6 +59,8 @@ dependencies:
   flutter_typeahead: ^5.2.0
   flutter_speed_dial: ^7.0.0
   font_awesome_flutter: ^10.9.1
+  shared_preferences: ^2.5.3
+  currency_picker: ^2.0.21
 
 dev_dependencies:
   flutter_test:
