@@ -6,6 +6,8 @@ import 'package:ehab_company_admin/features/products/presentation/screens/produc
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/services/settings_service.dart';
+
 class ProductListItem extends StatelessWidget {
   final ProductModel product;
   final VoidCallback onDelete;
@@ -20,8 +22,10 @@ class ProductListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currency = Get.find<SettingsService>();
     final theme = Theme.of(context);
-    final bool hasImage = product.imageUrl != null && product.imageUrl!.isNotEmpty;
+    final bool hasImage =
+        product.imageUrl != null && product.imageUrl!.isNotEmpty;
 
     return InkWell(
       onTap: () {
@@ -34,23 +38,36 @@ class ProductListItem extends StatelessWidget {
         shadowColor: Colors.black.withOpacity(0.08),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 10,
+          ),
           leading: CircleAvatar(
             radius: 28,
             backgroundColor: theme.primaryColor.withOpacity(0.1),
-            backgroundImage: hasImage ? FileImage(File(product.imageUrl!)) : null,
+            backgroundImage: hasImage
+                ? FileImage(File(product.imageUrl!))
+                : null,
             child: !hasImage
                 ? Text(
-              product.name.length >= 2 ? product.name.substring(0, 2).toUpperCase() : product.name.toUpperCase(),
-              style: TextStyle(fontWeight: FontWeight.bold, color: theme.primaryColor),
-            )
+                    product.name.length >= 2
+                        ? product.name.substring(0, 2).toUpperCase()
+                        : product.name.toUpperCase(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.primaryColor,
+                    ),
+                  )
                 : null,
           ),
-          title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(
+            product.name,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 4.0),
             child: Text(
-              'الكمية: ${product.quantity.toInt()} ${product.unit ?? 'قطعة'} | سعر البيع: ${product.salePrice} ريال',
+              'الكمية: ${product.quantity.toInt()} ${product.unit ?? 'قطعة'} | سعر البيع: ${product.salePrice} ${currency.primaryCurrency.value.symbol}',
               style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
             ),
           ),

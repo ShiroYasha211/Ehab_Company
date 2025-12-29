@@ -5,24 +5,28 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class InventoryValueScreen extends StatelessWidget {
   const InventoryValueScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
     // استخدم Get.find لأنه يفترض أن ProductController مهيأ بالفعل
     // إذا لم يكن كذلك، سنحتاج إلى تعديل الـ Binding
     final ProductController controller = Get.find<ProductController>();
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: currencySymbol,
+    );
 
     // استدعاء دالة الحساب عند بناء الشاشة
     controller.getInventoryValue();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('تقرير قيمة المخزون'),
-      ),
+      appBar: AppBar(title: const Text('تقرير قيمة المخزون')),
       body: RefreshIndicator(
         onRefresh: controller.getInventoryValue,
         child: Center(
@@ -37,7 +41,9 @@ class InventoryValueScreen extends StatelessWidget {
                 _buildValueCard(
                   title: 'قيمة المخزون الحالية',
                   subtitle: '(بسعر الشراء)',
-                  value: formatCurrency.format(controller.totalPurchaseValue.value),
+                  value: formatCurrency.format(
+                    controller.totalPurchaseValue.value,
+                  ),
                   icon: Icons.inventory_2_outlined,
                   color: Theme.of(context).primaryColor,
                 ),
@@ -71,18 +77,21 @@ class InventoryValueScreen extends StatelessWidget {
     return Card(
       elevation: isSecondary ? 2 : 6,
       color: isSecondary ? Get.theme.cardColor : color,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: Column(
           children: [
             CircleAvatar(
               radius: 32,
-              backgroundColor: isSecondary ? color.withOpacity(0.1) : Colors.white24,
-              child: Icon(icon,
-                  size: 32, color: isSecondary ? color : Colors.white),
+              backgroundColor: isSecondary
+                  ? color.withOpacity(0.1)
+                  : Colors.white24,
+              child: Icon(
+                icon,
+                size: 32,
+                color: isSecondary ? color : Colors.white,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -90,7 +99,9 @@ class InventoryValueScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: isSecondary ? Get.theme.textTheme.bodyLarge?.color : Colors.white,
+                color: isSecondary
+                    ? Get.theme.textTheme.bodyLarge?.color
+                    : Colors.white,
               ),
             ),
             const SizedBox(height: 4),

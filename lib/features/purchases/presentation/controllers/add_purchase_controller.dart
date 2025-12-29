@@ -11,7 +11,7 @@ import 'package:intl/intl.dart' as intl;
 import 'package:lottie/lottie.dart';
 
 import '../../../../core/services/purchase_invoice_pdf_service.dart';
-
+import '../../../../core/services/settings_service.dart';
 
 enum DiscountType { amount, percentage }
 
@@ -55,12 +55,15 @@ class AddPurchaseController extends GetxController {
 
   // Text Editing Controllers
   final TextEditingController invoiceIdController = TextEditingController();
-  final TextEditingController supplierInvoiceNumberController = TextEditingController();
+  final TextEditingController supplierInvoiceNumberController =
+      TextEditingController();
   final TextEditingController dateController = TextEditingController();
   final TextEditingController discountController = TextEditingController(
-      text: '0.0');
+    text: '0.0',
+  );
   final TextEditingController taxController = TextEditingController(
-      text: '0.0');
+    text: '0.0',
+  );
   final TextEditingController paidAmountController = TextEditingController();
   final TextEditingController notesController = TextEditingController();
   final TextEditingController productSearchController = TextEditingController();
@@ -83,16 +86,9 @@ class AddPurchaseController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    dateController.text =
-        intl.DateFormat('yyyy-MM-dd').format(invoiceDate.value);
-    discountController.addListener(updateTotals);
-    taxController.addListener(updateTotals);
-    paidAmountController.addListener(updateTotals);
-  }
-
-  Future<void> _loadNextInvoiceId() async {
-    final lastId = await _purchaseRepository.getLastInvoiceId();
-    invoiceIdController.text = (lastId == 0 ? 100 : lastId + 1).toString();
+    dateController.text = intl.DateFormat(
+      'yyyy-MM-dd',
+    ).format(invoiceDate.value);
     discountController.addListener(updateTotals);
     taxController.addListener(updateTotals);
     paidAmountController.addListener(updateTotals);
@@ -132,25 +128,27 @@ class AddPurchaseController extends GetxController {
     }
   }
 
-  void addProductToInvoice(ProductModel product, double quantity,
-      double price) {
+  void addProductToInvoice(
+    ProductModel product,
+    double quantity,
+    double price,
+  ) {
     if (quantity <= 0) {
       Get.snackbar('خطأ', 'الكمية يجب أن تكون أكبر من صفر.');
       return;
     }
-    final existingItem = invoiceItems.firstWhereOrNull((item) =>
-    item.product.id == product.id);
+    final existingItem = invoiceItems.firstWhereOrNull(
+      (item) => item.product.id == product.id,
+    );
 
     if (existingItem != null) {
       existingItem.quantity += quantity;
       existingItem.purchasePrice = price;
       invoiceItems.refresh();
     } else {
-      invoiceItems.add(InvoiceItem(
-        product: product,
-        quantity: quantity,
-        purchasePrice: price,
-      ));
+      invoiceItems.add(
+        InvoiceItem(product: product, quantity: quantity, purchasePrice: price),
+      );
     }
   }
 
@@ -163,8 +161,9 @@ class AddPurchaseController extends GetxController {
   }
 
   void updateItemQuantity(int productId, double newQuantity) {
-    final item = invoiceItems.firstWhereOrNull((item) =>
-    item.product.id == productId);
+    final item = invoiceItems.firstWhereOrNull(
+      (item) => item.product.id == productId,
+    );
     if (item != null && newQuantity > 0) {
       item.quantity = newQuantity;
       invoiceItems.refresh();
@@ -172,8 +171,9 @@ class AddPurchaseController extends GetxController {
   }
 
   void updateItemPrice(int productId, double newPrice) {
-    final item = invoiceItems.firstWhereOrNull((item) =>
-    item.product.id == productId);
+    final item = invoiceItems.firstWhereOrNull(
+      (item) => item.product.id == productId,
+    );
     if (item != null && newPrice >= 0) {
       item.purchasePrice = newPrice;
       invoiceItems.refresh();
@@ -186,8 +186,9 @@ class AddPurchaseController extends GetxController {
     required double newPurchasePrice,
     double? newSalePrice,
   }) {
-    final item = invoiceItems.firstWhereOrNull((i) =>
-    i.product.id == productId);
+    final item = invoiceItems.firstWhereOrNull(
+      (i) => i.product.id == productId,
+    );
     if (item != null) {
       if (newQuantity > 0) item.quantity = newQuantity;
       if (newPurchasePrice >= 0) item.purchasePrice = newPurchasePrice;
@@ -209,14 +210,16 @@ class AddPurchaseController extends GetxController {
     }
     if (paidAmount.value > grandTotal) {
       Get.snackbar(
-          'خطأ', 'المبلغ المدفوع لا يمكن أن يكون أكبر من الإجمالي النهائي.');
+        'خطأ',
+        'المبلغ المدفوع لا يمكن أن يكون أكبر من الإجمالي النهائي.',
+      );
       return;
     }
     if (remainingAmount > 0) {
       Get.defaultDialog(
         title: "تأكيد الفاتورة الآجلة",
-        middleText: "المبلغ المدفوع أقل من الإجمالي. سيتم تسجيل المبلغ المتبقي (${remainingAmount
-            .toStringAsFixed(2)} ريال) كدين للمورد. هل تريد المتابعة؟",
+        middleText:
+            "المبلغ المدفوع أقل من الإجمالي. سيتم تسجيل المبلغ المتبقي (${remainingAmount.toStringAsFixed(2)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}) كدين للمورد. هل تريد المتابعة؟",
         textConfirm: "نعم، متابعة",
         confirmTextColor: Colors.white,
         onConfirm: () {
@@ -263,10 +266,13 @@ class AddPurchaseController extends GetxController {
     } catch (e) {
       isSaving(false);
       String errorMessage = e.toString().replaceFirst('Exception: ', '');
-      Get.snackbar('فشل الحفظ', errorMessage,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 5));
+      Get.snackbar(
+        'فشل الحفظ',
+        errorMessage,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
     }
   }
 
@@ -276,16 +282,16 @@ class AddPurchaseController extends GetxController {
     Get.back();
 
     // جلب بياناتالفاتورة التي تم حفظها للتو
-    final invoiceDetails =
-    await _purchaseRepository.getInvoiceDetailsById(invoiceId);
+    final invoiceDetails = await _purchaseRepository.getInvoiceDetailsById(
+      invoiceId,
+    );
     final supplierName = selectedSupplier.value?.name ?? '';
     final total = grandTotal;
 
     Get.dialog(
       barrierDismissible: false,
       AlertDialog(
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         contentPadding: const EdgeInsets.all(24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -306,7 +312,9 @@ class AddPurchaseController extends GetxController {
             _buildSuccessInfoRow('رقم الفاتورة:', '#$invoiceId'),
             _buildSuccessInfoRow('المورد:', supplierName),
             _buildSuccessInfoRow(
-                'الإجمالي:', '${total.toStringAsFixed(2)} ريال'),
+              'الإجمالي:',
+              '${total.toStringAsFixed(2)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}',
+            ),
             const Divider(height: 32),
             ElevatedButton.icon(
               icon: const Icon(Icons.print_outlined),
@@ -337,8 +345,10 @@ class AddPurchaseController extends GetxController {
             ),
             const SizedBox(height: 10),
             TextButton(
-              child: const Text('العودة للوحة التحكم',
-                  style: TextStyle(color: Colors.grey)),
+              child: const Text(
+                'العودة للوحة التحكم',
+                style: TextStyle(color: Colors.grey),
+              ),
               onPressed: () {
                 if (Get.isDialogOpen ?? false) Get.back();
                 Get.back();
@@ -359,11 +369,12 @@ class AddPurchaseController extends GetxController {
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],),
+        ],
+      ),
     );
   }
 
-// --- نهاية التعديل ---
+  // --- نهاية التعديل ---
 
   @override
   void onClose() {

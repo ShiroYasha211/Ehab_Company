@@ -2,7 +2,10 @@
 
 import 'package:ehab_company_admin/features/fund/data/models/fund_transaction_model.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
+
+import '../../../../core/services/settings_service.dart';
 
 class TransactionListItem extends StatelessWidget {
   final FundTransactionModel transaction;
@@ -11,11 +14,17 @@ class TransactionListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currency = Get.find<SettingsService>();
     final bool isDeposit = transaction.type == TransactionType.DEPOSIT;
-    final Color amountColor = isDeposit ? Colors.green.shade700 : Colors.red.shade700;
+    final Color amountColor = isDeposit
+        ? Colors.green.shade700
+        : Colors.red.shade700;
     final IconData icon = isDeposit ? Icons.arrow_upward : Icons.arrow_downward;
     final String prefix = isDeposit ? '+' : '-';
-    final formatCurrency = intl.NumberFormat.currency(locale: 'ar_SA', symbol: 'ريال');
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: currency.primaryCurrency.value.symbol,
+    );
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -29,7 +38,10 @@ class TransactionListItem extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
         subtitle: Text(
-          intl.DateFormat('yyyy-MM-dd – hh:mm a', 'ar').format(transaction.transactionDate),
+          intl.DateFormat(
+            'yyyy-MM-dd – hh:mm a',
+            'ar',
+          ).format(transaction.transactionDate),
           style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
         trailing: Text(

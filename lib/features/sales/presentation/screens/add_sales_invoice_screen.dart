@@ -7,21 +7,45 @@ import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart'; // <-- 1. إضافة import جديد
 
+import '../../../../core/services/settings_service.dart';
 import '../../../customers/presentation/screens/add_edit_customer_screen.dart';
 import '../../../products/data/models/product_model.dart';
 
 class AddSalesInvoiceScreen extends StatelessWidget {
   const AddSalesInvoiceScreen({super.key});
 
+  String _formatPrice(double price) {
+    final settings = Get.find<SettingsService>();
+    final primarySymbol = settings.primaryCurrency.value.symbol;
+    final primaryPrice = '${price.toStringAsFixed(2)} $primarySymbol';
+
+    if (settings.showBothCurrenciesInInvoice.value &&
+        !settings.isLocalSameAsPrimary.value) {
+      final localPrice = price * settings.exchangeRate.value;
+      final localSymbol = settings.localCurrency.value.symbol;
+      return '$primaryPrice / ${localPrice.toStringAsFixed(2)} $localSymbol';
+    }
+    return primaryPrice;
+  }
+
+  // دالة تنسيق السعر بناءً على خيار الدفع (للمراجعة فقط)
+  String _formatReviewPrice(double priceInPrimary, bool isLocalPayment) {
+    final settings = Get.find<SettingsService>();
+    if (isLocalPayment) {
+      final localPrice = priceInPrimary * settings.exchangeRate.value;
+      return '${localPrice.toStringAsFixed(2)} ${settings.localCurrency.value.symbol}';
+    } else {
+      return '${priceInPrimary.toStringAsFixed(2)} ${settings.primaryCurrency.value.symbol}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final AddSalesInvoiceController controller = Get.find<
-        AddSalesInvoiceController>(); // <-- 2.
+    final AddSalesInvoiceController controller =
+        Get.find<AddSalesInvoiceController>(); // <-- 2.
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('فاتورة مبيعات جديدة'),
-      ),
+      appBar: AppBar(title: const Text('فاتورة مبيعات جديدة')),
       bottomNavigationBar: _buildNewFooter(context, controller),
       body: Column(
         children: [
@@ -31,30 +55,39 @@ class AddSalesInvoiceScreen extends StatelessWidget {
           const Divider(height: 1),
           Expanded(
             child: Obx(
-                  () =>
-              controller.invoiceItems.isEmpty
+              () => controller.invoiceItems.isEmpty
                   ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_shopping_cart_rounded, size: 80,
-                        color: Colors.grey.shade400),
-                    const SizedBox(height: 16),
-                    const Text('الفاتورة فارغة', style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    const Text('استخدم شريط البحث أعلاه لإضافة الأصناف',
-                        style: TextStyle(color: Colors.grey)),
-                  ],
-                ),
-              )
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_shopping_cart_rounded,
+                            size: 80,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'الفاتورة فارغة',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'استخدم شريط البحث أعلاه لإضافة الأصناف',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
                   : ListView.builder(
-                itemCount: controller.invoiceItems.length,
-                itemBuilder: (context, index) {
-                  final item = controller.invoiceItems[index];
-                  return _buildItemCard(context, controller, item);
-                },
-              ),
+                      itemCount: controller.invoiceItems.length,
+                      itemBuilder: (context, index) {
+                        final item = controller.invoiceItems[index];
+                        return _buildItemCard(context, controller, item);
+                      },
+                    ),
             ),
           ),
         ],
@@ -62,8 +95,10 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context,
-      AddSalesInvoiceController controller) {
+  Widget _buildHeader(
+    BuildContext context,
+    AddSalesInvoiceController controller,
+  ) {
     return Padding(
       padding: const EdgeInsets.all(12.0),
       child: Column(
@@ -71,30 +106,31 @@ class AddSalesInvoiceScreen extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Obx(() =>
-                    DropdownButtonFormField<CustomerModel>( // <-- 3.
-                      value: controller.selectedCustomer.value,
-                      items: controller.customerController.filteredCustomers
-                          .map((customer) {
-                        return DropdownMenuItem<CustomerModel>(
-                          value: customer,
-                          child: Text(customer.name),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        controller.selectedCustomer.value = value;
-                      },
-                      decoration: const InputDecoration(
-                        labelText: 'اختر العميل *',
-                        prefixIcon: Icon(Icons.person_search_outlined),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (value) =>
-                      value == null
-                          ? 'الرجاء اختيار عميل'
-                          : null,
-                    )),
+                child: Obx(
+                  () => DropdownButtonFormField<CustomerModel>(
+                    // <-- 3.
+                    value: controller.selectedCustomer.value,
+                    items: controller.customerController.filteredCustomers.map((
+                      customer,
+                    ) {
+                      return DropdownMenuItem<CustomerModel>(
+                        value: customer,
+                        child: Text(customer.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      controller.selectedCustomer.value = value;
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'اختر العميل *',
+                      prefixIcon: Icon(Icons.person_search_outlined),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    validator: (value) =>
+                        value == null ? 'الرجاء اختيار عميل' : null,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               IconButton(
@@ -133,9 +169,11 @@ class AddSalesInvoiceScreen extends StatelessWidget {
           }
           return controller.productController.allProducts.where((product) {
             final nameMatches = product.name.toLowerCase().contains(
-                pattern.toLowerCase());
-            final codeMatches = product.code?.toLowerCase().contains(
-                pattern.toLowerCase()) ?? false;
+              pattern.toLowerCase(),
+            );
+            final codeMatches =
+                product.code?.toLowerCase().contains(pattern.toLowerCase()) ??
+                false;
             return nameMatches || codeMatches;
           }).toList();
         },
@@ -146,10 +184,12 @@ class AddSalesInvoiceScreen extends StatelessWidget {
             leading: Text(
               suggestion.quantity.toInt().toString(),
               style: TextStyle(
-                  fontSize: 16, color: isAvailable ? Colors.green : Colors.red),
+                fontSize: 16,
+                color: isAvailable ? Colors.green : Colors.red,
+              ),
             ),
             title: Text(suggestion.name),
-            trailing: Text('${suggestion.salePrice.toStringAsFixed(2)} ريال'),
+            trailing: Text(_formatPrice(suggestion.salePrice)),
           );
         },
         onSelected: (suggestion) {
@@ -194,34 +234,44 @@ class AddSalesInvoiceScreen extends StatelessWidget {
             ),
           );
         },
-        emptyBuilder: (context) =>
-        const Padding(
+        emptyBuilder: (context) => const Padding(
           padding: EdgeInsets.all(8.0),
-          child: Text('لم يتم العثور على منتج يطابق بحثك.',
-              style: TextStyle(color: Colors.grey)),
+          child: Text(
+            'لم يتم العثور على منتج يطابق بحثك.',
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
       ),
     );
   }
 
-  void _showEditItemDialog(BuildContext context,
-      AddSalesInvoiceController controller, SalesInvoiceItem item) {
+  void _showEditItemDialog(
+    BuildContext context,
+    AddSalesInvoiceController controller,
+    SalesInvoiceItem item,
+  ) {
     // <-- 8.
     final qtyController = TextEditingController(
-        text: item.quantity.toStringAsFixed(0));
+      text: item.quantity.toStringAsFixed(0),
+    );
     final salePriceController = TextEditingController(
-        text: item.salePrice.toString());
+      text: item.salePrice.toString(),
+    );
 
     Get.dialog(
       AlertDialog(
-        title: Text(item.product.name,
-            style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          item.product.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDialogInfoRow('الكمية المتوفرة:',
-                  '${item.product.quantity} ${item.product.unit ?? ''}'),
+              _buildDialogInfoRow(
+                'الكمية المتوفرة:',
+                '${item.product.quantity} ${item.product.unit ?? ''}',
+              ),
               _buildDialogEditableRow('الكمية في الفاتورة:', qtyController),
               const Divider(),
               _buildDialogEditableRow('سعر البيع:', salePriceController),
@@ -232,8 +282,10 @@ class AddSalesInvoiceScreen extends StatelessWidget {
           TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () {
-              final newQty = double.tryParse(qtyController.text) ?? item.quantity;
-              final newSalePrice = double.tryParse(salePriceController.text) ?? item.salePrice;
+              final newQty =
+                  double.tryParse(qtyController.text) ?? item.quantity;
+              final newSalePrice =
+                  double.tryParse(salePriceController.text) ?? item.salePrice;
               if (newQty > item.product.quantity) {
                 Get.snackbar(
                   'خطأ في الكمية',
@@ -257,7 +309,7 @@ class AddSalesInvoiceScreen extends StatelessWidget {
               Get.back(); // أغلق الديالوج
             },
             child: const Text('حفظ التعديلات'),
-          )
+          ),
         ],
       ),
     );
@@ -276,8 +328,10 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDialogEditableRow(String label,
-      TextEditingController controller) {
+  Widget _buildDialogEditableRow(
+    String label,
+    TextEditingController controller,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: TextField(
@@ -293,42 +347,46 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNewFooter(BuildContext context,AddSalesInvoiceController controller) {
+  Widget _buildNewFooter(
+    BuildContext context,
+    AddSalesInvoiceController controller,
+  ) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: Theme.of(context).canvasColor,
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, -2))
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
           ],
         ),
         child: Row(
           children: [
             Expanded(
-              child: Obx(() =>
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'الإجمالي: ${controller.grandTotal.toStringAsFixed(
-                            2)} ريال', // <-- 9.
-                        style: TextStyle(fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Get.theme.primaryColor),
+              child: Obx(
+                () => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'الإجمالي: ${_formatPrice(controller.grandTotal)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Get.theme.primaryColor,
                       ),
-                      Text(
-                        'عدد الأصناف: ${controller.invoiceItems
-                            .length} | إجمالي الكمية: ${controller
-                            .totalItemsCount}',
-                        style: const TextStyle(
-                            color: Colors.grey, fontSize: 13),
-                      ),
-                    ],
-                  )),
+                    ),
+                    Text(
+                      'عدد الأصناف: ${controller.invoiceItems.length} | إجمالي الكمية: ${controller.totalItemsCount}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(width: 16),
             SizedBox(
@@ -348,7 +406,8 @@ class AddSalesInvoiceScreen extends StatelessWidget {
                 icon: const Icon(Icons.payment_rounded),
                 label: const Text('مراجعة وحفظ'),
                 style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
           ],
@@ -357,8 +416,10 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     );
   }
 
-  void _showReviewBottomSheet(BuildContext context,
-      AddSalesInvoiceController controller) {
+  void _showReviewBottomSheet(
+    BuildContext context,
+    AddSalesInvoiceController controller,
+  ) {
     controller.updateTotals(); // حساب الإجماليات أولاً
 
     Get.bottomSheet(
@@ -369,25 +430,64 @@ class AddSalesInvoiceScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       Container(
-        height: MediaQuery
-            .of(context)
-            .size
-            .height * 0.9, // 90% من ارتفاع الشاشة
+        height:
+            MediaQuery.of(context).size.height * 0.9, // 90% من ارتفاع الشاشة
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             // 1. هيدر الـ BottomSheet
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
                 children: [
-                  const Text('مراجعة وحفظ الفاتورة', style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Get.back(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'مراجعة وحفظ الفاتورة',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Get.back(),
+                      ),
+                    ],
                   ),
+                  // خيار تبديل العملة (يظهر فقط إذا كان الإعداد مفعلاً)
+                  Obx(() {
+                    final settings = Get.find<SettingsService>();
+                    if (!settings.showBothCurrenciesInInvoice.value ||
+                        settings.isLocalSameAsPrimary.value) {
+                      return const SizedBox.shrink();
+                    }
+                    return Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      width: double.infinity,
+                      child: SegmentedButton<bool>(
+                        segments: [
+                          ButtonSegment(
+                            value: false,
+                            label: Text(
+                              'دفع بالعملة الأساسية (${settings.primaryCurrency.value.symbol})',
+                            ),
+                          ),
+                          ButtonSegment(
+                            value: true,
+                            label: Text(
+                              'دفع بالعملة المحلية (${settings.localCurrency.value.symbol})',
+                            ),
+                          ),
+                        ],
+                        selected: {controller.isLocalCurrencyPayment.value},
+                        onSelectionChanged: (newSelection) {
+                          controller.togglePaymentCurrency(newSelection.first);
+                        },
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -416,7 +516,9 @@ class AddSalesInvoiceScreen extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                   textStyle: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 onPressed: controller.saveSalesInvoice,
               ),
@@ -432,8 +534,10 @@ class AddSalesInvoiceScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('ملخص الأصناف',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const Text(
+          'ملخص الأصناف',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 8),
         Container(
           constraints: const BoxConstraints(maxHeight: 150),
@@ -452,13 +556,23 @@ class AddSalesInvoiceScreen extends StatelessWidget {
               return ListTile(
                 dense: true,
                 title: Text(item.product.name),
-                subtitle: Text(
-                  '${item.quantity.toInt()} × ${item.salePrice.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                subtitle: Obx(
+                  () => Text(
+                    '${item.quantity.toInt()} × ${_formatReviewPrice(item.salePrice, controller.isLocalCurrencyPayment.value)}',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
                 ),
-                trailing: Text(
-                  '${item.subtotal.toStringAsFixed(2)} ريال',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                trailing: Obx(
+                  () => Text(
+                    _formatReviewPrice(
+                      item.subtotal,
+                      controller.isLocalCurrencyPayment.value,
+                    ),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               );
             },
@@ -472,89 +586,128 @@ class AddSalesInvoiceScreen extends StatelessWidget {
   Widget _buildDiscountSection(AddSalesInvoiceController controller) {
     return Column(
       children: [
-        Obx(() =>
-            SegmentedButton<DiscountType>(
-              segments: const [
-                ButtonSegment(
-                    value: DiscountType.amount, label: Text('خصم مبلغ')),
-                ButtonSegment(
-                    value: DiscountType.percentage, label: Text('خصم نسبة %')),
-              ],
-              selected: {controller.discountType.value},
-              onSelectionChanged: (newSelection) {
-                controller.discountType.value = newSelection.first;
-                controller.updateTotals();
-              },
-            )),
-        const SizedBox(height: 12),
-        Obx(() =>
-            TextField(
-              controller: controller.discountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true),
-              textDirection: TextDirection.ltr,
-              decoration: InputDecoration(
-                labelText: controller.discountType.value == DiscountType.amount
-                    ? 'قيمة الخصم'
-                    : 'نسبة الخصم %',
-                border: const OutlineInputBorder(),
+        Obx(
+          () => SegmentedButton<DiscountType>(
+            segments: const [
+              ButtonSegment(
+                value: DiscountType.amount,
+                label: Text('خصم مبلغ'),
               ),
-            )),
+              ButtonSegment(
+                value: DiscountType.percentage,
+                label: Text('خصم نسبة %'),
+              ),
+            ],
+            selected: {controller.discountType.value},
+            onSelectionChanged: (newSelection) {
+              controller.discountType.value = newSelection.first;
+              controller.updateTotals();
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        Obx(
+          () => TextField(
+            controller: controller.discountController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            textDirection: TextDirection.ltr,
+            decoration: InputDecoration(
+              labelText: controller.discountType.value == DiscountType.amount
+                  ? 'قيمة الخصم'
+                  : 'نسبة الخصم %',
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ),
       ],
     );
   }
 
   // ودجت بناء قسم الدفع
   Widget _buildPaymentSection(AddSalesInvoiceController controller) {
-    final formatCurrency = (double val) => '${val.toStringAsFixed(2)} ريال';
-    return Obx(() =>
-        Column(
-          children: [
-            _buildDialogInfoRow(
-                'الإجمالي الفرعي:', formatCurrency(controller.subtotal)),
-            _buildDialogInfoRow(
-              'قيمة الخصم:',
-              '- ${formatCurrency(controller.discountValue.value)}',
+    return Obx(
+      () => Column(
+        children: [
+          _buildDialogInfoRow(
+            'الإجمالي الفرعي:',
+            _formatReviewPrice(
+              controller.subtotal,
+              controller.isLocalCurrencyPayment.value,
             ),
-            const Divider(thickness: 1.5),
-            _buildDialogInfoRow(
-              'الإجمالي النهائي:', formatCurrency(controller.grandTotal),),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller.paidAmountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true),
-              textDirection: TextDirection.ltr,
-              decoration: const InputDecoration(
-                labelText: 'المبلغ المدفوع',
-                border: OutlineInputBorder(),
-              ),
+          ),
+          _buildDialogInfoRow(
+            'قيمة الخصم:',
+            '- ${_formatReviewPrice(controller.discountValue.value, controller.isLocalCurrencyPayment.value)}',
+          ),
+          const Divider(thickness: 1.5),
+          _buildDialogInfoRow(
+            'الإجمالي النهائي:',
+            _formatReviewPrice(
+              controller.grandTotal,
+              controller.isLocalCurrencyPayment.value,
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: _buildDialogInfoRow(
-                'المبلغ المتبقي:', formatCurrency(controller.remainingAmount),),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: controller.paidAmountController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            textDirection: TextDirection.ltr,
+            decoration: InputDecoration(
+              labelText:
+                  'المبلغ المدفوع (${controller.isLocalCurrencyPayment.value ? Get.find<SettingsService>().localCurrency.value.symbol : Get.find<SettingsService>().primaryCurrency.value.symbol})',
+              border: const OutlineInputBorder(),
+              helperText: controller.isLocalCurrencyPayment.value
+                  ? 'سيتم تحويل المبلغ للعملة الأساسية عند الحفظ'
+                  : null,
             ),
-          ],
-        ));
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: _buildDialogInfoRow(
+              'المبلغ المتبقي:',
+              // حساب المتبقي للعرض بناءً على المدفوع المدخل حالياً
+              _calculateRemainingDisplay(controller),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _buildItemCard(BuildContext context,
-      AddSalesInvoiceController controller, SalesInvoiceItem item) {
+  String _calculateRemainingDisplay(AddSalesInvoiceController controller) {
+    final settings = Get.find<SettingsService>();
+    double total = controller.grandTotal;
+    double paid = controller.paidAmount.value;
+
+    if (controller.isLocalCurrencyPayment.value) {
+      // إذا كان الدفع محلي، نحول الإجمالي للمحلي ونطرح المدفوع (الذي هو محلي أيضاً)
+      double totalLocal = total * settings.exchangeRate.value;
+      double remainingLocal = totalLocal - paid;
+      return '${remainingLocal.toStringAsFixed(2)} ${settings.localCurrency.value.symbol}';
+    } else {
+      return '${(total - paid).toStringAsFixed(2)} ${settings.primaryCurrency.value.symbol}';
+    }
+  }
+
+  Widget _buildItemCard(
+    BuildContext context,
+    AddSalesInvoiceController controller,
+    SalesInvoiceItem item,
+  ) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListTile(
-        title: Text(item.product.name,
-            style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          item.product.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: Text(
-          'الكمية: ${item.quantity.toStringAsFixed(0)} × ${item.salePrice
-              .toStringAsFixed(2)}  =  ${item.subtotal.toStringAsFixed(
-              2)} ريال',
+          'الكمية: ${item.quantity.toInt()} × ${item.salePrice.toStringAsFixed(2)}  =  ${_formatPrice(item.subtotal)}',
         ),
         trailing: IconButton(
           icon: Icon(Icons.delete_outline, color: Colors.red.shade700),

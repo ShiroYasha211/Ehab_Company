@@ -8,15 +8,19 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class ListPaymentVouchersScreen extends StatelessWidget {
   const ListPaymentVouchersScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final PaymentVouchersController controller =
-    Get.put(PaymentVouchersController());
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
+    final PaymentVouchersController controller = Get.put(
+      PaymentVouchersController(),
+    );
+    final formatCurrency = intl.NumberFormat.currency(symbol: currencySymbol);
 
     return Scaffold(
       appBar: AppBar(
@@ -40,8 +44,10 @@ class ListPaymentVouchersScreen extends StatelessWidget {
           }
           if (controller.vouchers.isEmpty) {
             return const Center(
-              child: Text('لا توجد سندات دفع تطابق بحثك.',
-                  style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'لا توجد سندات دفع تطابق بحثك.',
+                style: TextStyle(color: Colors.grey),
+              ),
             );
           }
           return ListView.builder(
@@ -59,38 +65,44 @@ class ListPaymentVouchersScreen extends StatelessWidget {
 
   /// ودجت بناء فلاتر الشاشة
   Widget _buildFilters(
-      BuildContext context, PaymentVouchersController controller) {
+    BuildContext context,
+    PaymentVouchersController controller,
+  ) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
         children: [
           // فلتر المورد
-          Obx(() => DropdownButtonFormField<SupplierModel?>(
-            value: controller.selectedSupplier.value,
-            items: [
-              const DropdownMenuItem<SupplierModel?>(
-                value: null,
-                child: Text('كل الموردين'),
+          Obx(
+            () => DropdownButtonFormField<SupplierModel?>(
+              value: controller.selectedSupplier.value,
+              items: [
+                const DropdownMenuItem<SupplierModel?>(
+                  value: null,
+                  child: Text('كل الموردين'),
+                ),
+                ...controller.supplierController.filteredSuppliers.map((
+                  supplier,
+                ) {
+                  return DropdownMenuItem<SupplierModel?>(
+                    value: supplier,
+                    child: Text(supplier.name),
+                  );
+                }).toList(),
+              ],
+              onChanged: (value) {
+                controller.selectedSupplier.value = value;
+              },
+              decoration: InputDecoration(
+                hintText: 'فلترة حسب المورد',
+                prefixIcon: const Icon(Icons.person_outline),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                isDense: true,
               ),
-              ...controller.supplierController.filteredSuppliers
-                  .map((supplier) {
-                return DropdownMenuItem<SupplierModel?>(
-                  value: supplier,
-                  child: Text(supplier.name),
-                );
-              }).toList(),
-            ],
-            onChanged: (value) {
-              controller.selectedSupplier.value = value;
-            },
-            decoration: InputDecoration(
-              hintText: 'فلترة حسب المورد',
-              prefixIcon: const Icon(Icons.person_outline),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              isDense: true,
             ),
-          )),
+          ),
           const SizedBox(height: 10),
           // فلاتر التاريخ
           Row(
@@ -111,11 +123,14 @@ class ListPaymentVouchersScreen extends StatelessWidget {
 
   /// ودجت بناء حقل التاريخ
   Widget _buildDateField(
-      BuildContext context, PaymentVouchersController controller,
-      {required bool isFromDate}) {
+    BuildContext context,
+    PaymentVouchersController controller, {
+    required bool isFromDate,
+  }) {
     return Obx(() {
-      final date =
-      isFromDate ? controller.fromDate.value : controller.toDate.value;
+      final date = isFromDate
+          ? controller.fromDate.value
+          : controller.toDate.value;
       return TextFormField(
         readOnly: true,
         controller: TextEditingController(
@@ -134,10 +149,17 @@ class ListPaymentVouchersScreen extends StatelessWidget {
 
   /// ودجت بناء بطاقة عرض السند
   Widget _buildVoucherCard(
-      SupplierTransactionModel voucher, intl.NumberFormat formatCurrency) {
-    final isOpeningBalance = voucher.type == SupplierTransactionType.OPENING_BALANCE;
-    final icon = isOpeningBalance ? Icons.play_for_work_rounded : Icons.upload_file_rounded;
-    final color = isOpeningBalance ? Colors.orange.shade700 : Colors.blue.shade700;
+    SupplierTransactionModel voucher,
+    intl.NumberFormat formatCurrency,
+  ) {
+    final isOpeningBalance =
+        voucher.type == SupplierTransactionType.OPENING_BALANCE;
+    final icon = isOpeningBalance
+        ? Icons.play_for_work_rounded
+        : Icons.upload_file_rounded;
+    final color = isOpeningBalance
+        ? Colors.orange.shade700
+        : Colors.blue.shade700;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -157,10 +179,13 @@ class ListPaymentVouchersScreen extends StatelessWidget {
         trailing: Text(
           formatCurrency.format(voucher.amount),
           style: TextStyle(
-              fontWeight: FontWeight.bold, fontSize: 16, color: color),
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: color,
+          ),
         ),
         onTap: () {
-           Get.to(() => TransactionDetailsScreen(transaction: voucher));
+          Get.to(() => TransactionDetailsScreen(transaction: voucher));
         },
       ),
     );

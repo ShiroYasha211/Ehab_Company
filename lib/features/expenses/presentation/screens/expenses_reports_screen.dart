@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class ExpensesReportsScreen extends StatefulWidget {
   const ExpensesReportsScreen({super.key});
 
@@ -30,9 +32,10 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
     final ExpenseController controller = Get.find<ExpenseController>();
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final formatCurrency = intl.NumberFormat.currency(symbol: currencySymbol);
 
     return Scaffold(
       appBar: AppBar(
@@ -56,14 +59,16 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
           }
           if (controller.reportDataMap.isEmpty) {
             return const Center(
-              child: Text('لا توجد مصروفات لعرضها في التقرير.',
-                  style: TextStyle(color: Colors.grey, fontSize: 16)),
+              child: Text(
+                'لا توجد مصروفات لعرضها في التقرير.',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
             );
           }
-        
+
           final reportDataList = controller.reportDataMap.values.toList();
           reportDataList.sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
-        
+
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -81,8 +86,9 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
                             touchedIndex = -1;
                             return;
                           }
-                          touchedIndex =
-                              pieTouchResponse.touchedSection!.touchedSectionIndex;
+                          touchedIndex = pieTouchResponse
+                              .touchedSection!
+                              .touchedSectionIndex;
                         });
                       },
                     ),
@@ -95,7 +101,7 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
                       final fontSize = isTouched ? 16.0 : 14.0;
                       final radius = isTouched ? 60.0 : 50.0;
                       final color = _chartColors[index % _chartColors.length];
-        
+
                       return PieChartSectionData(
                         color: color,
                         value: reportData.totalAmount,
@@ -112,10 +118,12 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
                 ),
               ),
               const Divider(height: 30),
-        
+
               // 2. القائمة التفصيلية
-              Text('ملخص المصروفات (الإجمالي: ${formatCurrency.format(controller.totalReportAmount)})',
-                  style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'ملخص المصروفات (الإجمالي: ${formatCurrency.format(controller.totalReportAmount)})',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 10),
               ...List.generate(reportDataList.length, (index) {
                 final reportData = reportDataList[index];
@@ -146,10 +154,15 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
     );
   }
 
-  Widget _buildDateField(BuildContext context, ExpenseController controller,
-      {required bool isFromDate}) {
+  Widget _buildDateField(
+    BuildContext context,
+    ExpenseController controller, {
+    required bool isFromDate,
+  }) {
     return Obx(() {
-      final date = isFromDate ? controller.fromDate.value : controller.toDate.value;
+      final date = isFromDate
+          ? controller.fromDate.value
+          : controller.toDate.value;
       return TextFormField(
         readOnly: true,
         controller: TextEditingController(
@@ -181,8 +194,11 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
     });
   }
 
-  Widget _buildReportListItem(ReportData reportData, Color color,
-      intl.NumberFormat formatCurrency) {
+  Widget _buildReportListItem(
+    ReportData reportData,
+    Color color,
+    intl.NumberFormat formatCurrency,
+  ) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 5),
       child: Padding(
@@ -194,7 +210,10 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
             Expanded(
               child: Text(
                 reportData.categoryName,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
             Column(
@@ -202,7 +221,10 @@ class _ExpensesReportsScreenState extends State<ExpensesReportsScreen> {
               children: [
                 Text(
                   formatCurrency.format(reportData.totalAmount),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
                 Text(
                   '${reportData.percentage.toStringAsFixed(1)}% من الإجمالي',

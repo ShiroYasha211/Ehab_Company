@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../fund/presentation/controllers/fund_controller.dart';
-import '../../../home/presentation/controllers/home_controller.dart';
-
 
 class ReportData {
   final String categoryName;
@@ -40,17 +38,15 @@ class ExpenseController extends GetxController {
   final Rx<int?> filterByCategoryId = Rx<int?>(null);
 
   final RxMap<int, ReportData> reportDataMap = <int, ReportData>{}.obs;
-  double get totalReportAmount => reportDataMap.values
-      .fold(0.0, (sum, item) => sum + item.totalAmount);
+  double get totalReportAmount =>
+      reportDataMap.values.fold(0.0, (sum, item) => sum + item.totalAmount);
 
   // Form Controllers
   final formKey = GlobalKey<FormState>();
   final amountController = TextEditingController();
   final notesController = TextEditingController();
   final Rx<int?> selectedCategoryId = Rx<int?>(null);
-  final Rx<DateTime> selectedDate = DateTime
-      .now()
-      .obs;
+  final Rx<DateTime> selectedDate = DateTime.now().obs;
   final RxBool deductFromFund = true.obs;
 
   @override
@@ -71,10 +67,7 @@ class ExpenseController extends GetxController {
   /// جلب كل البيانات اللازمة (المصروفات والبنود)
   Future<void> fetchInitialData() async {
     isLoading(true);
-    await Future.wait([
-      fetchAllExpenses(),
-      fetchAllCategories(),
-    ]);
+    await Future.wait([fetchAllExpenses(), fetchAllCategories()]);
     isLoading(false);
   }
 
@@ -117,7 +110,8 @@ class ExpenseController extends GetxController {
 
     // 2. التحقق من رصيد الصندوق (فقط إذا كان خيار الخصم مفعلًا)
     if (deductFromFund.value) {
-      final double currentFundBalance = _fundController.currentFund.value?.balance ?? 0.0;
+      final double currentFundBalance =
+          _fundController.currentFund.value?.balance ?? 0.0;
       if (amount > currentFundBalance) {
         // إذا كان الرصيد غير كافٍ، اعرض رسالة خطأ وأوقف العملية
         Get.snackbar(
@@ -166,21 +160,9 @@ class ExpenseController extends GetxController {
   }
   // --- نهاية التعديل ---
 
-
-  /// دالة لإعادة تعيين حقول الإدخال
-  void _resetForm() {
-    amountController.clear();
-    notesController.clear();
-    selectedCategoryId.value = null;
-    selectedDate.value = DateTime.now();
-    deductFromFund.value = true;
-  }
-
   /// إضافة بند مصروف جديد
   Future<void> addCategory(String name) async {
-    if (name
-        .trim()
-        .isEmpty) {
+    if (name.trim().isEmpty) {
       Get.snackbar('خطأ', 'اسم البند لا يمكن أن يكون فارغًا');
       return;
     }
@@ -200,15 +182,18 @@ class ExpenseController extends GetxController {
 
     // الفلترة حسب البند
     if (filterByCategoryId.value != null) {
-      _filtered.retainWhere((exp) =>
-      exp.categoryId == filterByCategoryId.value);
+      _filtered.retainWhere(
+        (exp) => exp.categoryId == filterByCategoryId.value,
+      );
     }
 
     // الفلترة حسب تاريخ البداية
     if (fromDate.value != null) {
-      _filtered.retainWhere((exp) =>
-      exp.expenseDate.isAtSameMomentAs(fromDate.value!) ||
-          exp.expenseDate.isAfter(fromDate.value!));
+      _filtered.retainWhere(
+        (exp) =>
+            exp.expenseDate.isAtSameMomentAs(fromDate.value!) ||
+            exp.expenseDate.isAfter(fromDate.value!),
+      );
     }
 
     // الفلترة حسب تاريخ النهاية
@@ -227,12 +212,9 @@ class ExpenseController extends GetxController {
     filterByCategoryId.value = null;
   }
 
-
   /// تعديل اسم بند مصروف
   Future<void> updateCategory(int id, String newName) async {
-    if (newName
-        .trim()
-        .isEmpty) {
+    if (newName.trim().isEmpty) {
       Get.snackbar('خطأ', 'اسم البند لا يمكن أن يكون فارغًا');
       return;
     }
@@ -240,11 +222,18 @@ class ExpenseController extends GetxController {
       await _repository.updateCategory(id, newName);
       await fetchAllCategories(); // تحديث قائمة البنود
       Get.snackbar(
-          'نجاح', 'تم تعديل اسم البند بنجاح', backgroundColor: Colors.blue,
-          colorText: Colors.white);
+        'نجاح',
+        'تم تعديل اسم البند بنجاح',
+        backgroundColor: Colors.blue,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل تعديل البند: ${e.toString()}',
-          backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشل تعديل البند: ${e.toString()}',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -264,6 +253,7 @@ class ExpenseController extends GetxController {
       );
     }
   }
+
   void generateReportData() {
     // 1. إعادة تعيين بيانات التقرير القديمة
     reportDataMap.clear();

@@ -11,10 +11,11 @@ import 'package:intl/intl.dart' as intl;
 import 'package:lottie/lottie.dart';
 
 import '../../../../core/services/sales_invoice_pdf_service.dart';
+import '../../../../core/services/settings_service.dart';
 import '../../data/repositories/sales_details_repository.dart';
 
-
 enum DiscountType { amount, percentage }
+
 /// كلاس مساعد لتخزين بيانات المنتج داخل فاتورة المبيعات
 class SalesInvoiceItem {
   final ProductModel product;
@@ -32,14 +33,18 @@ class SalesInvoiceItem {
 
 class AddSalesInvoiceController extends GetxController {
   // جلب الـ Controllers والـ Repositories
-  final CustomerController customerController = Get.find<CustomerController>(); // استخدام CustomerController
+  final CustomerController customerController =
+      Get.find<CustomerController>(); // استخدام CustomerController
   final ProductController productController = Get.find<ProductController>();
-  final SalesRepository _salesRepository = SalesRepository(); // استخدام SalesRepository
+  final SalesRepository _salesRepository =
+      SalesRepository(); // استخدام SalesRepository
 
   final RxBool isSaving = false.obs;
 
   // متغيرات الفاتورة
-  final Rx<CustomerModel?> selectedCustomer = Rx<CustomerModel?>(null); // استخدام CustomerModel
+  final Rx<CustomerModel?> selectedCustomer = Rx<CustomerModel?>(
+    null,
+  ); // استخدام CustomerModel
   final Rx<DateTime> invoiceDate = Rx<DateTime>(DateTime.now());
   final RxList<SalesInvoiceItem> invoiceItems = <SalesInvoiceItem>[].obs;
 
@@ -50,18 +55,27 @@ class AddSalesInvoiceController extends GetxController {
   final RxDouble taxPercentage = 0.0.obs;
   final RxDouble paidAmount = 0.0.obs;
 
+  // خيار الدفع بالعملة المحلية
+  final RxBool isLocalCurrencyPayment = false.obs;
+
   // Text Editing Controllers
   final TextEditingController invoiceIdController = TextEditingController();
   final TextEditingController dateController = TextEditingController();
-  final TextEditingController discountController = TextEditingController(text: '0.0');
-  final TextEditingController taxController = TextEditingController(text: '0.0');
+  final TextEditingController discountController = TextEditingController(
+    text: '0.0',
+  );
+  final TextEditingController taxController = TextEditingController(
+    text: '0.0',
+  );
   final TextEditingController paidAmountController = TextEditingController();
   final TextEditingController notesController = TextEditingController();
   final productSearchController = TextEditingController();
 
   // متغيرات محسوبة
-  int get totalItemsCount => invoiceItems.fold(0, (sum, item) => sum + item.quantity.toInt());
-  double get subtotal => invoiceItems.fold(0.0, (sum, item) => sum + item.subtotal);
+  int get totalItemsCount =>
+      invoiceItems.fold(0, (sum, item) => sum + item.quantity.toInt());
+  double get subtotal =>
+      invoiceItems.fold(0.0, (sum, item) => sum + item.subtotal);
   double get totalAfterDiscount => subtotal - discountValue.value;
   double get taxAmount => totalAfterDiscount * (taxPercentage.value / 100);
   double get grandTotal => totalAfterDiscount + taxAmount;
@@ -73,13 +87,14 @@ class AddSalesInvoiceController extends GetxController {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       productController.fetchAllProducts();
     });
-    dateController.text = intl.DateFormat('yyyy-MM-dd').format(invoiceDate.value);
+    dateController.text = intl.DateFormat(
+      'yyyy-MM-dd',
+    ).format(invoiceDate.value);
 
     discountController.addListener(updateTotals);
     taxController.addListener(updateTotals);
     paidAmountController.addListener(updateTotals);
   }
-
 
   void updateTotals() {
     if (discountType.value == DiscountType.amount) {
@@ -87,7 +102,8 @@ class AddSalesInvoiceController extends GetxController {
       discountValue.value = double.tryParse(discountController.text) ?? 0.0;
     } else {
       // إذا كان الخصم نسبة، قم بحساب القيمة
-      discountPercentage.value = double.tryParse(discountController.text) ?? 0.0;
+      discountPercentage.value =
+          double.tryParse(discountController.text) ?? 0.0;
       discountValue.value = subtotal * (discountPercentage.value / 100);
     }
 
@@ -95,11 +111,30 @@ class AddSalesInvoiceController extends GetxController {
     taxPercentage.value = double.tryParse(taxController.text) ?? 0.0;
     paidAmount.value = double.tryParse(paidAmountController.text) ?? 0.0;
   }
+
+  void togglePaymentCurrency(bool isLocal) {
+    // إذا لم يتغير الوضع، لا نفعل شيئًا
+    if (isLocalCurrencyPayment.value == isLocal) return;
+
+    final settings = Get.find<SettingsService>();
+    final double currentVal = double.tryParse(paidAmountController.text) ?? 0.0;
+
+    // إذا كان هناك قيمة مدخلة، نقوم بتحويلها
+    if (currentVal > 0) {
+      double convertedVal;
+      if (isLocal) {
+        // التحويل من الأساسي إلى المحلي (ضرب في سعر الصرف)
+        convertedVal = currentVal * settings.exchangeRate.value;
+      } else {
+        // التحويل من المحلي إلى الأساسي (قسمة على سعر الصرف)
+        convertedVal = currentVal / settings.exchangeRate.value;
+      }
+      paidAmountController.text = convertedVal.toStringAsFixed(2);
+    }
+
+    isLocalCurrencyPayment.value = isLocal;
+  }
   // --- نهاية التعديل ---
-
-
-
-
 
   Future<void> selectInvoiceDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -122,40 +157,54 @@ class AddSalesInvoiceController extends GetxController {
     }
     // التحقق من توفر الكمية في المخزون
     if (quantity > product.quantity) {
-      Get.snackbar('خطأ في الكمية', 'الكمية المطلوبة (${quantity}) أكبر من المتوفرة في المخزون (${product.quantity})');
+      Get.snackbar(
+        'خطأ في الكمية',
+        'الكمية المطلوبة (${quantity}) أكبر من المتوفرة في المخزون (${product.quantity})',
+      );
       return;
     }
 
-    final existingItem = invoiceItems.firstWhereOrNull((item) => item.product.id == product.id);
+    final existingItem = invoiceItems.firstWhereOrNull(
+      (item) => item.product.id == product.id,
+    );
 
     if (existingItem != null) {
       // التحقق من أن الكمية الجديدة لا تتجاوز المتوفر
       if (existingItem.quantity + quantity > product.quantity) {
-        Get.snackbar('خطأ في الكمية', 'إجمالي الكمية المطلوبة يتجاوز المتوفر في المخزون.');
+        Get.snackbar(
+          'خطأ في الكمية',
+          'إجمالي الكمية المطلوبة يتجاوز المتوفر في المخزون.',
+        );
         return;
       }
       existingItem.quantity += quantity;
       invoiceItems.refresh();
     } else {
-      invoiceItems.add(SalesInvoiceItem(
-        product: product,
-        quantity: quantity,
-        salePrice: product.salePrice, // استخدام سعر البيع الافتراضي
-      ));
+      invoiceItems.add(
+        SalesInvoiceItem(
+          product: product,
+          quantity: quantity,
+          salePrice: product.salePrice, // استخدام سعر البيع الافتراضي
+        ),
+      );
     }
   }
-
 
   void removeProductFromInvoice(int productId) {
     invoiceItems.removeWhere((item) => item.product.id == productId);
   }
 
   void updateItemQuantity(int productId, double newQuantity) {
-    final item = invoiceItems.firstWhereOrNull((item) => item.product.id == productId);
+    final item = invoiceItems.firstWhereOrNull(
+      (item) => item.product.id == productId,
+    );
     if (item != null && newQuantity > 0) {
       // التحقق من أن الكمية الجديدة لا تتجاوز المتوفر
       if (newQuantity > item.product.quantity) {
-        Get.snackbar('خطأ في الكمية', 'الكمية الجديدة أكبر من المتوفرة في المخزون.');
+        Get.snackbar(
+          'خطأ في الكمية',
+          'الكمية الجديدة أكبر من المتوفرة في المخزون.',
+        );
         return;
       }
       item.quantity = newQuantity;
@@ -164,7 +213,9 @@ class AddSalesInvoiceController extends GetxController {
   }
 
   void updateItemPrice(int productId, double newPrice) {
-    final item = invoiceItems.firstWhereOrNull((item) => item.product.id == productId);
+    final item = invoiceItems.firstWhereOrNull(
+      (item) => item.product.id == productId,
+    );
     if (item != null && newPrice >= 0) {
       item.salePrice = newPrice; // تحديث سعر البيع
       invoiceItems.refresh();
@@ -185,35 +236,47 @@ class AddSalesInvoiceController extends GetxController {
       Get.snackbar('خطأ', 'المبلغ المدفوع لا يمكن أن يكون سالبًا.');
       return;
     }
-    if (paidAmount.value > grandTotal) {
-      Get.snackbar('خطأ', 'المبلغ المدفوع لا يمكن أن يكون أكبر من الإجمالي النهائي.');
-      return;
+    double paymentInPrimary = paidAmount.value;
+    if (isLocalCurrencyPayment.value) {
+      final settings = Get.find<SettingsService>();
+      paymentInPrimary = paidAmount.value / settings.exchangeRate.value;
     }
 
+    if (paymentInPrimary > grandTotal + 0.01) {
+      // 0.01 tolerance for rounding
+      Get.snackbar(
+        'خطأ',
+        'المبلغ المدفوع لا يمكن أن يكون أكبر من الإجمالي النهائي.',
+      );
+      return;
+    } // 2. التحقق مما إذا كانت الفاتورة آجلة
     // 2. التحقق مما إذا كانت الفاتورة آجلة
-    if (remainingAmount > 0) {
+    final double remaining = grandTotal - paymentInPrimary;
+
+    // استخدام تسامح بسيط للأخطاء الحسابية في الفاصلة العائمة
+    if (remaining > 0.01) {
       // إذا كان هناك مبلغ متبقٍ، اعرض ديالوج التأكيد
       Get.defaultDialog(
         title: "تأكيد الفاتورة الآجلة",
         middleText:
-        "المبلغ المدفوع أقل من الإجمالي. سيتم تسجيل المبلغ المتبقي (${remainingAmount.toStringAsFixed(2)} ريال) كدين على العميل. هل تريد المتابعة؟",
+            "المبلغ المدفوع أقل من الإجمالي. سيتم تسجيل المبلغ المتبقي (${remaining.toStringAsFixed(2)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}) كدين على العميل. هل تريد المتابعة؟",
         textConfirm: "نعم، متابعة",
         confirmTextColor: Colors.white,
         onConfirm: () {
           // عند التأكيد، أغلق الديالوج ونفذ الحفظ
           Get.back();
-          _performSave();
+          _performSave(paymentInPrimary);
         },
         textCancel: "إلغاء",
       );
     } else {
       // إذا تم دفع المبلغ بالكامل، قم بالحفظ مباشرة
-      _performSave();
+      _performSave(paymentInPrimary);
     }
   }
 
   /// دالة مساعدة لتنفيذ عملية الحفظ الفعلية بعد التحقق
-  Future<void> _performSave() async {
+  Future<void> _performSave(double finalPaidInPrimary) async {
     try {
       isSaving(true);
       // إغلاق شاشة المراجعة (BottomSheet)
@@ -221,14 +284,25 @@ class AddSalesInvoiceController extends GetxController {
         Get.back();
       }
 
+      String finalNotes = notesController.text;
+      if (isLocalCurrencyPayment.value) {
+        final settings = Get.find<SettingsService>();
+        final localSymbol = settings.localCurrency.value.symbol;
+        final rate = settings.exchangeRate.value;
+        final localPaid = paidAmount.value;
+
+        finalNotes +=
+            '\n[تم الدفع: ${localPaid.toStringAsFixed(2)} $localSymbol (سعر الصرف: $rate)]';
+      }
+
       final invoiceId = await _salesRepository.createSalesInvoice(
         customerId: selectedCustomer.value!.id,
         invoiceDate: invoiceDate.value,
         totalAmount: grandTotal,
         discountAmount: discountValue.value,
-        paidAmount: paidAmount.value,
-        remainingAmount: remainingAmount,
-        notes: notesController.text,
+        paidAmount: finalPaidInPrimary,
+        remainingAmount: grandTotal - finalPaidInPrimary,
+        notes: finalNotes,
         items: invoiceItems,
       );
 
@@ -244,39 +318,44 @@ class AddSalesInvoiceController extends GetxController {
 
       // إظهار ديالوج النجاح
       _showSuccessDialog(invoiceId);
-
     } catch (e) {
       isSaving(false);
       String errorMessage = e.toString().replaceFirst('Exception: ', '');
-      Get.snackbar('فشل الحفظ', errorMessage,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 5));
+      Get.snackbar(
+        'فشل الحفظ',
+        errorMessage,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
     }
   }
+
   void _showSuccessDialog(int invoiceId) async {
     // جلب بيانات الفاتورة التي تم حفظها للتو
     final salesDetailsRepo = SalesDetailsRepository();
-    final invoiceDetails = await salesDetailsRepo.getInvoiceDetailsById(invoiceId);
-    final customerName =selectedCustomer.value?.name ?? '';
+    final invoiceDetails = await salesDetailsRepo.getInvoiceDetailsById(
+      invoiceId,
+    );
+    final customerName = selectedCustomer.value?.name ?? '';
     final total = grandTotal;
 
     Get.dialog(
-        barrierDismissible: false, // منع إغلاق الديالوج بالضغط في الخارج
-        AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            contentPadding: const EdgeInsets.all(24),
-            content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                // 1. الأنميشن
-                SizedBox(
-                width: 150,
-                height: 150,
-                child: Lottie.asset(
-                    'assets/animations/success_animation.json',
-                  repeat: false,
-                ),
+      barrierDismissible: false, // منع إغلاق الديالوج بالضغط في الخارج
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 1. الأنميشن
+            SizedBox(
+              width: 150,
+              height: 150,
+              child: Lottie.asset(
+                'assets/animations/success_animation.json',
+                repeat: false,
+              ),
             ),
 
             // 2. رسالة النجاح
@@ -289,30 +368,34 @@ class AddSalesInvoiceController extends GetxController {
             // 3. ملخص الفاتورة
             _buildSuccessInfoRow('رقم الفاتورة:', '#$invoiceId'),
             _buildSuccessInfoRow('العميل:', customerName),
-            _buildSuccessInfoRow('الإجمالي:', '${total.toStringAsFixed(2)} ريال'),
+            _buildSuccessInfoRow(
+              'الإجمالي:',
+              '${total.toStringAsFixed(2)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}',
+            ),
             const Divider(height: 32),
 
-// 4. أزرار الإجراءات
+            // 4. أزرار الإجراءات
             ElevatedButton.icon(
-                icon: const Icon(Icons.print_outlined),
-                label: const Text('طباعة الفاتورة'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Get.theme.primaryColor,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 45),
-                ),
-                onPressed: () {
-                  if (invoiceDetails != null) {
-                    SalesInvoicePdfService.printInvoice(invoiceDetails);
-                  }
-                },
+              icon: const Icon(Icons.print_outlined),
+              label: const Text('طباعة الفاتورة'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Get.theme.primaryColor,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 45),
+              ),
+              onPressed: () {
+                if (invoiceDetails != null) {
+                  SalesInvoicePdfService.printInvoice(invoiceDetails);
+                }
+              },
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-                icon: const Icon(Icons.add_shopping_cart),
-                label: const Text('فاتورة جديدة'),
-                style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 45),
-                ),
+              icon: const Icon(Icons.add_shopping_cart),
+              label: const Text('فاتورة جديدة'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 45),
+              ),
               onPressed: () {
                 if (Get.isDialogOpen ?? false) Get.back(); // إغلاق الديالوج
 
@@ -328,32 +411,32 @@ class AddSalesInvoiceController extends GetxController {
             ),
             const SizedBox(height: 10),
             TextButton(
-                child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
-                onPressed: () {
-                  if (Get.isDialogOpen ?? false) Get.back();
-                },
+              child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
+              onPressed: () {
+                if (Get.isDialogOpen ?? false) Get.back();
+              },
             ),
-                ],
-            ),
+          ],
         ),
+      ),
     );
   }
 
   // دالة مساعدة لبناء صفوف المعلومات في الديالوج
   Widget _buildSuccessInfoRow(String label, String value) {
     return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.grey)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
 
-// دالة لإعادة تعيين حالة
+  // دالة لإعادة تعيين حالة
   void _resetInvoiceState() {
     invoiceItems.clear();
     selectedCustomer.value = null;
@@ -362,8 +445,8 @@ class AddSalesInvoiceController extends GetxController {
     discountController.text = '0.0';
     paidAmountController.text = '0.0';
     notesController.clear();
+    isLocalCurrencyPayment.value = false; // إعادة تعيين خيار العملة
   }
-
 
   @override
   void onClose() {

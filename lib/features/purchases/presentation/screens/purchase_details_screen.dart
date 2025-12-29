@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../../../../core/services/purchase_invoice_pdf_service.dart';
+import '../../../../core/services/settings_service.dart';
 
 class PurchaseDetailsScreen extends StatelessWidget {
   final int invoiceId;
@@ -14,13 +15,17 @@ class PurchaseDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
     // استخدام tag لضمان إنشاء controller فريد لكل فاتورة
     final PurchaseDetailsController controller = Get.put(
       PurchaseDetailsController(invoiceId),
       tag: invoiceId.toString(),
     );
     final formatCurrency = intl.NumberFormat.currency(
-        locale: 'ar_SA', symbol: ' ريال');
+      locale: 'ar_SA',
+      symbol: currencySymbol,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -31,7 +36,8 @@ class PurchaseDetailsScreen extends StatelessWidget {
             onPressed: () {
               if (controller.invoiceDetails.value != null) {
                 PurchaseInvoicePdfService.printInvoice(
-                    controller.invoiceDetails.value!);
+                  controller.invoiceDetails.value!,
+                );
               }
             },
           ),
@@ -40,8 +46,8 @@ class PurchaseDetailsScreen extends StatelessWidget {
                 controller.invoiceDetails.value == null) {
               return const SizedBox.shrink();
             }
-            final status = controller.invoiceDetails
-                .value!['invoice']['status'];
+            final status =
+                controller.invoiceDetails.value!['invoice']['status'];
             if (status == 'RETURNED') {
               return const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16.0),
@@ -103,11 +109,10 @@ class PurchaseDetailsScreen extends StatelessWidget {
           return const Center(child: Text('لا توجد بيانات لهذه الفاتورة.'));
         }
 
-        final invoiceData = controller.invoiceDetails.value!['invoice'] as Map<
-            String,
-            dynamic>;
-        final itemsData = controller.invoiceDetails.value!['items'] as List<
-            dynamic>;
+        final invoiceData =
+            controller.invoiceDetails.value!['invoice'] as Map<String, dynamic>;
+        final itemsData =
+            controller.invoiceDetails.value!['items'] as List<dynamic>;
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -116,10 +121,10 @@ class PurchaseDetailsScreen extends StatelessWidget {
             _buildHeader(invoiceData),
             const Divider(height: 30),
             // 2. قائمة الأصناف
-            Text('الأصناف (${itemsData.length})', style: Theme
-                .of(context)
-                .textTheme
-                .titleLarge),
+            Text(
+              'الأصناف (${itemsData.length})',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 10),
             _buildItemsTable(itemsData, formatCurrency),
             const Divider(height: 30),
@@ -140,12 +145,19 @@ class PurchaseDetailsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildInfoRow(
-                'اسم المورد:', invoiceData['supplierName'] ?? 'غير محدد'),
+              'اسم المورد:',
+              invoiceData['supplierName'] ?? 'غير محدد',
+            ),
             _buildInfoRow(
-                'هاتف المورد:', invoiceData['supplierPhone'] ?? 'غير محدد'),
-            _buildInfoRow('تاريخ الفاتورة:',
-                intl.DateFormat('yyyy-MM-dd').format(
-                    DateTime.parse(invoiceData['invoiceDate']))),
+              'هاتف المورد:',
+              invoiceData['supplierPhone'] ?? 'غير محدد',
+            ),
+            _buildInfoRow(
+              'تاريخ الفاتورة:',
+              intl.DateFormat(
+                'yyyy-MM-dd',
+              ).format(DateTime.parse(invoiceData['invoiceDate'])),
+            ),
             if (invoiceData['invoiceNumber'] != null &&
                 invoiceData['invoiceNumber'].isNotEmpty)
               _buildInfoRow('رقم فاتورة المورد:', invoiceData['invoiceNumber']),
@@ -155,7 +167,8 @@ class PurchaseDetailsScreen extends StatelessWidget {
                 child: _buildInfoRow(
                   "سبب الإرجاع:", // إضافة نقطتين للتنسيق
                   // التحقق مما إذا كان السبب فارغًا أو null
-                  (invoiceData['reason'] == null || (invoiceData['reason'] as String).isEmpty)
+                  (invoiceData['reason'] == null ||
+                          (invoiceData['reason'] as String).isEmpty)
                       ? 'لم يتم تحديد سبب'
                       : invoiceData['reason'],
                   color: Colors.red.shade700,
@@ -167,8 +180,10 @@ class PurchaseDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildItemsTable(List<dynamic> items,
-      intl.NumberFormat formatCurrency) {
+  Widget _buildItemsTable(
+    List<dynamic> items,
+    intl.NumberFormat formatCurrency,
+  ) {
     return Table(
       border: TableBorder.all(color: Colors.grey.shade300, width: 1),
       columnWidths: const {
@@ -182,45 +197,84 @@ class PurchaseDetailsScreen extends StatelessWidget {
         const TableRow(
           decoration: BoxDecoration(color: Colors.blueGrey),
           children: [
-            Padding(padding: EdgeInsets.all(8.0),
-                child: Text('الصنف', style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold))),
-            Padding(padding: EdgeInsets.all(8.0),
-                child: Text('الكمية', style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold))),
-            Padding(padding: EdgeInsets.all(8.0),
-                child: Text('السعر', style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold))),
-            Padding(padding: EdgeInsets.all(8.0),
-                child: Text('الإجمالي', style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold))),
+            Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text(
+                'الصنف',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text(
+                'الكمية',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text(
+                'السعر',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text(
+                'الإجمالي',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ],
         ),
         // Table Rows
-        ...items.map((item) =>
-            TableRow(
-              children: [
-                Padding(padding: const EdgeInsets.all(8.0),
-                    child: Text(item['productName'])),
-                Padding(padding: const EdgeInsets.all(8.0),
-                    child: Text(item['quantity'].toString())),
-                Padding(padding: const EdgeInsets.all(8.0),
-                    child: Text(formatCurrency.format(item['purchasePrice']))),
-                Padding(padding: const EdgeInsets.all(8.0),
-                    child: Text(formatCurrency.format(item['totalPrice']))),
-              ],
-            )),
+        ...items.map(
+          (item) => TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(item['productName']),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(item['quantity'].toString()),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(formatCurrency.format(item['purchasePrice'])),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(formatCurrency.format(item['totalPrice'])),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildFinancialSummary(Map<String, dynamic> invoiceData,
-      intl.NumberFormat formatCurrency) {
+  Widget _buildFinancialSummary(
+    Map<String, dynamic> invoiceData,
+    intl.NumberFormat formatCurrency,
+  ) {
     final String status = invoiceData['status'];
     final String statusText = status == 'RETURNED'
         ? 'مرتجعة'
         : (invoiceData['remainingAmount'] <= 0 ? 'مدفوعة بالكامل' : 'آجلة');
-    final Color statusColor = status== 'RETURNED'
+    final Color statusColor = status == 'RETURNED'
         ? Colors.red
         : (invoiceData['remainingAmount'] <= 0 ? Colors.green : Colors.orange);
     return Card(
@@ -230,35 +284,54 @@ class PurchaseDetailsScreen extends StatelessWidget {
         child: Column(
           children: [
             _buildInfoRow(
-                'الخصم:', formatCurrency.format(invoiceData['discountAmount']),
-                highlight: true),
+              'الخصم:',
+              formatCurrency.format(invoiceData['discountAmount']),
+              highlight: true,
+            ),
             _buildInfoRow(
-                'الإجمالي:', formatCurrency.format(invoiceData['totalAmount']),
-                highlight: true),
+              'الإجمالي:',
+              formatCurrency.format(invoiceData['totalAmount']),
+              highlight: true,
+            ),
             const Divider(),
             _buildInfoRow(
-                'المدفوع:', formatCurrency.format(invoiceData['paidAmount']),
-                color: Colors.green),
-            _buildInfoRow('المتبقي:',
-                formatCurrency.format(invoiceData['remainingAmount']),
-                color: Colors.red),
+              'المدفوع:',
+              formatCurrency.format(invoiceData['paidAmount']),
+              color: Colors.green,
+            ),
+            _buildInfoRow(
+              'المتبقي:',
+              formatCurrency.format(invoiceData['remainingAmount']),
+              color: Colors.red,
+            ),
             const Divider(),
-            _buildInfoRow('حالة الفاتورة:', statusText, color: statusColor, highlight: true),
+            _buildInfoRow(
+              'حالة الفاتورة:',
+              statusText,
+              color: statusColor,
+              highlight: true,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value,
-      {bool highlight = false, Color? color}) {
+  Widget _buildInfoRow(
+    String label,
+    String value, {
+    bool highlight = false,
+    Color? color,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+          ),
           Text(
             value,
             style: TextStyle(
@@ -272,9 +345,11 @@ class PurchaseDetailsScreen extends StatelessWidget {
     );
   }
 
-  void _showAddPaymentDialog(BuildContext context,
-      PurchaseDetailsController controller,
-      double remainingAmount,) {
+  void _showAddPaymentDialog(
+    BuildContext context,
+    PurchaseDetailsController controller,
+    double remainingAmount,
+  ) {
     final paymentController = TextEditingController();
     Get.dialog(
       AlertDialog(
@@ -282,34 +357,38 @@ class PurchaseDetailsScreen extends StatelessWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('المبلغ المتبقي: ${remainingAmount.toStringAsFixed(2)} ريال',
-                style: const TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.bold)),
+            Text(
+              'المبلغ المتبقي: ${remainingAmount.toStringAsFixed(2)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}',
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 20),
             TextField(
               controller: paymentController,
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true),
+                decimal: true,
+              ),
               decoration: const InputDecoration(
-                labelText: 'أدخل مبلغ الدفعة', prefixIcon: Icon(Icons.money),
+                labelText: 'أدخل مبلغ الدفعة',
+                prefixIcon: Icon(Icons.money),
                 border: OutlineInputBorder(),
               ),
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('إلغاء'),),
+          TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
           Obx(() {
             if (controller.isAddingPayment.isTrue) {
               return const CircularProgressIndicator();
             }
             return ElevatedButton(
               onPressed: () {
-                final double amount = double.tryParse(paymentController.text) ??
-                    0.0;
+                final double amount =
+                    double.tryParse(paymentController.text) ?? 0.0;
                 controller.addPayment(amount);
               },
               child: const Text('تأكيد الدفعة'),
@@ -321,8 +400,10 @@ class PurchaseDetailsScreen extends StatelessWidget {
   }
 
   // --- بداية الإضافة: بناء ديالوج تأكيد الإرجاع ---
-  void _showReturnInvoiceDialog(BuildContext context,
-      PurchaseDetailsController controller) {
+  void _showReturnInvoiceDialog(
+    BuildContext context,
+    PurchaseDetailsController controller,
+  ) {
     final reasonController = TextEditingController();
     final receivePayment = true.obs; // متغير لتتبع خيار استلام المبلغ
 
@@ -345,21 +426,20 @@ class PurchaseDetailsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Obx(() =>
-                SwitchListTile(title: const Text('استلام المبلغ نقداً'),
-                  subtitle: const Text('سيتم توريد قيمة المرتجع إلى الصندوق'),
-                  value: receivePayment.value,
-                  onChanged: (value) => receivePayment.value = value,
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                )),
+            Obx(
+              () => SwitchListTile(
+                title: const Text('استلام المبلغ نقداً'),
+                subtitle: const Text('سيتم توريد قيمة المرتجع إلى الصندوق'),
+                value: receivePayment.value,
+                onChanged: (value) => receivePayment.value = value,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('إلغاء'),
-          ),
+          TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
           Obx(() {
             if (controller.isReturningInvoice.isTrue) {
               return const CircularProgressIndicator();
@@ -379,5 +459,6 @@ class PurchaseDetailsScreen extends StatelessWidget {
       ),
     );
   }
-// --- نهاية الإضافة ---
+
+  // --- نهاية الإضافة ---
 }

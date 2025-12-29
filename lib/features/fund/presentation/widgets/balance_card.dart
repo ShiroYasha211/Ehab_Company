@@ -1,7 +1,10 @@
 // File: lib/features/fund/presentation/widgets/balance_card.dart
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+
+import '../../../../core/services/settings_service.dart';
 
 class BalanceCard extends StatelessWidget {
   final double balance;
@@ -10,8 +13,11 @@ class BalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currency = Get.find<SettingsService>();
     final theme = Theme.of(context);
-    final formatCurrency = NumberFormat.currency(locale: 'ar_SA', symbol: 'ريال');
+    final formatCurrency = NumberFormat.currency(
+      symbol: currency.primaryCurrency.value.symbol,
+    );
 
     return Card(
       margin: const EdgeInsets.all(16),
@@ -24,7 +30,9 @@ class BalanceCard extends StatelessWidget {
           children: [
             Text(
               'الرصيد الحالي في الصندوق',
-              style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.white70,
+              ),
             ),
             const SizedBox(height: 12),
             Text(

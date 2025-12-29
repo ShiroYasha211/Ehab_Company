@@ -1,7 +1,6 @@
 // File: lib/features/suppliers/presentation/screens/suppliers_dashboard_screen.dart
 
 import 'package:ehab_company_admin/features/suppliers/presentation/screens/list_suppliers_screen.dart';
-import 'package:ehab_company_admin/features/suppliers/presentation/screens/suppliers_reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -16,9 +15,7 @@ class SuppliersDashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     Get.put(SupplierController());
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('إدارة الموردين'),
-      ),
+      appBar: AppBar(title: const Text('إدارة الموردين')),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
@@ -72,7 +69,10 @@ class SuppliersDashboardScreen extends StatelessWidget {
       shadowColor: Colors.black.withOpacity(0.1),
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 12,
+        ),
         leading: CircleAvatar(
           radius: 28,
           backgroundColor: isAdvanced
@@ -81,18 +81,21 @@ class SuppliersDashboardScreen extends StatelessWidget {
           child: Icon(
             icon,
             size: 30,
-            color: isAdvanced ? theme.colorScheme.secondary : theme.primaryColor,
+            color: isAdvanced
+                ? theme.colorScheme.secondary
+                : theme.primaryColor,
           ),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(
           subtitle,
           style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 18, color: Colors.grey),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          size: 18,
+          color: Colors.grey,
+        ),
       ),
     );
   }

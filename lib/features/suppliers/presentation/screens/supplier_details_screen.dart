@@ -1,6 +1,5 @@
 // File: lib/features/suppliers/presentation/screens/supplier_details_screen.dart
 
-import 'package:ehab_company_admin/core/services/supplier_report_service.dart';
 import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';
 import 'package:ehab_company_admin/features/suppliers/data/models/supplier_transaction_model.dart';
 import 'package:ehab_company_admin/features/suppliers/presentation/controllers/supplier_details_controller.dart';
@@ -9,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
 import '../controllers/supplier_controller.dart';
 
 class SupplierDetailsScreen extends StatelessWidget {
@@ -18,67 +18,93 @@ class SupplierDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final SupplierDetailsController controller = Get.put(SupplierDetailsController(supplier));
-    final formatCurrency = intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
+    final SupplierDetailsController controller = Get.put(
+      SupplierDetailsController(supplier),
+    );
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: currencySymbol,
+    );
 
-    return Obx(() => Scaffold(
-      appBar: AppBar(
-        title: Text(controller.supplier.value.name),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () {
-              Get.to(() => AddEditSupplierScreen(supplier: controller.supplier.value));
-            },
-            tooltip: 'تعديل بيانات المورد',
-          ),
-          IconButton(
-            icon: const Icon(Icons.print_outlined),
-            // --- بداية التعديل: استدعاء الدالة الصحيحة من SupplierController ---
-            onPressed: () {
-              // الآن، نحن لا نمرر البيانات، بل نستدعي الدالة التي ستقوم بكل العمل
-              final supplierController = Get.find<SupplierController>();
-              supplierController.printSupplierStatement(supplier);
-            },
-            // --- نهاية التعديل ---
-            tooltip: 'طباعة كشف حساب',
-          ),
-        ],
-      ),
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverToBoxAdapter(
-              child: _buildHeader(context, formatCurrency, controller.supplier.value),
-            ),
-          ];
-        },
-        body: SafeArea(
-          child: Obx(() {
-            if (controller.isLoading.isTrue) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (controller.transactions.isEmpty) {
-              return const Center(
-                child: Text('لا توجد حركات مالية مسجلة لهذا المورد.', style: TextStyle(color: Colors.grey)),
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: controller.transactions.length,
-              itemBuilder: (context, index) {
-                final transaction = controller.transactions[index];
-                return _buildTransactionCard(transaction, formatCurrency);
+    return Obx(
+      () => Scaffold(
+        appBar: AppBar(
+          title: Text(controller.supplier.value.name),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () {
+                Get.to(
+                  () => AddEditSupplierScreen(
+                    supplier: controller.supplier.value,
+                  ),
+                );
               },
-            );
-          }),
+              tooltip: 'تعديل بيانات المورد',
+            ),
+            IconButton(
+              icon: const Icon(Icons.print_outlined),
+              // --- بداية التعديل: استدعاء الدالة الصحيحة من SupplierController ---
+              onPressed: () {
+                // الآن، نحن لا نمرر البيانات، بل نستدعي الدالة التي ستقوم بكل العمل
+                final supplierController = Get.find<SupplierController>();
+                supplierController.printSupplierStatement(supplier);
+              },
+              // --- نهاية التعديل ---
+              tooltip: 'طباعة كشف حساب',
+            ),
+          ],
+        ),
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverToBoxAdapter(
+                child: _buildHeader(
+                  context,
+                  formatCurrency,
+                  controller.supplier.value,
+                ),
+              ),
+            ];
+          },
+          body: SafeArea(
+            child: Obx(() {
+              if (controller.isLoading.isTrue) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (controller.transactions.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'لا توجد حركات مالية مسجلة لهذا المورد.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.all(8),
+                itemCount: controller.transactions.length,
+                itemBuilder: (context, index) {
+                  final transaction = controller.transactions[index];
+                  return _buildTransactionCard(transaction, formatCurrency);
+                },
+              );
+            }),
+          ),
         ),
       ),
-    ));
+    );
   }
 
-  Widget _buildHeader(BuildContext context, intl.NumberFormat formatCurrency, SupplierModel currentSupplier) {
-    final balanceColor = currentSupplier.balance > 0 ? Colors.orange.shade800 : Colors.green.shade700;
+  Widget _buildHeader(
+    BuildContext context,
+    intl.NumberFormat formatCurrency,
+    SupplierModel currentSupplier,
+  ) {
+    final balanceColor = currentSupplier.balance > 0
+        ? Colors.orange.shade800
+        : Colors.green.shade700;
 
     return Card(
       margin: const EdgeInsets.all(16),
@@ -87,7 +113,10 @@ class SupplierDetailsScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Text('الرصيد الحالي للمورد', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'الرصيد الحالي للمورد',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             Text(
               formatCurrency.format(currentSupplier.balance),
@@ -97,10 +126,26 @@ class SupplierDetailsScreen extends StatelessWidget {
               ),
             ),
             const Divider(height: 24),
-            _buildInfoRow(Icons.business_outlined, 'الشركة', currentSupplier.company ?? 'غير محدد'),
-            _buildInfoRow(Icons.phone_outlined, 'الهاتف', currentSupplier.phone ?? 'غير محدد'),
-            _buildInfoRow(Icons.location_on_outlined, 'العنوان', currentSupplier.address ?? 'غير محدد'),
-            _buildInfoRow(Icons.article_outlined, 'السجل التجاري', currentSupplier.commercialRecord ?? 'غير محدد'),
+            _buildInfoRow(
+              Icons.business_outlined,
+              'الشركة',
+              currentSupplier.company ?? 'غير محدد',
+            ),
+            _buildInfoRow(
+              Icons.phone_outlined,
+              'الهاتف',
+              currentSupplier.phone ?? 'غير محدد',
+            ),
+            _buildInfoRow(
+              Icons.location_on_outlined,
+              'العنوان',
+              currentSupplier.address ?? 'غير محدد',
+            ),
+            _buildInfoRow(
+              Icons.article_outlined,
+              'السجل التجاري',
+              currentSupplier.commercialRecord ?? 'غير محدد',
+            ),
           ],
         ),
       ),
@@ -117,14 +162,21 @@ class SupplierDetailsScreen extends StatelessWidget {
           Text('$label:', style: TextStyle(color: Colors.grey.shade700)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTransactionCard(SupplierTransactionModel transaction, intl.NumberFormat formatCurrency) {
+  Widget _buildTransactionCard(
+    SupplierTransactionModel transaction,
+    intl.NumberFormat formatCurrency,
+  ) {
     bool isPayment = transaction.type == SupplierTransactionType.PAYMENT;
     Color color;
     IconData icon;
@@ -136,7 +188,8 @@ class SupplierDetailsScreen extends StatelessWidget {
     } else if (transaction.type == SupplierTransactionType.PURCHASE) {
       color = Colors.red.shade800; // دين جديد عليك
       icon = Icons.shopping_cart_outlined;
-    } else { // OPENING_BALANCE
+    } else {
+      // OPENING_BALANCE
       color = Colors.purple.shade700;
       icon = Icons.play_for_work_rounded;
     }
@@ -152,20 +205,36 @@ class SupplierDetailsScreen extends StatelessWidget {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
             Text(
               'سند رقم: ${transaction.id}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.bold),
-            )
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         subtitle: Text(
-          intl.DateFormat('yyyy-MM-dd – hh:mm a', 'ar').format(transaction.transactionDate),
+          intl.DateFormat(
+            'yyyy-MM-dd – hh:mm a',
+            'ar',
+          ).format(transaction.transactionDate),
           style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
         trailing: Text(
           '$amountSign ${formatCurrency.format(transaction.amount)}',
-          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
       ),
     );

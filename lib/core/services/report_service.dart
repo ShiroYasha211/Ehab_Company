@@ -2,10 +2,13 @@
 
 import 'package:ehab_company_admin/features/products/data/models/product_model.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+
+import 'settings_service.dart';
 
 class ReportService {
   /// دالة لإنشاء وطباعة تقرير جرد المخزون
@@ -26,16 +29,17 @@ class ReportService {
     const int productsPerPage = 20;
     for (var i = 0; i < products.length; i += productsPerPage) {
       final pageProducts = products.sublist(
-          i, i + productsPerPage > products.length ? products.length : i + productsPerPage);
+        i,
+        i + productsPerPage > products.length
+            ? products.length
+            : i + productsPerPage,
+      );
 
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           textDirection: pw.TextDirection.rtl,
-          theme: pw.ThemeData.withFont(
-            base: ttf,
-            bold: boldTtf,
-          ),
+          theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
           header: (context) => _buildHeader(logoImage), // <-- تمرير الشعار
           build: (pw.Context context) {
             return [
@@ -66,7 +70,9 @@ class ReportService {
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 15),
       decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey, width: 1.5)),
+        border: pw.Border(
+          bottom: pw.BorderSide(color: PdfColors.grey, width: 1.5),
+        ),
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -74,17 +80,25 @@ class ReportService {
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('شركة إيهاب للتجارة', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+              pw.Text(
+                'شركة إيهاب للتجارة',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
               pw.SizedBox(height: 5),
-              pw.Text('هاتف: 777-777-777', style: const pw.TextStyle(fontSize: 10)),
-              pw.Text('البريد الإلكتروني: info@ehab-company.com', style: const pw.TextStyle(fontSize: 10)),
+              pw.Text(
+                'هاتف: 777-777-777',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+              pw.Text(
+                'البريد الإلكتروني: info@ehab-company.com',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
             ],
           ),
-          pw.SizedBox(
-            height: 60,
-            width: 60,
-            child: pw.Image(logo),
-          ),
+          pw.SizedBox(height: 60, width: 60, child: pw.Image(logo)),
         ],
       ),
     );
@@ -98,7 +112,11 @@ class ReportService {
         pw.SizedBox(height: 10),
         pw.Text(
           'تقرير جرد المخزون',
-          style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800),
+          style: pw.TextStyle(
+            fontSize: 22,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.blueGrey800,
+          ),
         ),
         pw.SizedBox(height: 5),
         pw.Text(
@@ -110,17 +128,12 @@ class ReportService {
   }
   // --- نهاية التعديل ---
 
-
   // --- بداية التعديل: تحسين تصميم الجدول وإضافة عمود "القيمة" ---
   static pw.Widget _buildInventoryTable(List<ProductModel> products) {
-    final formatCurrency = (double value) => intl.NumberFormat.decimalPattern('ar').format(value);
+    final formatCurrency = (double value) =>
+        intl.NumberFormat.decimalPattern('ar').format(value);
 
-    final headers = [
-      'القيمة',
-      'س. الشراء',
-      'الكمية',
-      'المنتج',
-    ];
+    final headers = ['القيمة', 'س. الشراء', 'الكمية', 'المنتج'];
 
     final data = products.map((product) {
       final totalValue = product.quantity * product.purchasePrice;
@@ -135,9 +148,15 @@ class ReportService {
     return pw.TableHelper.fromTextArray(
       cellAlignment: pw.Alignment.centerRight,
       cellStyle: const pw.TextStyle(fontSize: 10),
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
+      headerStyle: pw.TextStyle(
+        fontWeight: pw.FontWeight.bold,
+        color: PdfColors.white,
+        fontSize: 11,
+      ),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
-      rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200))),
+      rowDecoration: const pw.BoxDecoration(
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200)),
+      ),
       headers: headers,
       data: data,
       columnWidths: {
@@ -152,9 +171,18 @@ class ReportService {
 
   // --- بداية التعديل: تحسين الملخص ليشمل القيم المالية ---
   static pw.Widget _buildSummary(List<ProductModel> allProducts) {
-    final double totalValue = allProducts.fold(0, (sum, item) => sum + (item.quantity * item.purchasePrice));
-    final int totalItems = allProducts.fold(0, (sum, item) => sum + item.quantity.toInt());
-    final formatCurrency = intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final double totalValue = allProducts.fold(
+      0,
+      (sum, item) => sum + (item.quantity * item.purchasePrice),
+    );
+    final int totalItems = allProducts.fold(
+      0,
+      (sum, item) => sum + item.quantity.toInt(),
+    );
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: ' ${Get.find<SettingsService>().primaryCurrency.value.symbol}',
+    );
 
     return pw.Container(
       padding: const pw.EdgeInsets.all(16),
@@ -165,9 +193,15 @@ class ReportService {
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
         children: [
-          _buildSummaryItem('إجمالي قيمة المخزون', formatCurrency.format(totalValue)),
+          _buildSummaryItem(
+            'إجمالي قيمة المخزون',
+            formatCurrency.format(totalValue),
+          ),
           _buildSummaryItem('إجمالي عدد القطع', totalItems.toString()),
-          _buildSummaryItem('إجمالي عدد الأصناف', allProducts.length.toString()),
+          _buildSummaryItem(
+            'إجمالي عدد الأصناف',
+            allProducts.length.toString(),
+          ),
         ],
       ),
     );
@@ -176,9 +210,19 @@ class ReportService {
   static pw.Widget _buildSummaryItem(String label, String value) {
     return pw.Column(
       children: [
-        pw.Text(label, style: const pw.TextStyle(color: PdfColors.black, fontSize: 11)),
+        pw.Text(
+          label,
+          style: const pw.TextStyle(color: PdfColors.black, fontSize: 11),
+        ),
         pw.SizedBox(height: 4),
-        pw.Text(value, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, color: PdfColors.blueGrey800)),
+        pw.Text(
+          value,
+          style: pw.TextStyle(
+            fontWeight: pw.FontWeight.bold,
+            fontSize: 14,
+            color: PdfColors.blueGrey800,
+          ),
+        ),
       ],
     );
   }

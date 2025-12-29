@@ -7,23 +7,25 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class ProductGridItem extends StatelessWidget {
   final ProductModel product;
   final Color? cardColor;
 
-  const ProductGridItem({
-    super.key,
-    required this.product,
-    this.cardColor,
-  });
+  const ProductGridItem({super.key, required this.product, this.cardColor});
 
   @override
   Widget build(BuildContext context) {
-    final bool hasImage = product.imageUrl != null &&
+    final currency = Get.find<SettingsService>();
+    final bool hasImage =
+        product.imageUrl != null &&
         product.imageUrl!.isNotEmpty &&
         File(product.imageUrl!).existsSync();
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: currency.primaryCurrency.value.symbol,
+    );
 
     return Card(
       color: cardColor,
@@ -38,20 +40,20 @@ class ProductGridItem extends StatelessWidget {
             Expanded(
               child: hasImage
                   ? Hero(
-                tag: 'product_image_${product.id}',
-                child: Image.file(
-                  File(product.imageUrl!),
-                  fit: BoxFit.cover,
-                ),
-              )
+                      tag: 'product_image_${product.id}',
+                      child: Image.file(
+                        File(product.imageUrl!),
+                        fit: BoxFit.cover,
+                      ),
+                    )
                   : Container(
-                color: Colors.grey.shade200,
-                child: Icon(
-                  Icons.image_not_supported_outlined,
-                  color: Colors.grey.shade400,
-                  size: 40,
-                ),
-              ),
+                      color: Colors.grey.shade200,
+                      child: Icon(
+                        Icons.image_not_supported_outlined,
+                        color: Colors.grey.shade400,
+                        size: 40,
+                      ),
+                    ),
             ),
             // 2. التفاصيل
             Padding(

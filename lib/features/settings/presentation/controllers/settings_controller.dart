@@ -1,105 +1,69 @@
 // File: lib/features/settings/presentation/controllers/settings_controller.dart
-
-import 'package:ehab_company_admin/core/services/settings_service.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:currency_picker/currency_picker.dart';
+import '../../../../core/services/settings_service.dart';
+import '../../models/currency_model.dart';
 
 class SettingsController extends GetxController {
-  // الوصول إلى سيرفس الإعدادات الذي قمنا بتسجيله
-  final SettingsService settingsService = Get.find<SettingsService>();
+  final SettingsService _settingsService = Get.find<SettingsService>();
 
-  // --- 1. بداية التعديل: متغيرات جديدة ---
-  late TextEditingController exchangeRateController;
-  final RxBool isSameAsPrimary = true.obs;
-  // --- نهاية التعديل ---
+  // --- Getters لربط البيانات بالواجهة مباشرة ---
+
+  /// العملة الأساسية
+  CurrencyModel get primaryCurrency => _settingsService.primaryCurrency.value;
+
+  /// هل العملة المحلية هي نفسها الأساسية؟
+  bool get isLocalSameAsPrimary => _settingsService.isLocalSameAsPrimary.value;
+
+  /// العملة المحلية
+  CurrencyModel get localCurrency => _settingsService.localCurrency.value;
+
+  /// سعر الصرف
+  double get exchangeRate => _settingsService.exchangeRate.value;
+
+  /// إظهار العملتين في الفاتورة؟
+  bool get showBothCurrenciesInInvoice =>
+      _settingsService.showBothCurrenciesInInvoice.value;
 
   @override
   void onInit() {
     super.onInit();
-    // تهيئة الـ controller بالقيم الحالية
-    exchangeRateController =
-        TextEditingController(text: settingsService.exchangeRate.value?.toString() ?? '');
-
-    // تحديد الحالة الأولية للـ Checkbox بناءً على الإعدادات المحفوظة
-    isSameAsPrimary.value = settingsService.areCurrenciesTheSame;
-
-    // --- 2. بداية الإضافة: مراقبة الـ Checkbox ---
-    // هذا الـ listener سيقوم بتحديث العملة المحلية تلقائيًا
-    ever(isSameAsPrimary, (bool isSame) {
-      if (isSame) {
-        // إذا كانت العملتان متطابقتين، قم بمزامنة العملة المحلية مع الأساسية
-        settingsService.updateLocalCurrency(
-          name: settingsService.primaryCurrencyName.value,
-          symbol: settingsService.primaryCurrencySymbol.value,
-        );
-        // واجعل سعر الصرف 1
-        exchangeRateController.text = '1.0';
-      }
-    });
-    // --- نهاية الإضافة ---
+    // نظراً لأن المتغيرات في السيرفس هي Rx، نحتاج للاستماع لها لتحديث الواجهة
+    // GetX Obx في الواجهة سيتكفل بالأمر، ولكن هنا قد نحتاج لبعض المنطق الإضافي مستقبلاً
   }
 
-  // --- 3. بداية الإضافة: دالة جديدة لاختيار العملة ---
-  void pickCurrency({required bool isPrimary}) {
-    showCurrencyPicker(
-      context: Get.context!,
-      showFlag: true,
-      showCurrencyName: true,
-      showCurrencyCode: true,
-      onSelect: (Currency currency) {
-        if (isPrimary) {
-          settingsService.updatePrimaryCurrency(
-            name: currency.name,
-            symbol: currency.symbol,
-          );
-          // إذا كانت العملتان متطابقتين، قم بتحديث المحلية أيضًا
-          if (isSameAsPrimary.isTrue) {
-            settingsService.updateLocalCurrency(
-              name: currency.name,
-              symbol: currency.symbol,
-            );
-          }
-        } else {
-          settingsService.updateLocalCurrency(
-            name: currency.name,
-            symbol: currency.symbol,
-          );
-        }
-      },
-      // لتحديد العملة الحالية في القائمة
-      favorite: [isPrimary ? settingsService.primaryCurrencySymbol.value : settingsService.localCurrencySymbol.value],
-    );
-  }
-  // --- نهاية الإضافة ---
+  // --- دوال التحديث (Actions) ---
 
-  /// دالة لحفظ كل إعدادات العملة دفعة واحدة
-  void saveCurrencySettings() {
-    // --- 4. بداية التعديل: تبسيط منطق الحفظ ---
-    if (isSameAsPrimary.isTrue) {
-      // إذا كانت العملتان متطابقتين، احفظ سعر الصرف كـ 1.0
-      settingsService.updateExchangeRate(1.0);
-    } else {
-      // إذا كانتا مختلفتين، احفظ سعر الصرف الذي أدخله المستخدم
-      final rate = double.tryParse(exchangeRateController.text);
-      if (rate == null || rate <= 0) {
-        Get.snackbar('خطأ', 'الرجاء إدخال سعر صرف صحيح وأكبر من الصفر.',
-            backgroundColor: Colors.red, colorText: Colors.white);
-        return; // أوقف الحفظ
-      }
-      settingsService.updateExchangeRate(rate);
+  /// تغيير العملة الأساسية
+  Future<void> updatePrimaryCurrency(CurrencyModel currency) async {
+    await _settingsService.setPrimaryCurrency(currency);
+    update(); // لتحديث أي واجهة تستخدم GetBuilder بدلاً من Obx
+  }
+
+  /// تبديل خيار "العملة المحلية نفس الأساسية"
+  Future<void> toggleLocalSameAsPrimary(bool value) async {
+    await _settingsService.toggleLocalSameAsPrimary(value);
+    update();
+  }
+
+  /// تغيير العملة المحلية
+  Future<void> updateLocalCurrency(CurrencyModel currency) async {
+    await _settingsService.setLocalCurrency(currency);
+    update();
+  }
+
+  /// تحديث سعر الصرف
+  Future<void> updateExchangeRate(String value) async {
+    // نتأكد من تحويل النص لرقم، وفي حال الخطأ نستخدم 1.0 أو القيمة السابقة
+    double? rate = double.tryParse(value);
+    if (rate != null) {
+      await _settingsService.setExchangeRate(rate);
+      update();
     }
-    // --- نهاية التعديل ---
-
-    Get.back(); // العودة من شاشة الإعدادات
-    Get.snackbar('نجاح', 'تم حفظ إعدادات العملة بنجاح.',
-        backgroundColor: Colors.green, colorText: Colors.white);
   }
 
-  @override
-  void onClose() {
-    // التخلص من الـ controller
-    exchangeRateController.dispose();
-    super.onClose();
+  /// تبديل خيار عرض العملتين
+  Future<void> toggleShowBothCurrencies(bool value) async {
+    await _settingsService.setShowBothCurrencies(value);
+    update();
   }
 }

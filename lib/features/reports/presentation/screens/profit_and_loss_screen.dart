@@ -6,14 +6,20 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class ProfitAndLossScreen extends StatelessWidget {
   const ProfitAndLossScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final ProfitAndLossController controller = Get.put(ProfitAndLossController());
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final ProfitAndLossController controller = Get.put(
+      ProfitAndLossController(),
+    );
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: Get.find<SettingsService>().primaryCurrency.value.symbol,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -37,8 +43,10 @@ class ProfitAndLossScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // 2. الرسم البياني للمقارنة
-              Text('مقارنة الإيرادات بالتكاليف',
-                  style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'مقارنة الإيرادات بالتكاليف',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 16),
               SizedBox(
                 height: 200,
@@ -60,7 +68,9 @@ class ProfitAndLossScreen extends StatelessWidget {
 
   /// ودجت بناء فلاتر التاريخ
   Widget _buildFilters(
-      BuildContext context, ProfitAndLossController controller) {
+    BuildContext context,
+    ProfitAndLossController controller,
+  ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
       child: Row(
@@ -78,10 +88,15 @@ class ProfitAndLossScreen extends StatelessWidget {
   }
 
   /// ودجت بناء حقل التاريخ
-  Widget _buildDateField(BuildContext context, ProfitAndLossController controller,
-      {required bool isFromDate}) {
+  Widget _buildDateField(
+    BuildContext context,
+    ProfitAndLossController controller, {
+    required bool isFromDate,
+  }) {
     return Obx(() {
-      final date = isFromDate ? controller.fromDate.value : controller.toDate.value;
+      final date = isFromDate
+          ? controller.fromDate.value
+          : controller.toDate.value;
       return TextFormField(
         readOnly: true,
         controller: TextEditingController(
@@ -99,7 +114,10 @@ class ProfitAndLossScreen extends StatelessWidget {
   }
 
   /// ودجت بناء بطاقة صافي الربح
-  Widget _buildNetProfitCard(double netProfit, intl.NumberFormat formatCurrency) {
+  Widget _buildNetProfitCard(
+    double netProfit,
+    intl.NumberFormat formatCurrency,
+  ) {
     final bool isProfit = netProfit >= 0;
     final color = isProfit ? Colors.green.shade700 : Colors.red.shade700;
 
@@ -114,17 +132,19 @@ class ProfitAndLossScreen extends StatelessWidget {
               Text(
                 isProfit ? 'صافي الربح' : 'صافي الخسارة',
                 style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 formatCurrency.format(netProfit.abs()), // عرض القيمة المطلقة
                 style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
@@ -136,35 +156,49 @@ class ProfitAndLossScreen extends StatelessWidget {
   /// ودجت بناء الرسم البياني الشريطي
   /// ودجت بناء الرسم البياني الشريطي
   BarChartData _buildBarChartData(
-      BuildContext context, ProfitAndLossController controller) {
+    BuildContext context,
+    ProfitAndLossController controller,
+  ) {
     return BarChartData(
       alignment: BarChartAlignment.spaceAround,
       // --- بداية التعديل: إضافة الشريط الثالث ---
       barGroups: [
         // 1. شريط الإيرادات
-        BarChartGroupData(x: 0, barRods: [
-          BarChartRodData(
+        BarChartGroupData(
+          x: 0,
+          barRods: [
+            BarChartRodData(
               toY: controller.totalSales.value,
               color: Colors.blue.shade400,
               width: 25, // تقليل العرض قليلاً لإفساح المجال
-              borderRadius: BorderRadius.circular(4))
-        ]),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
         // 2. شريط تكلفة البضاعة المباعة
-        BarChartGroupData(x: 1, barRods: [
-          BarChartRodData(
+        BarChartGroupData(
+          x: 1,
+          barRods: [
+            BarChartRodData(
               toY: controller.costOfGoodsSold.value,
               color: Colors.orange.shade400,
               width: 25,
-              borderRadius: BorderRadius.circular(4))
-        ]),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
         // 3. شريط المصروفات
-        BarChartGroupData(x: 2, barRods: [
-          BarChartRodData(
+        BarChartGroupData(
+          x: 2,
+          barRods: [
+            BarChartRodData(
               toY: controller.totalExpenses.value,
               color: Colors.red.shade400,
               width: 25,
-              borderRadius: BorderRadius.circular(4))
-        ]),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
       ],
       // --- نهاية التعديل ---
       titlesData: FlTitlesData(
@@ -180,9 +214,13 @@ class ProfitAndLossScreen extends StatelessWidget {
               // --- نهاية التعديل ---
               return Padding(
                 padding: const EdgeInsets.only(top: 4.0),
-                child: Text(text,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 12)), // تصغير الخط قليلاً
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ), // تصغير الخط قليلاً
               );
             },
             reservedSize: 30, // زيادة المساحة المحجوزة للعناوين
@@ -190,38 +228,59 @@ class ProfitAndLossScreen extends StatelessWidget {
         ),
         leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: const AxisTitles(
+          sideTitles: SideTitles(showTitles: false),
+        ),
       ),
       borderData: FlBorderData(show: false),
       gridData: const FlGridData(show: false),
     );
   }
 
-
   /// ودجت بناء القائمة التفصيلية للأرقام
   Widget _buildFinancialDetailsList(
-      ProfitAndLossController controller, intl.NumberFormat formatCurrency) {
+    ProfitAndLossController controller,
+    intl.NumberFormat formatCurrency,
+  ) {
     return SafeArea(
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: Column(
             children: [
-              _buildDetailRow('(+) إجمالي إيرادات المبيعات',
-                  formatCurrency.format(controller.totalSales.value), Colors.green),
-              _buildDetailRow('(-) تكلفة البضاعة المباعة',
-                  formatCurrency.format(controller.costOfGoodsSold.value), Colors.red),
+              _buildDetailRow(
+                '(+) إجمالي إيرادات المبيعات',
+                formatCurrency.format(controller.totalSales.value),
+                Colors.green,
+              ),
+              _buildDetailRow(
+                '(-) تكلفة البضاعة المباعة',
+                formatCurrency.format(controller.costOfGoodsSold.value),
+                Colors.red,
+              ),
               const Divider(),
-              _buildDetailRow('= الربح الإجمالي',
-                  formatCurrency.format(controller.grossProfit), Colors.black, isBold: true),
+              _buildDetailRow(
+                '= الربح الإجمالي',
+                formatCurrency.format(controller.grossProfit),
+                Colors.black,
+                isBold: true,
+              ),
               const Divider(),
-              _buildDetailRow('(-) إجمالي المصروفات',
-                  formatCurrency.format(controller.totalExpenses.value), Colors.red),
+              _buildDetailRow(
+                '(-) إجمالي المصروفات',
+                formatCurrency.format(controller.totalExpenses.value),
+                Colors.red,
+              ),
               const Divider(thickness: 2),
-              _buildDetailRow('= صافي الربح / الخسارة',
-                  formatCurrency.format(controller.netProfit),
-                  controller.netProfit >= 0 ? Colors.green.shade800 : Colors.red.shade800,
-                  isBold: true, isLarge: true),
+              _buildDetailRow(
+                '= صافي الربح / الخسارة',
+                formatCurrency.format(controller.netProfit),
+                controller.netProfit >= 0
+                    ? Colors.green.shade800
+                    : Colors.red.shade800,
+                isBold: true,
+                isLarge: true,
+              ),
             ],
           ),
         ),
@@ -230,8 +289,13 @@ class ProfitAndLossScreen extends StatelessWidget {
   }
 
   /// ودجت مساعد لبناء كل صف في القائمة التفصيلية
-  Widget _buildDetailRow(String label, String value, Color color,
-      {bool isBold = false, bool isLarge = false}) {
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    Color color, {
+    bool isBold = false,
+    bool isLarge = false,
+  }) {
     return ListTile(
       title: Text(label, style: const TextStyle(fontSize: 16)),
       trailing: Text(

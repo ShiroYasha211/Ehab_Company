@@ -5,15 +5,22 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class TopSellingProductsScreen extends StatelessWidget {
   const TopSellingProductsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final TopSellingProductsController controller =
-    Get.put(TopSellingProductsController());
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
+    final TopSellingProductsController controller = Get.put(
+      TopSellingProductsController(),
+    );
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: currencySymbol,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -30,8 +37,10 @@ class TopSellingProductsScreen extends StatelessWidget {
           }
           if (controller.topProducts.isEmpty) {
             return const Center(
-              child: Text('لا توجد بيانات مبيعات في الفترة المحددة.',
-                  style: TextStyle(color: Colors.grey, fontSize: 16)),
+              child: Text(
+                'لا توجد بيانات مبيعات في الفترة المحددة.',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
             );
           }
           return ListView.builder(
@@ -40,7 +49,11 @@ class TopSellingProductsScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final productData = controller.topProducts[index];
               return _buildProductCard(
-                  productData, index + 1, formatCurrency, controller.orderBy.value);
+                productData,
+                index + 1,
+                formatCurrency,
+                controller.orderBy.value,
+              );
             },
           );
         }),
@@ -50,7 +63,9 @@ class TopSellingProductsScreen extends StatelessWidget {
 
   /// ودجت بناء فلاتر التقرير
   Widget _buildFilters(
-      BuildContext context, TopSellingProductsController controller) {
+    BuildContext context,
+    TopSellingProductsController controller,
+  ) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
@@ -69,20 +84,24 @@ class TopSellingProductsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           // فلتر نوع الترتيب
-          Obx(() => SegmentedButton<TopSellingOrderBy>(
-            segments: const [
-              ButtonSegment(
+          Obx(
+            () => SegmentedButton<TopSellingOrderBy>(
+              segments: const [
+                ButtonSegment(
                   value: TopSellingOrderBy.totalQuantity,
-                  label: Text('الأكثر مبيعًا (كمية)')),
-              ButtonSegment(
+                  label: Text('الأكثر مبيعًا (كمية)'),
+                ),
+                ButtonSegment(
                   value: TopSellingOrderBy.totalRevenue,
-                  label: Text('الأعلى إيرادًا')),
-            ],
-            selected: {controller.orderBy.value},
-            onSelectionChanged: (newSelection) {
-              controller.orderBy.value = newSelection.first;
-            },
-          )),
+                  label: Text('الأعلى إيرادًا'),
+                ),
+              ],
+              selected: {controller.orderBy.value},
+              onSelectionChanged: (newSelection) {
+                controller.orderBy.value = newSelection.first;
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -90,10 +109,14 @@ class TopSellingProductsScreen extends StatelessWidget {
 
   /// ودجت بناء حقل التاريخ
   Widget _buildDateField(
-      BuildContext context, TopSellingProductsController controller,
-      {required bool isFromDate}) {
+    BuildContext context,
+    TopSellingProductsController controller, {
+    required bool isFromDate,
+  }) {
     return Obx(() {
-      final date = isFromDate ? controller.fromDate.value : controller.toDate.value;
+      final date = isFromDate
+          ? controller.fromDate.value
+          : controller.toDate.value;
       return TextFormField(
         readOnly: true,
         controller: TextEditingController(
@@ -111,8 +134,12 @@ class TopSellingProductsScreen extends StatelessWidget {
   }
 
   /// ودجت بناء بطاقة المنتج في التقرير
-  Widget _buildProductCard(Map<String, dynamic> productData, int rank,
-      intl.NumberFormat formatCurrency, TopSellingOrderBy orderBy) {
+  Widget _buildProductCard(
+    Map<String, dynamic> productData,
+    int rank,
+    intl.NumberFormat formatCurrency,
+    TopSellingOrderBy orderBy,
+  ) {
     final bool isByQuantity = orderBy == TopSellingOrderBy.totalQuantity;
 
     return Card(
@@ -121,11 +148,15 @@ class TopSellingProductsScreen extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: Get.theme.primaryColor,
           foregroundColor: Colors.white,
-          child: Text(rank.toString(),
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          child: Text(
+            rank.toString(),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
-        title: Text(productData['name'],
-            style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          productData['name'],
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: Text(
           isByQuantity
               ? 'إجمالي الإيراد: ${formatCurrency.format(productData['totalRevenue'])}'
@@ -138,9 +169,10 @@ class TopSellingProductsScreen extends StatelessWidget {
               : formatCurrency.format(productData['totalRevenue']),
           textAlign: TextAlign.center,
           style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: Get.theme.colorScheme.secondary),
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: Get.theme.colorScheme.secondary,
+          ),
         ),
       ),
     );

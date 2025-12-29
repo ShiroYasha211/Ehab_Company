@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class InvoicesReportScreen extends StatelessWidget {
   const InvoicesReportScreen({super.key});
 
@@ -34,7 +36,7 @@ class InvoicesReportScreen extends StatelessWidget {
       ),
       // --- بداية التعديل: إضافة BottomNavigationBar ---
       bottomNavigationBar: Obx(
-            () => BottomNavigationBar(
+        () => BottomNavigationBar(
           currentIndex: controller.currentPageIndex.value,
           onTap: controller.changePage,
           items: const [
@@ -92,55 +94,56 @@ class InvoicesReportScreen extends StatelessWidget {
   }
 
   // --- بداية الإضافة: ودجت مستقل لعرض كل صفحة ---
-  Widget _InvoiceListPage(
-      {required RxList<InvoiceReportModel> invoices,
-        required Widget summaryCard}) {
+  Widget _InvoiceListPage({
+    required RxList<InvoiceReportModel> invoices,
+    required Widget summaryCard,
+  }) {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: summaryCard,
-          ),
+          child: Padding(padding: const EdgeInsets.all(12), child: summaryCard),
         ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Text(
               'الفواتير (${invoices.length})',
-              style:
-              const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
         ),
         invoices.isEmpty
             ? const SliverFillRemaining(
-          child: Center(
-            child: Text(
-              'لا توجد فواتير تطابق بحثك.',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-          ),
-        )
+                child: Center(
+                  child: Text(
+                    'لا توجد فواتير تطابق بحثك.',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                ),
+              )
             : SliverList(
-          delegate: SliverChildBuilderDelegate(
-                (context, index) {
-              final invoice = invoices[index];
-              return _buildInvoiceCard(invoice);
-            },
-            childCount: invoices.length,
-          ),
-        ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final invoice = invoices[index];
+                  return _buildInvoiceCard(invoice);
+                }, childCount: invoices.length),
+              ),
       ],
     );
   }
   // --- نهاية الإضافة ---
 
   // ودجت بناء بطاقات الملخص (لا تغيير)
-  Widget _buildMiniCard(String title, double value, String subtitle,
-      IconData icon, Color color) {
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: 'ريال');
+  Widget _buildMiniCard(
+    String title,
+    double value,
+    String subtitle,
+    IconData icon,
+    Color color,
+  ) {
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: Get.find<SettingsService>().primaryCurrency.value.symbol,
+    );
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -152,19 +155,21 @@ class InvoicesReportScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: color)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
                 Icon(icon, color: color, size: 28),
               ],
             ),
             const SizedBox(height: 8),
             Text(
               formatCurrency.format(value),
-              style:
-              const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
             const SizedBox(height: 4),
             Text(
@@ -186,45 +191,52 @@ class InvoicesReportScreen extends StatelessWidget {
           // الصف الأول: فلاتر التاريخ (لا تغيير)
           Row(
             children: [
-              Expanded(
-                child: _buildDateField(controller, isFromDate: true),
-              ),
+              Expanded(child: _buildDateField(controller, isFromDate: true)),
               const SizedBox(width: 8),
-              Expanded(
-                child: _buildDateField(controller, isFromDate: false),
-              ),
+              Expanded(child: _buildDateField(controller, isFromDate: false)),
             ],
           ),
           const SizedBox(height: 8),
           // الصف الثاني: فلتر حالة الدفع (فلتر النوع لم يعد مطلوبًا هنا)
-          Obx(() => SegmentedButton<PaymentStatusFilter>(
-            style: SegmentedButton.styleFrom(
-              textStyle: const TextStyle(fontSize: 12),
+          Obx(
+            () => SegmentedButton<PaymentStatusFilter>(
+              style: SegmentedButton.styleFrom(
+                textStyle: const TextStyle(fontSize: 12),
+              ),
+              segments: const [
+                ButtonSegment(
+                  value: PaymentStatusFilter.all,
+                  label: Text('الكل'),
+                ),
+                ButtonSegment(
+                  value: PaymentStatusFilter.paid,
+                  label: Text('مدفوع'),
+                ),
+                ButtonSegment(
+                  value: PaymentStatusFilter.due,
+                  label: Text('آجل'),
+                ),
+              ],
+              selected: {controller.paymentStatusFilter.value},
+              onSelectionChanged: (newSelection) {
+                controller.paymentStatusFilter.value = newSelection.first;
+              },
             ),
-            segments: const [
-              ButtonSegment(
-                  value: PaymentStatusFilter.all, label: Text('الكل')),
-              ButtonSegment(
-                  value: PaymentStatusFilter.paid, label: Text('مدفوع')),
-              ButtonSegment(
-                  value: PaymentStatusFilter.due, label: Text('آجل')),
-            ],
-            selected: {controller.paymentStatusFilter.value},
-            onSelectionChanged: (newSelection) {
-              controller.paymentStatusFilter.value = newSelection.first;
-            },
-          )),
+          ),
         ],
       ),
     );
   }
 
   // ودجت بناء حقل التاريخ (لا تغيير)
-  Widget _buildDateField(InvoicesReportController controller,
-      {required bool isFromDate}) {
+  Widget _buildDateField(
+    InvoicesReportController controller, {
+    required bool isFromDate,
+  }) {
     return Obx(() {
-      final date =
-      isFromDate ? controller.fromDate.value : controller.toDate.value;
+      final date = isFromDate
+          ? controller.fromDate.value
+          : controller.toDate.value;
       return TextFormField(
         readOnly: true,
         controller: TextEditingController(
@@ -270,37 +282,41 @@ class InvoicesReportScreen extends StatelessWidget {
                 Text(
                   isSale ? 'فاتورة مبيعات' : 'فاتورة مشتريات',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isSale
-                          ? AppTheme.primaryColor
-                          : Colors.orange.shade900),
+                    fontWeight: FontWeight.bold,
+                    color: isSale
+                        ? AppTheme.primaryColor
+                        : Colors.orange.shade900,
+                  ),
                 ),
                 Text(
                   '#${invoice.id}',
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.grey),
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
                 ),
               ],
             ),
             const Divider(),
-            Text(invoice.partyName,
-                style: const TextStyle(fontSize: 16)),
+            Text(invoice.partyName, style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'الإجمالي: ${intl.NumberFormat.decimalPattern('ar').format(invoice.totalAmount)} ريال',
+                  'الإجمالي: ${intl.NumberFormat.decimalPattern('ar').format(invoice.totalAmount)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}',
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
                 Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDue
-                        ? Colors.red.shade100
-                        : Colors.green.shade100,
+                    color: isDue ? Colors.red.shade100 : Colors.green.shade100,
                     borderRadius: BorderRadius.circular(5),
                   ),
                   child: Text(

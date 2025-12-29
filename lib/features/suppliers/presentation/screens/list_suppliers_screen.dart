@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/services/settings_service.dart';
 import '../../../../core/services/supplier_pdf_service.dart';
 
 class ListSuppliersScreen extends StatelessWidget {
@@ -18,7 +19,9 @@ class ListSuppliersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final SupplierController controller = Get.find<SupplierController>();
-    final searchController = TextEditingController(text: controller.searchQuery.value);
+    final searchController = TextEditingController(
+      text: controller.searchQuery.value,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -36,7 +39,8 @@ class ListSuppliersScreen extends StatelessWidget {
 
                 // جلب قائمة الموردين المرتبة من الـ Repository
                 // هذا السطر سيعمل بشكل صحيح بعد إضافة الـ getter في الخطوة التالية
-                final suppliers = await controller.repository.getSuppliersForReport();
+                final suppliers = await controller.repository
+                    .getSuppliersForReport();
 
                 if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
 
@@ -46,7 +50,6 @@ class ListSuppliersScreen extends StatelessWidget {
                 if (Get.isDialogOpen!) Get.back();
                 Get.snackbar('خطأ', 'فشل في إنشاء التقرير: $e');
               }
-
             },
           ),
         ],
@@ -69,32 +72,45 @@ class ListSuppliersScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-                        ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        searchController.clear();
-                        controller.searchQuery.value = '';
-                      },
-                    )
-                        : const SizedBox.shrink()),
+                    suffixIcon: Obx(
+                      () => controller.searchQuery.value.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                searchController.clear();
+                                controller.searchQuery.value = '';
+                              },
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),
               // أزرار الفلترة
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Obx(() => SegmentedButton<SupplierFilter>(
-                  segments: const [
-                    ButtonSegment(value: SupplierFilter.all, label: Text('الكل')),
-                    ButtonSegment(value: SupplierFilter.hasBalance, label: Text('لهم رصيد')),
-                    ButtonSegment(value: SupplierFilter.noBalance, label: Text('رصيد صفري')),
-                  ],
-                  selected: {controller.currentFilter.value},
-                  onSelectionChanged: (newSelection) {
-                    controller.currentFilter.value = newSelection.first;
-                  },
-                )),
+                child: Obx(
+                  () => SegmentedButton<SupplierFilter>(
+                    segments: const [
+                      ButtonSegment(
+                        value: SupplierFilter.all,
+                        label: Text('الكل'),
+                      ),
+                      ButtonSegment(
+                        value: SupplierFilter.hasBalance,
+                        label: Text('لهم رصيد'),
+                      ),
+                      ButtonSegment(
+                        value: SupplierFilter.noBalance,
+                        label: Text('رصيد صفري'),
+                      ),
+                    ],
+                    selected: {controller.currentFilter.value},
+                    onSelectionChanged: (newSelection) {
+                      controller.currentFilter.value = newSelection.first;
+                    },
+                  ),
+                ),
               ),
             ],
           ),
@@ -106,7 +122,12 @@ class ListSuppliersScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (controller.filteredSuppliers.isEmpty) {
-            return const Center(child: Text('لا يوجد موردين يطابقون بحثك.', style: TextStyle(color: Colors.grey)));
+            return const Center(
+              child: Text(
+                'لا يوجد موردين يطابقون بحثك.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            );
           }
           return ListView.builder(
             padding: const EdgeInsets.only(top: 8, bottom: 80),
@@ -134,8 +155,13 @@ class SupplierCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasBalance = supplier.balance > 0;
-    final balanceColor = hasBalance ? Colors.orange.shade800 : Colors.green.shade700;
-    final formatCurrency = NumberFormat.currency(locale: 'ar_SA', symbol: 'ريال');
+    final balanceColor = hasBalance
+        ? Colors.orange.shade800
+        : Colors.green.shade700;
+    final formatCurrency = NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: Get.find<SettingsService>().primaryCurrency.value.symbol,
+    );
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -148,7 +174,7 @@ class SupplierCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: () {
-          Get.to(() => SupplierDetailsScreen(supplier: supplier,));
+          Get.to(() => SupplierDetailsScreen(supplier: supplier));
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -158,7 +184,9 @@ class SupplierCard extends StatelessWidget {
             children: [
               Text(
                 supplier.name,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Row(
@@ -185,9 +213,16 @@ class SupplierCard extends StatelessWidget {
                   if (supplier.phone != null && supplier.phone!.isNotEmpty) ...[
                     // --- بداية التعديل: أيقونات جديدة ---
                     IconButton(
-                      icon: FaIcon(FontAwesomeIcons.phone, color: Colors.green.shade700, size: 20),
+                      icon: FaIcon(
+                        FontAwesomeIcons.phone,
+                        color: Colors.green.shade700,
+                        size: 20,
+                      ),
                       onPressed: () async {
-                        final Uri url = Uri(scheme: 'tel', path: supplier.phone);
+                        final Uri url = Uri(
+                          scheme: 'tel',
+                          path: supplier.phone,
+                        );
                         if (await canLaunchUrl(url)) {
                           await launchUrl(url);
                         }
@@ -195,11 +230,20 @@ class SupplierCard extends StatelessWidget {
                       tooltip: 'اتصال',
                     ),
                     IconButton(
-                      icon: FaIcon(FontAwesomeIcons.whatsapp, color: Colors.green.shade800, size: 22),
+                      icon: FaIcon(
+                        FontAwesomeIcons.whatsapp,
+                        color: Colors.green.shade800,
+                        size: 22,
+                      ),
                       onPressed: () async {
-                        final Uri url = Uri.parse('https://wa.me/${supplier.phone}');
+                        final Uri url = Uri.parse(
+                          'https://wa.me/${supplier.phone}',
+                        );
                         if (await canLaunchUrl(url)) {
-                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                          await launchUrl(
+                            url,
+                            mode: LaunchMode.externalApplication,
+                          );
                         }
                       },
                       tooltip: 'واتساب',
@@ -209,7 +253,11 @@ class SupplierCard extends StatelessWidget {
                   // --- نهاية التعديل ---
                   IconButton(
                     // --- بداية التعديل: أيقونة وتصحيح منطق الحذف ---
-                    icon: FaIcon(FontAwesomeIcons.trashCan, color: Theme.of(context).colorScheme.error, size: 20),
+                    icon: FaIcon(
+                      FontAwesomeIcons.trashCan,
+                      color: Theme.of(context).colorScheme.error,
+                      size: 20,
+                    ),
                     onPressed: () {
                       // استدعاء الدالة مباشرة، وهي ستقوم بعرض الديالوج المناسب
                       Get.find<SupplierController>().deleteSupplier(supplier);

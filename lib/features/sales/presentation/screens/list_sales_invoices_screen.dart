@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class ListSalesInvoicesScreen extends StatelessWidget {
   const ListSalesInvoicesScreen({super.key});
 
@@ -37,11 +39,14 @@ class ListSalesInvoicesScreen extends StatelessWidget {
                       child: TextField(
                         controller: controller.searchController,
                         keyboardType: TextInputType.number,
-                        onChanged: (value) => controller.searchQuery.value = value,
+                        onChanged: (value) =>
+                            controller.searchQuery.value = value,
                         decoration: InputDecoration(
                           hintText: 'بحث برقم الفاتورة...',
                           prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           isDense: true,
                         ),
                       ),
@@ -57,12 +62,14 @@ class ListSalesInvoicesScreen extends StatelessWidget {
                               value: null,
                               child: Text('كل العملاء'),
                             ),
-                            ...controller.customerController.filteredCustomers.map((customer) {
-                              return DropdownMenuItem<CustomerModel?>(
-                                value: customer,
-                                child: Text(customer.name),
-                              );
-                            }).toList(),
+                            ...controller.customerController.filteredCustomers
+                                .map((customer) {
+                                  return DropdownMenuItem<CustomerModel?>(
+                                    value: customer,
+                                    child: Text(customer.name),
+                                  );
+                                })
+                                .toList(),
                           ],
                           onChanged: (value) {
                             controller.selectedCustomer.value = value;
@@ -70,7 +77,9 @@ class ListSalesInvoicesScreen extends StatelessWidget {
                           decoration: InputDecoration(
                             hintText: 'اختر عميلًا',
                             prefixIcon: const Icon(Icons.person_outline),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                             isDense: true,
                           ),
                         );
@@ -81,18 +90,32 @@ class ListSalesInvoicesScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  child: Obx(() => SegmentedButton<InvoiceFilterStatus>(
-                    segments: const [
-                      ButtonSegment(value: InvoiceFilterStatus.all, label: Text('الكل')),
-                      ButtonSegment(value: InvoiceFilterStatus.due, label: Text('آجلة')),
-                      ButtonSegment(value: InvoiceFilterStatus.paid, label: Text('مدفوعة')),
-                      ButtonSegment(value: InvoiceFilterStatus.returned, label: Text('مرتجعة')),
-                    ],
-                    selected: {controller.selectedStatus.value},
-                    onSelectionChanged: (newSelection) {
-                      controller.selectedStatus.value = newSelection.first;
-                    },
-                  )),
+                  child: Obx(
+                    () => SegmentedButton<InvoiceFilterStatus>(
+                      segments: const [
+                        ButtonSegment(
+                          value: InvoiceFilterStatus.all,
+                          label: Text('الكل'),
+                        ),
+                        ButtonSegment(
+                          value: InvoiceFilterStatus.due,
+                          label: Text('آجلة'),
+                        ),
+                        ButtonSegment(
+                          value: InvoiceFilterStatus.paid,
+                          label: Text('مدفوعة'),
+                        ),
+                        ButtonSegment(
+                          value: InvoiceFilterStatus.returned,
+                          label: Text('مرتجعة'),
+                        ),
+                      ],
+                      selected: {controller.selectedStatus.value},
+                      onSelectionChanged: (newSelection) {
+                        controller.selectedStatus.value = newSelection.first;
+                      },
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -106,7 +129,10 @@ class ListSalesInvoicesScreen extends StatelessWidget {
           }
           if (controller.invoices.isEmpty) {
             return const Center(
-              child: Text('لا توجد فواتير تطابق بحثك.', style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'لا توجد فواتير تطابق بحثك.',
+                style: TextStyle(color: Colors.grey),
+              ),
             );
           }
           return ListView.builder(
@@ -114,7 +140,9 @@ class ListSalesInvoicesScreen extends StatelessWidget {
             itemCount: controller.invoices.length,
             itemBuilder: (context, index) {
               final invoice = controller.invoices[index];
-              return SalesInvoiceCard(invoice: invoice); // استخدام بطاقة المبيعات
+              return SalesInvoiceCard(
+                invoice: invoice,
+              ); // استخدام بطاقة المبيعات
             },
           );
         }),
@@ -142,7 +170,45 @@ class SalesInvoiceCard extends StatelessWidget {
       statusColor = isPaid ? Colors.green.shade700 : Colors.orange.shade700;
       statusText = isPaid ? 'مدفوعة' : 'آجلة';
     }
-    final formatCurrency = intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+
+    Widget _buildPriceWidget(double price) {
+      final settings = Get.find<SettingsService>();
+      final primarySymbol = settings.primaryCurrency.value.symbol;
+      final primaryPrice = '${price.toStringAsFixed(2)} $primarySymbol';
+
+      if (settings.showBothCurrenciesInInvoice.value &&
+          !settings.isLocalSameAsPrimary.value) {
+        final localPrice = price * settings.exchangeRate.value;
+        final localSymbol = settings.localCurrency.value.symbol;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              primaryPrice,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Get.theme.primaryColor,
+              ),
+            ),
+            Text(
+              '${localPrice.toStringAsFixed(2)} $localSymbol',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        );
+      }
+      return Text(
+        primaryPrice,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Get.theme.primaryColor,
+        ),
+      );
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -153,7 +219,9 @@ class SalesInvoiceCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: () {
-           Get.to(() => SalesDetailsScreen(invoiceId: invoice.id)); // سيتم تفعيله لاحقًا
+          Get.to(
+            () => SalesDetailsScreen(invoiceId: invoice.id),
+          ); // سيتم تفعيله لاحقًا
         },
         borderRadius: BorderRadius.circular(10),
         child: Padding(
@@ -166,17 +234,26 @@ class SalesInvoiceCard extends StatelessWidget {
                 children: [
                   Text(
                     'فاتورة #${invoice.id}',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       statusText,
-                      style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -184,14 +261,23 @@ class SalesInvoiceCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 invoice.customerName ?? 'عميل غير محدد', // اسم العميل
-                style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               const Divider(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildInfoChip(Icons.calendar_today_outlined, intl.DateFormat('yyyy-MM-dd').format(invoice.invoiceDate)),
-                  _buildInfoChip(Icons.attach_money_outlined, formatCurrency.format(invoice.totalAmount), isPrimary: true),
+                  _buildInfoChip(
+                    Icons.calendar_today_outlined,
+                    intl.DateFormat('yyyy-MM-dd').format(invoice.invoiceDate),
+                  ),
+                  _buildInfoChip(
+                    Icons.attach_money_outlined,
+                    _buildPriceWidget(invoice.totalAmount),
+                  ),
                 ],
               ),
             ],
@@ -201,16 +287,21 @@ class SalesInvoiceCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String label, {bool isPrimary = false}) {
-    final color = isPrimary ? Get.theme.primaryColor : Colors.grey.shade600;
+  Widget _buildInfoChip(IconData icon, dynamic content) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 16, color: color),
+        Icon(icon, size: 16, color: Colors.grey.shade600),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(fontWeight: FontWeight.bold, color: color),
-        ),
+        content is Widget
+            ? content
+            : Text(
+                content.toString(),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
       ],
     );
   }

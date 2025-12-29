@@ -20,7 +20,9 @@ class ListCustomersScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // يجب أن يكون Controller قد تم إنشاؤه في شاشة لوحة التحكم
     final CustomerController controller = Get.find<CustomerController>();
-    final searchController = TextEditingController(text: controller.searchQuery.value);
+    final searchController = TextEditingController(
+      text: controller.searchQuery.value,
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('قائمة العملاء'),
@@ -36,7 +38,8 @@ class ListCustomersScreen extends StatelessWidget {
                 );
 
                 // جلب قائمة العملاء المرتبة
-                final customers = await controller.repository.getCustomersForReport();
+                final customers = await controller.repository
+                    .getCustomersForReport();
 
                 if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
 
@@ -68,32 +71,45 @@ class ListCustomersScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-                        ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        searchController.clear();
-                        controller.searchQuery.value = '';
-                      },
-                    )
-                        : const SizedBox.shrink()),
+                    suffixIcon: Obx(
+                      () => controller.searchQuery.value.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                searchController.clear();
+                                controller.searchQuery.value = '';
+                              },
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),
               // أزرار الفلترة
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Obx(() => SegmentedButton<CustomerFilter>(
-                  segments: const [
-                    ButtonSegment(value: CustomerFilter.all, label: Text('الكل')),
-                    ButtonSegment(value: CustomerFilter.hasBalance, label: Text('عليهم رصيد')),
-                    ButtonSegment(value: CustomerFilter.noBalance, label: Text('رصيد صفري')),
-                  ],
-                  selected: {controller.currentFilter.value},
-                  onSelectionChanged: (newSelection) {
-                    controller.currentFilter.value = newSelection.first;
-                  },
-                )),
+                child: Obx(
+                  () => SegmentedButton<CustomerFilter>(
+                    segments: const [
+                      ButtonSegment(
+                        value: CustomerFilter.all,
+                        label: Text('الكل'),
+                      ),
+                      ButtonSegment(
+                        value: CustomerFilter.hasBalance,
+                        label: Text('عليهم رصيد'),
+                      ),
+                      ButtonSegment(
+                        value: CustomerFilter.noBalance,
+                        label: Text('رصيد صفري'),
+                      ),
+                    ],
+                    selected: {controller.currentFilter.value},
+                    onSelectionChanged: (newSelection) {
+                      controller.currentFilter.value = newSelection.first;
+                    },
+                  ),
+                ),
               ),
             ],
           ),
@@ -104,7 +120,12 @@ class ListCustomersScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (controller.filteredCustomers.isEmpty) {
-          return const Center(child: Text('لا يوجد عملاء يطابقون بحثك.', style: TextStyle(color: Colors.grey)));
+          return const Center(
+            child: Text(
+              'لا يوجد عملاء يطابقون بحثك.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
         }
         return ListView.builder(
           padding: const EdgeInsets.only(top: 8, bottom: 80),
@@ -131,8 +152,13 @@ class CustomerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasBalance = customer.balance > 0;
-    final balanceColor = hasBalance ? Colors.blue.shade800 : Colors.green.shade700;
-    final formatCurrency = NumberFormat.currency(locale: 'ar_SA', symbol: 'ريال');
+    final balanceColor = hasBalance
+        ? Colors.blue.shade800
+        : Colors.green.shade700;
+    final formatCurrency = NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: 'ريال',
+    );
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -157,7 +183,9 @@ class CustomerCard extends StatelessWidget {
             children: [
               Text(
                 customer.name,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Row(
@@ -183,10 +211,16 @@ class CustomerCard extends StatelessWidget {
                 children: [
                   if (customer.phone != null && customer.phone!.isNotEmpty) ...[
                     IconButton(
-                      icon: FaIcon(FontAwesomeIcons.phone,
-                          color: Colors.green.shade700, size: 20),
+                      icon: FaIcon(
+                        FontAwesomeIcons.phone,
+                        color: Colors.green.shade700,
+                        size: 20,
+                      ),
                       onPressed: () async {
-                        final Uri url = Uri(scheme: 'tel', path: customer.phone);
+                        final Uri url = Uri(
+                          scheme: 'tel',
+                          path: customer.phone,
+                        );
                         if (await canLaunchUrl(url)) {
                           await launchUrl(url);
                         }
@@ -194,12 +228,20 @@ class CustomerCard extends StatelessWidget {
                       tooltip: 'اتصال',
                     ),
                     IconButton(
-                      icon: FaIcon(FontAwesomeIcons.whatsapp,
-                          color: Colors.green.shade800,
-                          size: 22),                      onPressed: () async {
-                        final Uri url = Uri.parse('https://wa.me/${customer.phone}');
+                      icon: FaIcon(
+                        FontAwesomeIcons.whatsapp,
+                        color: Colors.green.shade800,
+                        size: 22,
+                      ),
+                      onPressed: () async {
+                        final Uri url = Uri.parse(
+                          'https://wa.me/${customer.phone}',
+                        );
                         if (await canLaunchUrl(url)) {
-                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                          await launchUrl(
+                            url,
+                            mode: LaunchMode.externalApplication,
+                          );
                         }
                       },
                       tooltip: 'واتساب',
@@ -207,15 +249,20 @@ class CustomerCard extends StatelessWidget {
                   ],
                   const Spacer(),
                   IconButton(
-                    icon: FaIcon(FontAwesomeIcons.trashCan,
-                        color: Theme.of(context).colorScheme.error,
-                        size: 20),
+                    icon: FaIcon(
+                      FontAwesomeIcons.trashCan,
+                      color: Theme.of(context).colorScheme.error,
+                      size: 20,
+                    ),
                     onPressed: () {
                       Get.defaultDialog(
                         title: 'تأكيد الحذف',
-                        middleText: 'هل أنت متأكد من حذف العميل "${customer.name}"؟',
+                        middleText:
+                            'هل أنت متأكد من حذف العميل "${customer.name}"؟',
                         onConfirm: () {
-                          Get.find<CustomerController>().deleteCustomer(customer);
+                          Get.find<CustomerController>().deleteCustomer(
+                            customer,
+                          );
                           Get.back();
                         },
                         textConfirm: 'حذف',

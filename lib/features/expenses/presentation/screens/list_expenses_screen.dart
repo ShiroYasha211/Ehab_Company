@@ -8,16 +8,18 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../../../../core/services/expense_pdf_service.dart';
+import '../../../../core/services/settings_service.dart';
 
 class ListExpensesScreen extends StatelessWidget {
   const ListExpensesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
     // يجب أن يكون Controller قد تم إنشاؤه في شاشة لوحة التحكم
     final ExpenseController controller = Get.find<ExpenseController>();
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final formatCurrency = intl.NumberFormat.currency(symbol: currencySymbol);
 
     return Scaffold(
       appBar: AppBar(
@@ -38,12 +40,10 @@ class ListExpensesScreen extends StatelessWidget {
                         barrierDismissible: false,
                       );
 
-                      final reportData = await controller.expenseRepository.getExpensesForReport(
-                        from: from,
-                        to: to,
-                      );
+                      final reportData = await controller.expenseRepository
+                          .getExpensesForReport(from: from, to: to);
 
-                      if(Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
+                      if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
 
                       await ExpensePdfService.printExpenseReport(
                         reportData: reportData,
@@ -51,7 +51,8 @@ class ListExpensesScreen extends StatelessWidget {
                         to: to,
                       );
                     } catch (e) {
-                      if(Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل في حال حدوث خطأ
+                      if (Get.isDialogOpen!)
+                        Get.back(); // إغلاق مؤشر التحميل في حال حدوث خطأ
                       Get.snackbar('خطأ', 'فشل في إنشاء التقرير: $e');
                     }
                   },
@@ -75,12 +76,13 @@ class ListExpensesScreen extends StatelessWidget {
           if (controller.isLoading.isTrue) {
             return const Center(child: CircularProgressIndicator());
           }
-        
+
           // --- بداية الإصلاح: تحسين منطق عرض الرسائل ---
-        
+
           // الحالة 1: القائمة المفلترة فارغة، ولكن القائمة الأصلية ليست فارغة
           // هذا يعني أن الفلتر هو السبب
-          if (controller.filteredExpenses.isEmpty && controller.expenses.isNotEmpty) {
+          if (controller.filteredExpenses.isEmpty &&
+              controller.expenses.isNotEmpty) {
             return const Center(
               child: Text(
                 'لا توجد مصروفات تطابق الفلتر الحالي.',
@@ -88,7 +90,7 @@ class ListExpensesScreen extends StatelessWidget {
               ),
             );
           }
-        
+
           // الحالة 2: كل القوائم فارغة
           // هذا يعني أنه لا توجد مصروفات مسجلة في النظام أصلًا
           if (controller.filteredExpenses.isEmpty) {
@@ -118,31 +120,34 @@ class ListExpensesScreen extends StatelessWidget {
       child: Column(
         children: [
           // فلتر البند
-          Obx(() => DropdownButtonFormField<int?>(
-            value: controller.filterByCategoryId.value,
-            items: [
-              const DropdownMenuItem<int?>(
-                value: null,
-                child: Text('كل البنود'),
+          Obx(
+            () => DropdownButtonFormField<int?>(
+              value: controller.filterByCategoryId.value,
+              items: [
+                const DropdownMenuItem<int?>(
+                  value: null,
+                  child: Text('كل البنود'),
+                ),
+                ...controller.categories.map((category) {
+                  return DropdownMenuItem<int?>(
+                    value: category.id,
+                    child: Text(category.name),
+                  );
+                }).toList(),
+              ],
+              onChanged: (value) {
+                controller.filterByCategoryId.value = value;
+              },
+              decoration: InputDecoration(
+                hintText: 'فلترة حسب البند',
+                prefixIcon: const Icon(Icons.category_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                isDense: true,
               ),
-              ...controller.categories.map((category) {
-                return DropdownMenuItem<int?>(
-                  value: category.id,
-                  child: Text(category.name),
-                );
-              }).toList(),
-            ],
-            onChanged: (value) {
-              controller.filterByCategoryId.value = value;
-            },
-            decoration: InputDecoration(
-              hintText: 'فلترة حسب البند',
-              prefixIcon: const Icon(Icons.category_outlined),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              isDense: true,
             ),
-          )),
+          ),
           const SizedBox(height: 10),
           // فلاتر التاريخ
           Row(
@@ -162,10 +167,14 @@ class ListExpensesScreen extends StatelessWidget {
   }
 
   Widget _buildDateField(
-      BuildContext context, ExpenseController controller,
-      {required bool isFromDate}) {
+    BuildContext context,
+    ExpenseController controller, {
+    required bool isFromDate,
+  }) {
     return Obx(() {
-      final date = isFromDate ? controller.fromDate.value : controller.toDate.value;
+      final date = isFromDate
+          ? controller.fromDate.value
+          : controller.toDate.value;
       return TextFormField(
         readOnly: true,
         controller: TextEditingController(
@@ -197,15 +206,18 @@ class ListExpensesScreen extends StatelessWidget {
     });
   }
 
-  Widget _buildExpenseCard(ExpenseModel expense, intl.NumberFormat formatCurrency) {
+  Widget _buildExpenseCard(
+    ExpenseModel expense,
+    intl.NumberFormat formatCurrency,
+  ) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       child: ListTile(
-        leading: CircleAvatar(
-          child: Text(expense.id.toString()),
+        leading: CircleAvatar(child: Text(expense.id.toString())),
+        title: Text(
+          expense.categoryName ?? 'بند غير محدد',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        title: Text(expense.categoryName ?? 'بند غير محدد',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(
           '${expense.notes ?? 'لا توجد ملاحظات'}\n${intl.DateFormat('yyyy-MM-dd').format(expense.expenseDate)}',
           style: TextStyle(color: Colors.grey.shade600),
@@ -213,9 +225,10 @@ class ListExpensesScreen extends StatelessWidget {
         trailing: Text(
           formatCurrency.format(expense.amount),
           style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: Colors.red.shade700),
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: Colors.red.shade700,
+          ),
         ),
         isThreeLine: true,
       ),

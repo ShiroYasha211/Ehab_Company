@@ -6,15 +6,22 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class FundFlowReportScreen extends StatelessWidget {
   const FundFlowReportScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final FundFlowReportController controller =
-    Get.put(FundFlowReportController());
-    final formatCurrency =
-    intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
+    final FundFlowReportController controller = Get.put(
+      FundFlowReportController(),
+    );
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: currencySymbol,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -38,8 +45,10 @@ class FundFlowReportScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // 2. الرسم البياني للمقارنة
-              Text('مقارنة الوارد بالصادر',
-                  style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'مقارنة الوارد بالصادر',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 16),
               SizedBox(
                 height: 200,
@@ -61,7 +70,9 @@ class FundFlowReportScreen extends StatelessWidget {
 
   /// ودجت بناء فلاتر التاريخ
   Widget _buildFilters(
-      BuildContext context, FundFlowReportController controller) {
+    BuildContext context,
+    FundFlowReportController controller,
+  ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
       child: Row(
@@ -79,10 +90,15 @@ class FundFlowReportScreen extends StatelessWidget {
   }
 
   /// ودجت بناء حقل التاريخ
-  Widget _buildDateField(BuildContext context, FundFlowReportController controller,
-      {required bool isFromDate}) {
+  Widget _buildDateField(
+    BuildContext context,
+    FundFlowReportController controller, {
+    required bool isFromDate,
+  }) {
     return Obx(() {
-      final date = isFromDate ? controller.fromDate.value : controller.toDate.value;
+      final date = isFromDate
+          ? controller.fromDate.value
+          : controller.toDate.value;
       return TextFormField(
         readOnly: true,
         controller: TextEditingController(
@@ -115,17 +131,19 @@ class FundFlowReportScreen extends StatelessWidget {
               Text(
                 'صافي التدفق النقدي',
                 style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 formatCurrency.format(netFlow),
                 style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
@@ -136,26 +154,36 @@ class FundFlowReportScreen extends StatelessWidget {
 
   /// ودجت بناء الرسم البياني الشريطي
   BarChartData _buildBarChartData(
-      BuildContext context, FundFlowReportController controller) {
+    BuildContext context,
+    FundFlowReportController controller,
+  ) {
     return BarChartData(
       alignment: BarChartAlignment.spaceAround,
       barGroups: [
         // 1. شريط إجمالي الوارد
-        BarChartGroupData(x: 0, barRods: [
-          BarChartRodData(
+        BarChartGroupData(
+          x: 0,
+          barRods: [
+            BarChartRodData(
               toY: controller.totalDeposits.value,
               color: Colors.green.shade400,
               width: 40,
-              borderRadius: BorderRadius.circular(4))
-        ]),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
         // 2. شريط إجمالي الصادر
-        BarChartGroupData(x: 1, barRods: [
-          BarChartRodData(
+        BarChartGroupData(
+          x: 1,
+          barRods: [
+            BarChartRodData(
               toY: controller.totalWithdrawals.value,
               color: Colors.red.shade400,
               width: 40,
-              borderRadius: BorderRadius.circular(4))
-        ]),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
       ],
       titlesData: FlTitlesData(
         bottomTitles: AxisTitles(
@@ -167,9 +195,13 @@ class FundFlowReportScreen extends StatelessWidget {
               if (value == 1) text = 'الصادر';
               return Padding(
                 padding: const EdgeInsets.only(top: 4.0),
-                child: Text(text,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14)),
+                child: Text(
+                  text,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
               );
             },
             reservedSize: 30,
@@ -177,7 +209,9 @@ class FundFlowReportScreen extends StatelessWidget {
         ),
         leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: const AxisTitles(
+          sideTitles: SideTitles(showTitles: false),
+        ),
       ),
       borderData: FlBorderData(show: false),
       gridData: const FlGridData(show: false),
@@ -186,20 +220,24 @@ class FundFlowReportScreen extends StatelessWidget {
 
   /// ودجت بناء القائمة التفصيلية للأرقام
   Widget _buildFinancialDetailsList(
-      FundFlowReportController controller, intl.NumberFormat formatCurrency) {
+    FundFlowReportController controller,
+    intl.NumberFormat formatCurrency,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
             _buildDetailRow(
-                'إجمالي الوارد (توريد)',
-                formatCurrency.format(controller.totalDeposits.value),
-                Colors.green.shade800),
+              'إجمالي الوارد (توريد)',
+              formatCurrency.format(controller.totalDeposits.value),
+              Colors.green.shade800,
+            ),
             _buildDetailRow(
-                'إجمالي الصادر (سحب)',
-                formatCurrency.format(controller.totalWithdrawals.value),
-                Colors.red.shade700),
+              'إجمالي الصادر (سحب)',
+              formatCurrency.format(controller.totalWithdrawals.value),
+              Colors.red.shade700,
+            ),
             const Divider(thickness: 2),
             _buildDetailRow(
               'صافي التدفق النقدي',
@@ -217,8 +255,13 @@ class FundFlowReportScreen extends StatelessWidget {
   }
 
   /// ودجت مساعد لبناء كل صف في القائمة التفصيلية
-  Widget _buildDetailRow(String label, String value, Color color,
-      {bool isBold = false, bool isLarge = false}) {
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    Color color, {
+    bool isBold = false,
+    bool isLarge = false,
+  }) {
     return ListTile(
       title: Text(label, style: const TextStyle(fontSize: 16)),
       trailing: Text(

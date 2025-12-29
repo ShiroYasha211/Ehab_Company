@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
 import '../../../suppliers/data/models/supplier_model.dart';
 
 class ListPurchasesScreen extends StatelessWidget {
@@ -14,14 +15,17 @@ class ListPurchasesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ListPurchasesController controller = Get.put(ListPurchasesController());
+    final ListPurchasesController controller = Get.put(
+      ListPurchasesController(),
+    );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('أرشيف فواتير الشراء'),
         actions: [
           // --- بداية التعديل: تغيير الأيقونة ---
-          IconButton(icon: const Icon(Icons.filter_alt_off_outlined),
+          IconButton(
+            icon: const Icon(Icons.filter_alt_off_outlined),
             tooltip: 'مسح الفلاتر',
             onPressed: controller.clearFilters,
           ),
@@ -36,17 +40,21 @@ class ListPurchasesScreen extends StatelessWidget {
                 Row(
                   children: [
                     // --- بداية التعديل: ربط TextField بـ searchQuery ---
-                    Expanded(child: TextField(
-                      controller: controller.searchController,
-                      keyboardType: TextInputType.number,
-                      onChanged: (value) => controller.searchQuery.value = value,
-                      decoration: InputDecoration(
-                        hintText: 'بحث برقم الفاتورة...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        isDense: true,
+                    Expanded(
+                      child: TextField(
+                        controller: controller.searchController,
+                        keyboardType: TextInputType.number,
+                        onChanged: (value) =>
+                            controller.searchQuery.value = value,
+                        decoration: InputDecoration(
+                          hintText: 'بحث برقم الفاتورة...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          isDense: true,
+                        ),
                       ),
-                    ),
                     ),
                     // --- نهاية التعديل ---
                     const SizedBox(width: 8),
@@ -60,20 +68,24 @@ class ListPurchasesScreen extends StatelessWidget {
                               value: null,
                               child: Text('كل الموردين'),
                             ),
-                            ...controller.supplierController.filteredSuppliers.map((supplier) {
-                              return DropdownMenuItem<SupplierModel?>(
-                                value: supplier,
-                                child: Text(supplier.name),
-                              );
-                            }).toList(),
+                            ...controller.supplierController.filteredSuppliers
+                                .map((supplier) {
+                                  return DropdownMenuItem<SupplierModel?>(
+                                    value: supplier,
+                                    child: Text(supplier.name),
+                                  );
+                                })
+                                .toList(),
                           ],
-                          onChanged:(value) {
+                          onChanged: (value) {
                             controller.selectedSupplier.value = value;
                           },
                           decoration: InputDecoration(
                             hintText: 'اختر موردًا',
                             prefixIcon: const Icon(Icons.person_outline),
-                            border:OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                             isDense: true,
                           ),
                         );
@@ -86,23 +98,34 @@ class ListPurchasesScreen extends StatelessWidget {
 
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  child: Obx(() => SegmentedButton<InvoiceFilterStatus>(
-
-                    segments: const [
-                      ButtonSegment(value: InvoiceFilterStatus.all, label: Text('الكل')),
-                      ButtonSegment(value: InvoiceFilterStatus.due, label: Text('آجلة')),
-                      ButtonSegment(value: InvoiceFilterStatus.paid, label: Text('مدفوعة')),
-                      ButtonSegment(value: InvoiceFilterStatus.returned, label: Text('مرتجعة')),
-                    ],
-                    selected: {controller.selectedStatus.value},
-                    onSelectionChanged: (newSelection) {
-                      controller.selectedStatus.value = newSelection.first;
-                    },
-                    style: SegmentedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-
+                  child: Obx(
+                    () => SegmentedButton<InvoiceFilterStatus>(
+                      segments: const [
+                        ButtonSegment(
+                          value: InvoiceFilterStatus.all,
+                          label: Text('الكل'),
+                        ),
+                        ButtonSegment(
+                          value: InvoiceFilterStatus.due,
+                          label: Text('آجلة'),
+                        ),
+                        ButtonSegment(
+                          value: InvoiceFilterStatus.paid,
+                          label: Text('مدفوعة'),
+                        ),
+                        ButtonSegment(
+                          value: InvoiceFilterStatus.returned,
+                          label: Text('مرتجعة'),
+                        ),
+                      ],
+                      selected: {controller.selectedStatus.value},
+                      onSelectionChanged: (newSelection) {
+                        controller.selectedStatus.value = newSelection.first;
+                      },
+                      style: SegmentedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                      ),
                     ),
-                  ),
                   ),
                 ),
               ],
@@ -118,7 +141,10 @@ class ListPurchasesScreen extends StatelessWidget {
           if (controller.invoices.isEmpty) {
             // --- بداية التعديل: رسالة أكثر تعبيرًا ---
             return const Center(
-              child: Text('لا توجد فواتير تطابق بحثك.', style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'لا توجد فواتير تطابق بحثك.',
+                style: TextStyle(color: Colors.grey),
+              ),
             );
             // --- نهاية التعديل ---
           }
@@ -144,6 +170,8 @@ class PurchaseInvoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currencySymbol =
+        Get.find<SettingsService>().primaryCurrency.value.symbol;
     late Color statusColor;
     late String statusText;
 
@@ -155,7 +183,10 @@ class PurchaseInvoiceCard extends StatelessWidget {
       statusColor = isPaid ? Colors.green.shade700 : Colors.orange.shade700;
       statusText = isPaid ? 'مدفوعة' : 'آجلة';
     }
-    final formatCurrency = intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: currencySymbol,
+    );
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -179,17 +210,26 @@ class PurchaseInvoiceCard extends StatelessWidget {
                 children: [
                   Text(
                     'فاتورة #${invoice.id}',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       statusText,
-                      style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -197,14 +237,24 @@ class PurchaseInvoiceCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 invoice.supplierName ?? 'مورد غير محدد',
-                style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               const Divider(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildInfoChip(Icons.calendar_today_outlined, intl.DateFormat('yyyy-MM-dd').format(invoice.invoiceDate)),
-                  _buildInfoChip(Icons.attach_money_outlined, formatCurrency.format(invoice.totalAmount), isPrimary: true),
+                  _buildInfoChip(
+                    Icons.calendar_today_outlined,
+                    intl.DateFormat('yyyy-MM-dd').format(invoice.invoiceDate),
+                  ),
+                  _buildInfoChip(
+                    Icons.attach_money_outlined,
+                    formatCurrency.format(invoice.totalAmount),
+                    isPrimary: true,
+                  ),
                 ],
               ),
             ],

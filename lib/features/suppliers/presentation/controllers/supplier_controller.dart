@@ -1,13 +1,13 @@
 // File: lib/features/suppliers/presentation/controllers/supplier_controller.dart
 
-import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';import 'package:ehab_company_admin/features/suppliers/data/repositories/supplier_repository.dart';
+import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';
+import 'package:ehab_company_admin/features/suppliers/data/repositories/supplier_repository.dart';
 import 'package:flutter/material.dart' hide DateRangePickerDialog;
 import 'package:get/get.dart';
 import 'package:ehab_company_admin/core/services/supplier_report_service.dart'; // <-- إضافة هذا السطر
 import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range_picker_dialog.dart'; // <-- إضافة هذا السطر
-import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model.dart';
 
-
+import '../../../../core/services/settings_service.dart';
 import '../../data/models/supplier_transaction_model.dart';
 
 enum SupplierFilter { all, hasBalance, noBalance }
@@ -17,7 +17,8 @@ class SupplierController extends GetxController {
   SupplierRepository get repository => _repository;
   final RxList<SupplierModel> suppliers = <SupplierModel>[].obs;
   final RxList<SupplierModel> _allSuppliers = <SupplierModel>[].obs;
-  final RxList<SupplierModel> filteredSuppliers = <SupplierModel>[].obs; // قائمة للعرض
+  final RxList<SupplierModel> filteredSuppliers =
+      <SupplierModel>[].obs; // قائمة للعرض
   final RxBool isLoading = true.obs;
 
   // --- بداية الإضافة: متغيرات البحث والفلترة ---
@@ -31,8 +32,11 @@ class SupplierController extends GetxController {
     super.onInit();
     fetchAllSuppliers();
 
-    debounce(searchQuery, (_) => _filterSuppliers(),
-        time: const Duration(milliseconds: 300));
+    debounce(
+      searchQuery,
+      (_) => _filterSuppliers(),
+      time: const Duration(milliseconds: 300),
+    );
     ever(currentFilter, (_) => _filterSuppliers());
   }
 
@@ -65,8 +69,8 @@ class SupplierController extends GetxController {
     if (query.isNotEmpty) {
       _filtered.retainWhere((supplier) {
         final nameMatches = supplier.name.toLowerCase().contains(query);
-        final phoneMatches = supplier.phone?.toLowerCase().contains(query) ??
-            false;
+        final phoneMatches =
+            supplier.phone?.toLowerCase().contains(query) ?? false;
         return nameMatches || phoneMatches;
       });
     }
@@ -103,12 +107,18 @@ class SupplierController extends GetxController {
       await fetchAllSuppliers(); // تحديث القائمة
       Get.back(); // إغلاق شاشة الإضافة
       Get.snackbar(
-          'نجاح', 'تمت إضافة المورد بنجاح', backgroundColor: Colors.green,
-          colorText: Colors.white);
+        'نجاح',
+        'تمت إضافة المورد بنجاح',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
     } catch (e) {
       Get.snackbar(
-          'خطأ', 'فشل في إضافة المورد: $e', backgroundColor: Colors.red,
-          colorText: Colors.white);
+        'خطأ',
+        'فشل في إضافة المورد: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -130,8 +140,7 @@ class SupplierController extends GetxController {
       if (supplier.balance <= 0) {
         Get.snackbar(
           'لا يمكن إتمام الدفعة',
-          'رصيد المورد الحالي (${supplier
-              .balance} ريال) لا يسمح بدفعات نقدية له.',
+          'رصيد المورد الحالي (${supplier.balance} ${Get.find<SettingsService>().primaryCurrency.value.symbol}) لا يسمح بدفعات نقدية له.',
           backgroundColor: Colors.orange.shade800,
           colorText: Colors.white,
           duration: const Duration(seconds: 5),
@@ -143,8 +152,7 @@ class SupplierController extends GetxController {
       if (amount > supplier.balance) {
         Get.snackbar(
           'مبلغ غير صحيح',
-          'مبلغ الدفعة (${amount} ريال) أكبر من الرصيد المستحق للمورد (${supplier
-              .balance} ريال).',
+          'مبلغ الدفعة ($amount ${Get.find<SettingsService>().primaryCurrency.value.symbol}) أكبر من الرصيد المستحق للمورد (${supplier.balance} ${Get.find<SettingsService>().primaryCurrency.value.symbol}).',
           backgroundColor: Colors.orange.shade800,
           colorText: Colors.white,
           duration: const Duration(seconds: 5),
@@ -164,7 +172,8 @@ class SupplierController extends GetxController {
       );
 
       final transactionId = await _repository.addSupplierTransaction(
-          newTransaction);
+        newTransaction,
+      );
 
       // تحديث قائمة الموردين لجلب الأرصدة الجديدة
       await fetchAllSuppliers();
@@ -187,7 +196,7 @@ class SupplierController extends GetxController {
     }
   }
 
-// --- نهاية الإضافة ---
+  // --- نهاية الإضافة ---
 
   Future<void> updateSupplier({
     required int id,
@@ -231,8 +240,12 @@ class SupplierController extends GetxController {
         colorText: Colors.white,
       );
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل في تعديل المورد: $e',
-          backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشل في تعديل المورد: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -274,7 +287,8 @@ class SupplierController extends GetxController {
   Future<void> deleteSupplier(SupplierModel supplier) async {
     // 1. التحقق مما إذا كان للمورد أي علاقات (فواتير أو سندات)
     final bool hasRelations = await _repository.checkSupplierHasRelations(
-        supplier.id!);
+      supplier.id!,
+    );
 
     if (hasRelations) {
       // 2. إذا وجدت علاقات، اعرض ديالوج التحذير الشديد
@@ -288,45 +302,48 @@ class SupplierController extends GetxController {
   /// ديالوج الحذف العادي (للموردين الذين ليس لديهم معاملات)
   void _showSimpleDeleteDialog(SupplierModel supplier) {
     Get.defaultDialog(
-        title: 'تأكيد الحذف',
-        middleText: 'هل أنت متأكد من رغبتك في حذف المورد "${supplier.name}"؟',
-        textConfirm: 'حذف',
-        textCancel: 'إلغاء',
-        confirmTextColor: Colors.white,
-        onConfirm
-        : () {
-          Get.back(); // أغلق الديالوج
-          _performDelete(supplier.id!);
-        },
+      title: 'تأكيد الحذف',
+      middleText: 'هل أنت متأكد من رغبتك في حذف المورد "${supplier.name}"؟',
+      textConfirm: 'حذف',
+      textCancel: 'إلغاء',
+      confirmTextColor: Colors.white,
+      onConfirm: () {
+        Get.back(); // أغلق الديالوج
+        _performDelete(supplier.id!);
+      },
     );
   }
 
   /// ديالوج التحذير الشديد (للموردين الذين لديهم معاملات)
   void _showStrongWarningDialog(SupplierModel supplier) {
     Get.defaultDialog(
-        title: '⚠️ تحذيرخطير!',
-        titleStyle: TextStyle(
-            color: Colors.red.shade700, fontWeight: FontWeight.bold),
-        content: const Column(
-          children: [ Text(
-          'هذا المورد لديه فواتير أو حركات مالية مسجلة.',
-          textAlign: TextAlign.center,
-        ), SizedBox(height: 16),
-        Text(
-          'حذف المورد سيؤدي إلى فقدان ربط هذه الفواتير والسندات به، وهو إجراء غير قابل للتراجع. هل أنت متأكد تمامًا من رغبتك في المتابعة؟',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.red),
-        ),
-          ],
-        ),
-        confirm: ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-          onPressed: () {
-            Get.back(); // أغلق الديالوج
-            _performDelete(supplier.id!);
-          },
-          child: const Text('نعم، أحذف المورد على مسؤوليتي'),
-        ),
+      title: '⚠️ تحذيرخطير!',
+      titleStyle: TextStyle(
+        color: Colors.red.shade700,
+        fontWeight: FontWeight.bold,
+      ),
+      content: const Column(
+        children: [
+          Text(
+            'هذا المورد لديه فواتير أو حركات مالية مسجلة.',
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'حذف المورد سيؤدي إلى فقدان ربط هذه الفواتير والسندات به، وهو إجراء غير قابل للتراجع. هل أنت متأكد تمامًا من رغبتك في المتابعة؟',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.red),
+          ),
+        ],
+      ),
+      confirm: ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+        onPressed: () {
+          Get.back(); // أغلق الديالوج
+          _performDelete(supplier.id!);
+        },
+        child: const Text('نعم، أحذف المورد على مسؤوليتي'),
+      ),
       cancel: TextButton(
         onPressed: () => Get.back(),
         child: const Text('إلغاء'),
@@ -341,9 +358,10 @@ class SupplierController extends GetxController {
       _allSuppliers.removeWhere((supplier) => supplier.id == id);
       _filterSuppliers(); // تحديث الواجهة
       Get.snackbar(
-          'نجاح',
-          'تم حذف المورد بنجاح.',
-          backgroundColor: Colors.blue, colorText: Colors.white,
+        'نجاح',
+        'تم حذف المورد بنجاح.',
+        backgroundColor: Colors.blue,
+        colorText: Colors.white,
       );
     } catch (e) {
       Get.snackbar(
@@ -354,6 +372,7 @@ class SupplierController extends GetxController {
       );
     }
   }
+
   void printSupplierStatement(SupplierModel supplier) {
     // 1. عرض ديالوج اختيار فترة التقرير
     Get.dialog(
@@ -378,16 +397,19 @@ class SupplierController extends GetxController {
             // 4. طباعة التقرير باستخدام البيانات التي تم جلبها
             await SupplierReportService.printSupplierStatement(
               supplier: supplier, // تمرير بيانات المورد
-              openingBalance: reportData['openingBalance'], // تمرير الرصيد الافتتاحي
+              openingBalance:
+                  reportData['openingBalance'], // تمرير الرصيد الافتتاحي
               transactions: reportData['transactions'], // تمرير قائمة الحركات
             );
           } catch (e) {
-            if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل في حال حدوث خطأ
+            if (Get.isDialogOpen!)
+              Get.back(); // إغلاق مؤشر التحميل في حال حدوث خطأ
             Get.snackbar('خطأ', 'فشل في إنشاء كشف الحساب: $e');
           }
         },
       ),
     );
   }
-// --- نهاية التعديل ---
+
+  // --- نهاية التعديل ---
 }

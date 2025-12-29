@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../../core/services/settings_service.dart';
+
 class ProductDetailScreen extends StatelessWidget {
   final ProductModel product;
 
@@ -14,9 +16,16 @@ class ProductDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool hasImage = product.imageUrl != null && product.imageUrl!.isNotEmpty && File(product.imageUrl!).existsSync();
+    final currency = Get.find<SettingsService>();
+    final bool hasImage =
+        product.imageUrl != null &&
+        product.imageUrl!.isNotEmpty &&
+        File(product.imageUrl!).existsSync();
     final theme = Theme.of(context);
-    final formatCurrency = intl.NumberFormat.currency(locale: 'ar_SA', symbol: ' ريال');
+    final formatCurrency = intl.NumberFormat.currency(
+      locale: 'ar_SA',
+      symbol: currency.primaryCurrency.value.symbol,
+    );
 
     return Scaffold(
       body: CustomScrollView(
@@ -37,55 +46,56 @@ class ProductDetailScreen extends StatelessWidget {
             ],
             flexibleSpace: hasImage
                 ? FlexibleSpaceBar(
-              title: Text(
-                product.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16.0,
-                ),
-              ),
-              background: Hero( // لتأثير انتقال سلس للصورة
-                tag: 'product_image_${product.id}',
-                child: Image.file(
-                  File(product.imageUrl!),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            )
+                    title: Text(
+                      product.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16.0,
+                      ),
+                    ),
+                    background: Hero(
+                      // لتأثير انتقال سلس للصورة
+                      tag: 'product_image_${product.id}',
+                      child: Image.file(
+                        File(product.imageUrl!),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
                 : FlexibleSpaceBar(
-              title: Text(
-                product.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16.0,
-                ),
-              ),
-            ),
+                    title: Text(
+                      product.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16.0,
+                      ),
+                    ),
+                  ),
           ),
 
           // 2. محتوى الصفحة الذي يتم تمريره
           SliverList(
-            delegate: SliverChildListDelegate(
-              [
-                if (!hasImage) // إذا لم تكن هناك صورة، أظهر الاسم هنا بشكل بارز
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                    child: Text(
-                      product.name,
-                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            delegate: SliverChildListDelegate([
+              if (!hasImage) // إذا لم تكن هناك صورة، أظهر الاسم هنا بشكل بارز
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: Text(
+                    product.name,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
+                ),
 
-                // بطاقة التسعير والكمية
-                _buildPricingAndQuantityCard(formatCurrency, theme),
+              // بطاقة التسعير والكمية
+              _buildPricingAndQuantityCard(formatCurrency, theme),
 
-                // بطاقة حالة الصلاحية
-                _buildExpiryCard(theme),
+              // بطاقة حالة الصلاحية
+              _buildExpiryCard(theme),
 
-                // بطاقة معلومات إضافية
-                _buildAdditionalInfoCard(theme),
-              ],
-            ),
+              // بطاقة معلومات إضافية
+              _buildAdditionalInfoCard(theme),
+            ]),
           ),
         ],
       ),
@@ -93,7 +103,10 @@ class ProductDetailScreen extends StatelessWidget {
   }
 
   // بطاقة لعرض السعر والكمية
-  Widget _buildPricingAndQuantityCard(intl.NumberFormat formatCurrency, ThemeData theme) {
+  Widget _buildPricingAndQuantityCard(
+    intl.NumberFormat formatCurrency,
+    ThemeData theme,
+  ) {
     return Card(
       margin: const EdgeInsets.all(16),
       elevation: 4,
@@ -102,9 +115,24 @@ class ProductDetailScreen extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildInfoColumn(Icons.inventory_2_outlined, 'الكمية', '${product.quantity.toInt()} ${product.unit ?? 'قطعة'}', theme.primaryColor),
-            _buildInfoColumn(Icons.sell_outlined, 'سعر البيع', formatCurrency.format(product.salePrice), Colors.green),
-            _buildInfoColumn(Icons.money_off_csred_outlined, 'سعر الشراء', formatCurrency.format(product.purchasePrice), Colors.red),
+            _buildInfoColumn(
+              Icons.inventory_2_outlined,
+              'الكمية',
+              '${product.quantity.toInt()} ${product.unit ?? 'قطعة'}',
+              theme.primaryColor,
+            ),
+            _buildInfoColumn(
+              Icons.sell_outlined,
+              'سعر البيع',
+              formatCurrency.format(product.salePrice),
+              Colors.green,
+            ),
+            _buildInfoColumn(
+              Icons.money_off_csred_outlined,
+              'سعر الشراء',
+              formatCurrency.format(product.purchasePrice),
+              Colors.red,
+            ),
           ],
         ),
       ),
@@ -112,7 +140,12 @@ class ProductDetailScreen extends StatelessWidget {
   }
 
   // ودجت مساعد لبناء كل عمود في بطاقة التسعير
-  Widget _buildInfoColumn(IconData icon, String label, String value, Color color) {
+  Widget _buildInfoColumn(
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+  ) {
     return Column(
       children: [
         CircleAvatar(
@@ -123,14 +156,18 @@ class ProductDetailScreen extends StatelessWidget {
         const SizedBox(height: 8),
         Text(label, style: const TextStyle(color: Colors.grey)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
       ],
     );
   }
 
   // بطاقة لعرض حالة الصلاحية
   Widget _buildExpiryCard(ThemeData theme) {
-    if (product.expiryDate == null) return const SizedBox.shrink(); // لا تظهر البطاقة إذا لم يكن هناك تاريخ انتهاء
+    if (product.expiryDate == null)
+      return const SizedBox.shrink(); // لا تظهر البطاقة إذا لم يكن هناك تاريخ انتهاء
 
     final String statusText;
     final Color statusColor;
@@ -161,12 +198,29 @@ class ProductDetailScreen extends StatelessWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(statusIcon, color: statusColor, size: 40),
-              title: Text(statusText, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: statusColor)),
+              title: Text(
+                statusText,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: statusColor,
+                ),
+              ),
               subtitle: const Text('حالة الصلاحية'),
             ),
             const Divider(),
-            _buildDetailRow('تاريخ الإنتاج:', product.productionDate != null ? intl.DateFormat('yyyy-MM-dd').format(product.productionDate!) : 'غير محدد'),
-            _buildDetailRow('تاريخ الانتهاء:', intl.DateFormat('yyyy-MM-dd').format(product.expiryDate!)),
+            _buildDetailRow(
+              'تاريخ الإنتاج:',
+              product.productionDate != null
+                  ? intl.DateFormat(
+                      'yyyy-MM-dd',
+                    ).format(product.productionDate!)
+                  : 'غير محدد',
+            ),
+            _buildDetailRow(
+              'تاريخ الانتهاء:',
+              intl.DateFormat('yyyy-MM-dd').format(product.expiryDate!),
+            ),
           ],
         ),
       ),
@@ -199,8 +253,14 @@ class ProductDetailScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );

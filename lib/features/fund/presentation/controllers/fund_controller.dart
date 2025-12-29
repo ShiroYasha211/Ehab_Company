@@ -6,6 +6,8 @@ import 'package:ehab_company_admin/features/fund/data/repositories/fund_reposito
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../core/services/settings_service.dart';
+
 class FundController extends GetxController {
   final FundRepository _repository = FundRepository();
 
@@ -17,8 +19,8 @@ class FundController extends GetxController {
   final Rx<FundModel?> currentFund = Rx<FundModel?>(null);
 
   // قائمة لتخزين كل حركات الصندوق
-  final RxList<FundTransactionModel> transactions = <FundTransactionModel>[]
-      .obs;
+  final RxList<FundTransactionModel> transactions =
+      <FundTransactionModel>[].obs;
 
   // متغير لتتبع حالة التحميل
   final RxBool isLoading = true.obs;
@@ -29,7 +31,6 @@ class FundController extends GetxController {
   final Rx<DateTime?> fromDate = Rx<DateTime?>(null);
   final Rx<DateTime?> toDate = Rx<DateTime?>(null);
   final Rx<TransactionType?> transactionTypeFilter = Rx<TransactionType?>(null);
-
 
   @override
   void onInit() {
@@ -79,8 +80,7 @@ class FundController extends GetxController {
     }
   }
 
-// --- نهاية التعديل ---
-
+  // --- نهاية التعديل ---
 
   /// دالة مبسطة لإضافة إيداع (توريد نقدي)
   Future<void> makeDeposit({
@@ -102,8 +102,8 @@ class FundController extends GetxController {
       description: description,
       referenceId: referenceId,
       // --- بداية التعديل ---
-      transactionDate: transactionDate ??
-          DateTime.now(), // استخدم التاريخ الممرر أو الحالي
+      transactionDate:
+          transactionDate ?? DateTime.now(), // استخدم التاريخ الممرر أو الحالي
       // --- نهاية التعديل ---
     );
 
@@ -111,11 +111,19 @@ class FundController extends GetxController {
       await _repository.addTransaction(newTransaction);
       await loadFundData();
       Get.back();
-      Get.snackbar('نجاح', 'تمت عملية الإيداع بنجاح.',
-          backgroundColor: Colors.green, colorText: Colors.white);
+      Get.snackbar(
+        'نجاح',
+        'تمت عملية الإيداع بنجاح.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      Get.snackbar('خطأ', 'فشلت عملية الإيداع: $e',
-          backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشلت عملية الإيداع: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -132,8 +140,7 @@ class FundController extends GetxController {
     if (currentFund.value == null || currentFund.value!.balance < amount) {
       Get.snackbar(
         'خطأ في الرصيد',
-        'الرصيد الحالي في الصندوق (${currentFund.value?.balance ??
-            0} ريال) غير كافٍ لإتمام عملية السحب.',
+        'الرصيد الحالي في الصندوق (${currentFund.value?.balance ?? 0} ${Get.find<SettingsService>().primaryCurrency.value.symbol}) غير كافٍ لإتمام عملية السحب.',
         backgroundColor: Colors.red,
         colorText: Colors.white,
         duration: const Duration(seconds: 5),
@@ -145,7 +152,6 @@ class FundController extends GetxController {
       return;
     }
 
-
     final newTransaction = FundTransactionModel(
       fundId: 1,
       // الصندوق الرئيسي
@@ -154,8 +160,8 @@ class FundController extends GetxController {
       description: description,
       referenceId: referenceId,
       // --- بداية التعديل ---
-      transactionDate: transactionDate ??
-          DateTime.now(), // استخدم التاريخ الممرر أو الحالي
+      transactionDate:
+          transactionDate ?? DateTime.now(), // استخدم التاريخ الممرر أو الحالي
       // --- نهاية التعديل ---
     );
 
@@ -163,11 +169,19 @@ class FundController extends GetxController {
       await _repository.addTransaction(newTransaction);
       await loadFundData();
       Get.back();
-      Get.snackbar('نجاح', 'تمت عملية السحب بنجاح.',
-          backgroundColor: Colors.blue, colorText: Colors.white);
+      Get.snackbar(
+        'نجاح',
+        'تمت عملية السحب بنجاح.',
+        backgroundColor: Colors.blue,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      Get.snackbar('خطأ', 'فشلت عملية السحب: $e',
-          backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشلت عملية السحب: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -183,12 +197,15 @@ class FundController extends GetxController {
     /// دالة لإظهار DatePicker وتحديث التاري
     // --- نهاية الإضافة ---
   }
-  Future<void> selectDate(BuildContext context,
-      {required bool isFromDate}) async {
+
+  Future<void> selectDate(
+    BuildContext context, {
+    required bool isFromDate,
+  }) async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: (isFromDate ? fromDate.value : toDate.value) ??
-          DateTime.now(),
+      initialDate:
+          (isFromDate ? fromDate.value : toDate.value) ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
       locale: const Locale('ar'),
