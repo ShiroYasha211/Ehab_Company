@@ -5,7 +5,7 @@ import 'package:ehab_company_admin/core/theme/app_theme.dart';
 import 'package:ehab_company_admin/features/auth/presentation/screens/login_screen.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_binding.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_invoice_screen.dart';
-import 'package:ehab_company_admin/features/splash/splash_screen.dart'; // <-- تغيير هنا
+import 'package:ehab_company_admin/features/splash/splash_screen.dart';
 import 'package:ehab_company_admin/initial_binding.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -50,7 +50,7 @@ class MyApp extends StatelessWidget {
         Locale('en', ''), // الإنجليزية (كخيار احتياطي)
       ],
       theme: AppTheme.lightTheme,
-      home: const SplashScreen(), // <-- تغيير هنا: ابدأ من شاشة البداية
+      home: const SplashScreen(),
 
       getPages: [
         GetPage(

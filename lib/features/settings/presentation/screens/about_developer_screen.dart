@@ -40,7 +40,7 @@ class AboutDeveloperScreen extends StatelessWidget {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.asset('assets/images/2.png', fit: BoxFit.cover),
+                    // Image.asset('assets/images/2.png', fit: BoxFit.cover),
                     Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -64,12 +64,12 @@ class AboutDeveloperScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     // شعار الفريق (يمكن استبداله بصورة)
-                    _buildTeamLogo(primaryColor),
+                    //_buildTeamLogo(primaryColor),
                     const SizedBox(height: 24),
 
                     // اسم الفريق والرسالة
                     const Text(
-                      'جرافيك استديو للإنتاج الرقمي',
+                      'Mohammed Alhemyari',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -93,9 +93,9 @@ class AboutDeveloperScreen extends StatelessWidget {
                     _buildContactCard(
                       icon: FontAwesomeIcons.whatsapp,
                       title: 'واتساب',
-                      subtitle: '+967774176770',
+                      subtitle: '+967773468708',
                       color: Colors.green,
-                      onTap: () => _launchUrl('https://wa.me/967774176770'),
+                      onTap: () => _launchUrl('https://wa.me/967773468708'),
                     ),
                     const SizedBox(height: 12),
                     _buildContactCard(

@@ -263,7 +263,6 @@ class DatabaseService {
     await batch.commit(noResult: true);
   }
 
-  // --- نهاية الإضافة ---
   /// الإصدار 8: إضافة جداول المصروفات وبنودها
   Future<void> _createV8Tables(Database db) async {
     final batch = db.batch();
