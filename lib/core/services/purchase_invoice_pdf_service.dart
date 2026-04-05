@@ -15,7 +15,6 @@ class PurchaseInvoicePdfService {
   static Future<void> printInvoice(Map<String, dynamic> invoiceDetails) async {
     final pdf = pw.Document();
 
-    // --- 1. بداية التعديل: استخدام خطين (عادي وداكن) وتحميل الشعار ---
     final font = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
     final boldFont = await rootBundle.load("assets/fonts/Tajawal-Bold.ttf");
     final ttf = pw.Font.ttf(font);
@@ -24,48 +23,88 @@ class PurchaseInvoicePdfService {
     final logoImage = pw.MemoryImage(
       (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List(),
     );
-    // --- نهاية التعديل ---
 
     final invoiceData = invoiceDetails['invoice'] as Map<String, dynamic>;
     final itemsData = invoiceDetails['items'] as List<dynamic>;
     final int invoiceId = invoiceData['id'];
+
+    // منطق تحويل العملة عند الطباعة (متوافق مع المبيعات)
+    double? exchangeRate;
+    String? localCurrencySymbol;
+    bool printInLocal = false;
+
+    if (invoiceData['notes'] != null) {
+      final notes = invoiceData['notes'].toString();
+      final rateMatch = RegExp(r'سعر الصرف:\s*([\d\.]+)').firstMatch(notes);
+      if (rateMatch != null) {
+        exchangeRate = double.tryParse(rateMatch.group(1) ?? '');
+        if (exchangeRate != null) {
+          printInLocal = true;
+          localCurrencySymbol = Get.find<SettingsService>().localCurrency.value.symbol;
+        }
+      }
+    }
+
+    String formatMoney(double amountInPrimary) {
+      if (printInLocal && exchangeRate != null) {
+        final localAmount = amountInPrimary * exchangeRate;
+        return '${intl.NumberFormat.decimalPattern('ar').format(localAmount)} $localCurrencySymbol';
+      } else {
+        return '${intl.NumberFormat.decimalPattern('ar').format(amountInPrimary)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}';
+      }
+    }
+
+    String formatNumber(double amountInPrimary) {
+      if (printInLocal && exchangeRate != null) {
+        final localAmount = amountInPrimary * exchangeRate;
+        return intl.NumberFormat.decimalPattern('ar').format(localAmount);
+      } else {
+        return intl.NumberFormat.decimalPattern('ar').format(amountInPrimary);
+      }
+    }
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
-        // تطبيق الخطوط
         header: (context) => _buildHeader(logoImage),
-        // <-- رأس الصفحة الموحد
         build: (context) => [
           _buildInvoiceTitle(invoiceId, invoiceData['invoiceDate']),
-          // <-- عنوان الفاتورة
           _buildSupplierInfo(invoiceData),
-          // <-- معلومات المورد
           pw.SizedBox(height: 20),
-          _buildItemsTable(itemsData),
-          // <-- جدول الأصناف المحدث
+          _buildItemsTable(itemsData, formatNumber),
           pw.SizedBox(height: 20),
-          _buildFinancialSummary(invoiceData),
-          // <-- الملخص المالي المحدث
+          _buildFinancialSummary(invoiceData, formatMoney),
+          pw.SizedBox(height: 15),
+          if (invoiceData['issuedBy'] != null)
+            pw.Align(
+              alignment: pw.Alignment.centerLeft,
+              child: pw.Text(
+                'مُسجل العملية: ${invoiceData['issuedBy']}',
+                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+              ),
+            ),
+
+          if (invoiceDetails['payments'] != null && (invoiceDetails['payments'] as List).isNotEmpty) ...[
+            pw.SizedBox(height: 15),
+            _buildPaymentsSection(invoiceDetails['payments'] as List, formatMoney),
+          ],
+
           pw.Spacer(),
-          // لدفع الملاحظات إلى أسفل الصفحة إذا كانت هناك مساحة
           if (invoiceData['notes'] != null && invoiceData['notes'].isNotEmpty)
             _buildNotes(invoiceData['notes']),
         ],
-        footer: (context) => _buildFooter(context), // <-- تذييل الصفحة الموحد
+        footer: (context) => _buildFooter(context),
       ),
     );
 
-    // حفظ وفتح الملف
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/purchase_invoice_$invoiceId.pdf');
     await file.writeAsBytes(await pdf.save());
     await OpenFile.open(file.path);
   }
 
-  // --- 2. بداية التعديل: استخدام نفس تصميم رأس الصفحة من التقارير الأخرى ---
   static pw.Widget _buildHeader(pw.MemoryImage logo) {
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 15),
@@ -104,9 +143,6 @@ class PurchaseInvoicePdfService {
     );
   }
 
-  // --- نهاية التعديل ---
-
-  // ودجت جديد لعرض عنوان الفاتورة ورقمها
   static pw.Widget _buildInvoiceTitle(int invoiceId, String dateString) {
     return pw.Padding(
       padding: const pw.EdgeInsets.only(top: 20),
@@ -114,7 +150,7 @@ class PurchaseInvoicePdfService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(
-            'فاتورة مشتريات',
+            'فاتورة مشتريات (أصل)',
             style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
           ),
           pw.Column(
@@ -125,7 +161,7 @@ class PurchaseInvoicePdfService {
                 style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(
-                'التاريخ: ${intl.DateFormat('yyyy-MM-dd').format(DateTime.parse(dateString))}',
+                'تاريخ القيد: ${intl.DateFormat('yyyy-MM-dd').format(DateTime.parse(dateString))}',
               ),
             ],
           ),
@@ -134,7 +170,6 @@ class PurchaseInvoicePdfService {
     );
   }
 
-  // ودجت جديد لعرض معلومات المورد
   static pw.Widget _buildSupplierInfo(Map<String, dynamic> data) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(top: 20),
@@ -147,7 +182,7 @@ class PurchaseInvoicePdfService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            'فاتورة من المورد:',
+            'بيانات المورد:',
             style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
           ),
           pw.SizedBox(height: 4),
@@ -158,30 +193,31 @@ class PurchaseInvoicePdfService {
           if (data['supplierPhone'] != null)
             pw.Text(
               'الهاتف: ${data['supplierPhone']}',
-              style: const pw.TextStyle(fontSize: 11),
+              style: pw.TextStyle(fontSize: 11),
             ),
           if (data['invoiceNumber'] != null && data['invoiceNumber'].isNotEmpty)
             pw.Text(
-              'رقم فاتورة المورد: ${data['invoiceNumber']}',
-              style: const pw.TextStyle(fontSize: 11),
+              'رقم فاتورة المورد المرجعي: ${data['invoiceNumber']}',
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
             ),
         ],
       ),
     );
   }
 
-  // --- 3. بداية التعديل: استخدام نفس تصميم جدول الأصناف ---
-  static pw.Widget _buildItemsTable(List<dynamic> items) {
-    final formatNumber = (double value) =>
-        intl.NumberFormat.decimalPattern('ar').format(value);
-
-    final headers = ['الإجمالي', 'سعر الشراء', 'الكمية', 'الصنف'];
+  static pw.Widget _buildItemsTable(
+    List<dynamic> items,
+    String Function(double) formatNumber,
+  ) {
+    final headers = ['الإجمالي', 'السعر', 'المجانية', 'الكمية', 'الوحدة', 'الصنف'];
 
     final data = items.map((item) {
       return [
         formatNumber(item['totalPrice']),
         formatNumber(item['purchasePrice']),
-        item['quantity'].toString(),
+        (item['freeQuantity'] as num? ?? 0.0).toStringAsFixed(0),
+        (item['quantity'] as num).toStringAsFixed(0),
+        item['unit'] ?? '-',
         item['productName'],
       ];
     }).toList();
@@ -191,47 +227,48 @@ class PurchaseInvoicePdfService {
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
-        fontSize: 11,
+        fontSize: 10,
       ),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
-      rowDecoration: const pw.BoxDecoration(
+      cellStyle: pw.TextStyle(fontSize: 9),
+      headerDecoration: pw.BoxDecoration(color: PdfColors.indigo700),
+      rowDecoration: pw.BoxDecoration(
         border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200)),
       ),
       headers: headers,
       data: data,
       columnWidths: {
-        0: const pw.FlexColumnWidth(2.5),
-        1: const pw.FlexColumnWidth(2.5),
-        2: const pw.FlexColumnWidth(1.5),
-        3: const pw.FlexColumnWidth(4),
+        0: pw.FlexColumnWidth(1.8),
+        1: pw.FlexColumnWidth(1.5),
+        2: pw.FlexColumnWidth(1.2),
+        3: pw.FlexColumnWidth(1.2),
+        4: pw.FlexColumnWidth(1.5),
+        5: pw.FlexColumnWidth(2.8),
       },
     );
   }
 
-  // --- نهاية التعديل ---
-
-  // --- 4. بداية التعديل: إعادة تصميم الملخص المالي ---
-  static pw.Widget _buildFinancialSummary(Map<String, dynamic> data) {
-    formatCurrency(double value) =>
-        '${intl.NumberFormat.decimalPattern('ar').format(value)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}';
+  static pw.Widget _buildFinancialSummary(
+    Map<String, dynamic> data,
+    String Function(double) formatCurrency,
+  ) {
     final double totalBeforeDiscount =
         data['totalAmount'] + data['discountAmount'];
 
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Spacer(), // لدفع الملخص إلى اليسار
+        pw.Spacer(),
         pw.Expanded(
           flex: 2,
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               _buildSummaryRow(
-                'الإجمالي قبل الخصم:',
+                'إجمالي المشتريات:',
                 formatCurrency(totalBeforeDiscount),
               ),
               _buildSummaryRow(
-                'الخصم:',
+                'الخصم المكتسب:',
                 '- ${formatCurrency(data['discountAmount'])}',
                 color: PdfColors.orange800,
               ),
@@ -242,7 +279,7 @@ class PurchaseInvoicePdfService {
                 ),
                 padding: const pw.EdgeInsets.only(top: 4),
                 child: _buildSummaryRow(
-                  'الإجمالي بعد الخصم:',
+                  'صافي الفاتورة:',
                   formatCurrency(data['totalAmount']),
                   isTotal: true,
                 ),
@@ -256,7 +293,7 @@ class PurchaseInvoicePdfService {
                 color: PdfColors.grey200,
                 padding: const pw.EdgeInsets.all(6),
                 child: _buildSummaryRow(
-                  'المبلغ المتبقي:',
+                  'المتبقي للمورد:',
                   formatCurrency(data['remainingAmount']),
                   isTotal: true,
                 ),
@@ -268,11 +305,58 @@ class PurchaseInvoicePdfService {
     );
   }
 
-  // --- نهاية التعديل ---
+  static pw.Widget _buildPaymentsSection(
+    List<dynamic> payments,
+    String Function(double) formatCurrency,
+  ) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'سجل سداد الدفعات للمورد:',
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
+        ),
+        pw.SizedBox(height: 5),
+        pw.TableHelper.fromTextArray(
+          cellAlignment: pw.Alignment.centerRight,
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
+          headers: ['الملاحظات', 'التفاصيل (المرجع / الجهة)', 'الوسيلة', 'المبلغ'],
+          data: payments.map((p) {
+            String methodText = 'نقد';
+            String details = '-';
+            
+            if (p['method'] == 'transfer') {
+              methodText = 'حوالة';
+              details = 'رقم: ${p['transferNumber'] ?? ''} | شركة: ${p['transferCompany'] ?? ''}\n(من: ${p['fundName'] ?? ''})';
+            } else if (p['method'] == 'bank') {
+              methodText = 'بنك';
+              details = 'مرجع: ${p['bankReference'] ?? ''} | بنك: ${p['bankName'] ?? ''}\n(من: ${p['fundName'] ?? ''})';
+            } else {
+              details = 'خصم من: ${p['fundName'] ?? ''}';
+            }
+
+            return [
+              p['notes'] ?? '-',
+              details,
+              methodText,
+              formatCurrency(p['amount'] as double? ?? 0.0),
+            ];
+          }).toList(),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(2), 
+            1: const pw.FlexColumnWidth(3),
+            2: const pw.FlexColumnWidth(1.2),
+            3: const pw.FlexColumnWidth(1.8),
+          },
+        ),
+      ],
+    );
+  }
 
   static pw.Widget _buildNotes(String notes) {
     return pw.Container(
-      width: double.infinity,
       padding: const pw.EdgeInsets.all(10),
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey, width: 0.5),
@@ -282,7 +366,7 @@ class PurchaseInvoicePdfService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            'ملاحظات:',
+            'ملاحظات إضافية:',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 5),
@@ -323,17 +407,14 @@ class PurchaseInvoicePdfService {
     );
   }
 
-  // --- 5. بداية التعديل: استخدام نفس تصميم تذييل الصفحة ---
   static pw.Widget _buildFooter(pw.Context context) {
     return pw.Container(
       alignment: pw.Alignment.center,
       margin: const pw.EdgeInsets.only(top: 10),
       child: pw.Text(
-        'صفحة ${context.pageNumber} من ${context.pagesCount} - © شركة إيهاب',
+        'صفحة ${context.pageNumber} من ${context.pagesCount} - طباعة النظام الآلي - شركة إيهاب',
         style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
       ),
     );
   }
-
-  // --- نهاية التعديل ---
 }

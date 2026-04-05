@@ -50,11 +50,14 @@ class ProductsScreen extends StatelessWidget {
             _buildSortMenu(controller),
           ],
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(120.0), // زيادة الارتفاع
+            preferredSize: const Size.fromHeight(175.0), // زيادة الارتفاع
             child: Column(
               children: [
                 _buildSearchBar(searchController, controller),
+                _buildCategoryFilter(controller),
+                const SizedBox(height: 8),
                 _buildExpiryFilter(controller),
+                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -74,6 +77,7 @@ class ProductsScreen extends StatelessWidget {
                   searchController.clear();
                   controller.searchQuery.value = '';
                   controller.expiryFilter.value = ExpiryFilterOption.all;
+                  controller.selectedCategory.value = 'الكل';
                 },
               );
             } else if (controller.filteredProducts.isEmpty) {
@@ -203,6 +207,52 @@ class ProductsScreen extends StatelessWidget {
     );
   }
 
+  // ودجت بناء فلتر الأقسام
+  Widget _buildCategoryFilter(ProductController controller) {
+    return Container(
+      height: 45,
+      margin: const EdgeInsets.only(top: 4),
+      child: Obx(() {
+        final categories = ['الكل', ...controller.categoryNames];
+        
+        return ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: categories.length,
+          itemBuilder: (context, index) {
+            final category = categories[index];
+            
+            return Obx(() {
+              final isSelected = controller.selectedCategory.value == category;
+              
+              return Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: ChoiceChip(
+                  label: Text(category),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      controller.selectedCategory.value = category;
+                    }
+                  },
+                  selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
+                  labelStyle: TextStyle(
+                    color: isSelected ? Theme.of(context).primaryColor : Colors.black87,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  backgroundColor: Colors.grey.shade100,
+                  side: BorderSide(
+                    color: isSelected ? Theme.of(context).primaryColor : Colors.transparent,
+                  ),
+                ),
+              );
+            });
+          },
+        );
+      }),
+    );
+  }
+
   // ودجت بناء قائمة الفرز
   Widget _buildSortMenu(ProductController controller) {
     return PopupMenuButton<ProductSortOption>(
@@ -242,15 +292,20 @@ class ProductsScreen extends StatelessWidget {
     );
   }
 
-  // ودجت بناء فلتر الصلاحية
+  // ودجت بناء فلتر الصلاحية والحالة
   Widget _buildExpiryFilter(ProductController controller) {
     return Obx(() => SegmentedButton<ExpiryFilterOption>(
       segments: const [
         ButtonSegment(value: ExpiryFilterOption.all, label: Text('الكل')),
+        ButtonSegment(value: ExpiryFilterOption.suspended, label: Text('المتوقفة')),
         ButtonSegment(
-            value: ExpiryFilterOption.expiringSoon, label: Text('قريب الانتهاء')),
+          value: ExpiryFilterOption.expiringSoon,
+          label: Text('قريب الانتهاء'),
+        ),
         ButtonSegment(
-            value: ExpiryFilterOption.expired, label: Text('منتهي الصلاحية')),
+          value: ExpiryFilterOption.expired,
+          label: Text('منتهي الصلاحية'),
+        ),
       ],
       selected: {controller.expiryFilter.value},
       onSelectionChanged: (newSelection) {

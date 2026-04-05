@@ -111,7 +111,7 @@ class ExpenseController extends GetxController {
     // 2. التحقق من رصيد الصندوق (فقط إذا كان خيار الخصم مفعلًا)
     if (deductFromFund.value) {
       final double currentFundBalance =
-          _fundController.currentFund.value?.balance ?? 0.0;
+          _fundController.totalBalance.value;
       if (amount > currentFundBalance) {
         // إذا كان الرصيد غير كافٍ، اعرض رسالة خطأ وأوقف العملية
         Get.snackbar(
@@ -139,7 +139,7 @@ class ExpenseController extends GetxController {
       // تحديث البيانات في الواجهات الأخرى
       fetchAllExpenses(); // تحديث قائمة المصروفات
       if (deductFromFund.value) {
-        _fundController.loadFundData(); // تحديث بيانات الصندوق
+        _fundController.loadAllData(); // تحديث بيانات الصندوق
       }
 
       Get.back(); // العودة من شاشة الإضافة

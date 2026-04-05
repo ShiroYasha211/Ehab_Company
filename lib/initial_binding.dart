@@ -6,7 +6,9 @@ import 'package:ehab_company_admin/features/fund/presentation/controllers/fund_c
 import 'package:ehab_company_admin/features/products/presentation/controllers/product_controller.dart';
 import 'package:ehab_company_admin/features/suppliers/presentation/controllers/supplier_controller.dart';
 import 'package:ehab_company_admin/features/units/presentation/controllers/unit_controller.dart';
+import 'package:ehab_company_admin/features/warehouses/presentation/controllers/warehouse_controller.dart';
 import 'package:ehab_company_admin/core/services/auth_service.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 import 'package:get/get.dart';
 
 import 'features/home/presentation/controllers/home_controller.dart';
@@ -16,6 +18,7 @@ class InitialBinding extends Bindings {
   void dependencies() {
     // استخدم `put` مع `permanent: true` للـ Controllers التي يجب أن تبقى دائمًا في الذاكرة
     Get.put<AuthService>(AuthService(), permanent: true);
+    Get.put<ActivityController>(ActivityController(), permanent: true);
 
     // --- 1. قم بإنشاء الـ Controllers التي لا تعتمد على شيء أولاً ---
     Get.put<SupplierController>(SupplierController(), permanent: true);
@@ -25,6 +28,7 @@ class InitialBinding extends Bindings {
     // --- 2. الآن، قم بإنشاء الـ Controllers التي تعتمد على ما سبق ---
     // ProductController يعتمد على CategoryController و UnitController، لذا يجب أن يأتي بعدهما.
     Get.put<ProductController>(ProductController(), permanent: true);
+    Get.put<WarehouseController>(WarehouseController(), permanent: true);
     Get.lazyPut<HomeController>(() => HomeController(), fenix: true);
     Get.lazyPut<CustomerController>(() => CustomerController(), fenix: true);
     Get.lazyPut<FundController>(() => FundController(), fenix: true);

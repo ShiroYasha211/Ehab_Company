@@ -6,7 +6,11 @@ class SalesInvoiceItemModel {
   final int productId;
   final String productName;
   final double quantity;
+  final double freeQuantity;
+  final String? unit; // نص الوحدة (مثلاً: قطعة)
   final double salePrice;
+  final double purchasePrice; // سعر الشراء وقت البيع
+  final int? unitId; // المعرف الرقمي للوحدة
   final double totalPrice;
 
   SalesInvoiceItemModel({
@@ -15,7 +19,11 @@ class SalesInvoiceItemModel {
     required this.productId,
     required this.productName,
     required this.quantity,
+    this.freeQuantity = 0.0,
+    this.unit,
     required this.salePrice,
+    required this.purchasePrice,
+    this.unitId,
     required this.totalPrice,
   });
 
@@ -26,7 +34,11 @@ class SalesInvoiceItemModel {
       'productId': productId,
       'productName': productName,
       'quantity': quantity,
-      'salePrice': salePrice, // هنا نستخدم سعر البيع
+      'freeQuantity': freeQuantity,
+      'unit': unit,
+      'salePrice': salePrice,
+      'purchasePrice': purchasePrice,
+      'unitId': unitId,
       'totalPrice': totalPrice,
     };
   }
@@ -38,7 +50,11 @@ class SalesInvoiceItemModel {
       productId: map['productId'],
       productName: map['productName'],
       quantity: (map['quantity'] as num).toDouble(),
+      freeQuantity: (map['freeQuantity'] as num? ?? 0.0).toDouble(),
+      unit: map['unit'],
       salePrice: (map['salePrice'] as num).toDouble(),
+      purchasePrice: (map['purchasePrice'] as num? ?? 0.0).toDouble(),
+      unitId: map['unitId'],
       totalPrice: (map['totalPrice'] as num).toDouble(),
     );
   }

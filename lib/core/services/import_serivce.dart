@@ -32,7 +32,7 @@ class ImportService {
         final double purchasePrice = double.tryParse(row[3]?.value?.toString() ?? '0') ?? 0.0;
         final double salePrice = double.tryParse(row[4]?.value?.toString() ?? '0') ?? 0.0;
         final String? category = row[5]?.value?.toString();
-        final String? unit = row[6]?.value?.toString();
+        // final String? unit = row[6]?.value?.toString(); // غير مستخدم حالياً
         final double minStockLevel = double.tryParse(row[7]?.value?.toString() ?? '0') ?? 0.0;
         final String? prodDateString = row[8]?.value?.toString();
         final String? expDateString = row[9]?.value?.toString();
@@ -44,6 +44,10 @@ class ImportService {
           continue;
         }
 
+        // final uintRepository = ProductRepository(); // غير مستخدم حالياً
+        // ملاحظة: هنا سنحتاج لتعديل بسيط لجلب الـ ID من الاسم
+        // حالياً سنضع Null لتجنب الخطأ البرمجي، ويمكن تطوير البحث بالاسم لاحقاً
+        
         final product = ProductModel(
           name: name,
           code: code,
@@ -51,7 +55,7 @@ class ImportService {
           purchasePrice: purchasePrice,
           salePrice: salePrice,
           category: category,
-          unit: unit,
+          unitId: null, // <-- تغيير من unit إلى unitId
           minStockLevel: minStockLevel,
           createdAt: DateTime.now(),
           productionDate: productionDate,

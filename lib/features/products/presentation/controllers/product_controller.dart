@@ -8,6 +8,8 @@ import 'package:sqflite/sqflite.dart'; // <-- 1. إضافة import للتعام�
 
 import '../../../../core/services/import_serivce.dart';
 import '../../../categories/presentation/controllers/category_controller.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 enum ProductSortOption {
   newest,
@@ -18,13 +20,14 @@ enum ProductSortOption {
   quantityAsc,
 }
 
-enum ExpiryFilterOption { all, expiringSoon, expired }
+enum ExpiryFilterOption { all, expiringSoon, expired, suspended }
 
 enum ProductViewMode { list, grid }
 
 class ProductController extends GetxController {
   final ProductRepository _repository = ProductRepository();
   final CategoryController _categoryController = Get.find<CategoryController>();
+  final ActivityController _activityController = Get.find<ActivityController>();
 
   final RxList<ProductModel> _allProducts = <ProductModel>[].obs;
   final RxList<ProductModel> filteredProducts = <ProductModel>[].obs;
@@ -35,8 +38,10 @@ class ProductController extends GetxController {
   final Rx<ExpiryFilterOption> expiryFilter = ExpiryFilterOption.all.obs;
 
   final Rx<ProductViewMode> viewMode = ProductViewMode.list.obs;
+  final RxString selectedCategory = 'الكل'.obs;
+  final RxBool showStoppedOnly = false.obs; // <-- إضافة فلتر الموقوفة
 
-  RxList<String> get categoryNames => _categoryController.categories.map((c) => c.name).toList().obs;
+  List<String> get categoryNames => _categoryController.categories.map((c) => c.name).toList();
 
   final RxDouble totalPurchaseValue = 0.0.obs;
   final RxDouble totalSaleValue = 0.0.obs;
@@ -51,6 +56,8 @@ class ProductController extends GetxController {
     debounce(searchQuery, (_) => _filterAndSortProducts(), time: const Duration(milliseconds: 300));
     ever(sortOption, (_) => _filterAndSortProducts());
     ever(expiryFilter, (_) => _filterAndSortProducts());
+    ever(selectedCategory, (_) => _filterAndSortProducts());
+    ever(showStoppedOnly, (_) => _filterAndSortProducts());
   }
 
   void toggleViewMode() {
@@ -90,9 +97,11 @@ class ProductController extends GetxController {
     String? imageUrl,
     double? minStockLevel,
     String? category,
-    String? unit,
+    int? unitId,
     DateTime? productionDate,
     DateTime? expiryDate,
+    List<int>? allowedUnits,
+    bool isSalesStopped = false, // <-- إضافة
   }) async {
     // التحقق من الباركود أولاً إذا كان غير فارغ
     if (code != null && code.trim().isNotEmpty) {
@@ -112,9 +121,11 @@ class ProductController extends GetxController {
             imageUrl: imageUrl,
             minStockLevel: minStockLevel,
             category: category,
-            unit: unit,
+            unitId: unitId,
             productionDate: productionDate,
             expiryDate: expiryDate,
+            allowedUnits: allowedUnits,
+            isSalesStopped: isSalesStopped, // <-- إضافة
           );
         });
         return; // أوقف عملية الإضافة
@@ -125,8 +136,10 @@ class ProductController extends GetxController {
     _performAddProduct(
         name: name, code: code, description: description, quantity: quantity,
         purchasePrice: purchasePrice, salePrice: salePrice, imageUrl: imageUrl,
-        minStockLevel: minStockLevel, category: category, unit: unit,
-        productionDate: productionDate, expiryDate: expiryDate
+        minStockLevel: minStockLevel, category: category, unitId: unitId,
+        productionDate: productionDate, expiryDate: expiryDate,
+        allowedUnits: allowedUnits,
+        isSalesStopped: isSalesStopped // <-- إضافة
     );
   }
 
@@ -134,17 +147,30 @@ class ProductController extends GetxController {
   Future<void> _performAddProduct({
     required String name, String? code, String? description, required double quantity,
     required double purchasePrice, required double salePrice, String? imageUrl,
-    double? minStockLevel, String? category, String? unit,
+    double? minStockLevel, String? category, int? unitId,
     DateTime? productionDate, DateTime? expiryDate,
+    List<int>? allowedUnits,
+    bool isSalesStopped = false, // <-- إضافة
   }) async {
     try {
       final newProduct = ProductModel(
         name: name, code: code, description: description, quantity: quantity,
         purchasePrice: purchasePrice, salePrice: salePrice, imageUrl: imageUrl,
-        minStockLevel: minStockLevel ?? 0, category: category, unit: unit,
-        productionDate: productionDate, expiryDate: expiryDate, createdAt: DateTime.now(),
+        minStockLevel: minStockLevel ?? 0, category: category, unitId: unitId,
+        productionDate: productionDate, expiryDate: expiryDate, 
+        allowedUnits: allowedUnits,
+        isSalesStopped: isSalesStopped, // <-- إضافة
+        createdAt: DateTime.now(),
       );
       await _repository.addProduct(newProduct);
+      
+      // تسجيل النشاط
+      await _activityController.logAction(
+        action: 'إضافة منتج جديد',
+        details: 'تمت إضافة المنتج "$name" بباركود "${code ?? "بدون"}" وكمية $quantity',
+        type: ActivityType.inventory,
+      );
+
       await fetchAllProducts();
       if (Get.isDialogOpen ?? false) Get.back();
       Get.back(); // العودة من شاشة الإضافة
@@ -188,36 +214,56 @@ class ProductController extends GetxController {
     required double purchasePrice,
     required double salePrice,
     String? category,
-    String? unit,
+    int? unitId,
     DateTime? productionDate,
     DateTime? expiryDate,
     String? imageUrl,
     double? minStockLevel,
+    List<int>? allowedUnits,
     required DateTime createdAt,
+    bool isSalesStopped = false,
   }) async {
     try {
+      // 1. جلب نسخة المنتج الحالية لمقارنة التغييرات (Audit Logic)
+      final oldProduct = _allProducts.firstWhereOrNull((p) => p.id == id);
+      
       final updatedProduct = ProductModel(
         id: id, createdAt: createdAt, name: name, code: code, quantity: quantity,
-        purchasePrice: purchasePrice, salePrice: salePrice, category: category, unit: unit,
+        purchasePrice: purchasePrice, salePrice: salePrice, category: category, unitId: unitId,
         productionDate: productionDate, expiryDate: expiryDate, imageUrl: imageUrl,
         minStockLevel: minStockLevel ?? 0.0,
+        allowedUnits: allowedUnits,
+        isSalesStopped: isSalesStopped,
       );
 
       await _repository.updateProduct(updatedProduct);
+
+      // 2. تحليل التغييرات الدقيقة لتدوينها في السجل
+      String changes = '';
+      if (oldProduct != null) {
+        List<String> changeList = [];
+        if (oldProduct.name != name) changeList.add('الاسم: "${oldProduct.name}" -> "$name"');
+        if (oldProduct.purchasePrice != purchasePrice) changeList.add('سعر الشراء: ${oldProduct.purchasePrice} -> $purchasePrice');
+        if (oldProduct.salePrice != salePrice) changeList.add('سعر البيع: ${oldProduct.salePrice} -> $salePrice');
+        if (oldProduct.code != code) changeList.add('الباركود: "${oldProduct.code ?? ''}" -> "${code ?? ''}"');
+        if (oldProduct.category != category) changeList.add('التصنيف: "${oldProduct.category ?? ''}" -> "${category ?? ''}"');
+        if (oldProduct.isSalesStopped != isSalesStopped) changeList.add('حالة البيع: ${oldProduct.isSalesStopped ? "موقف" : "نشط"} -> ${isSalesStopped ? "موقف" : "نشط"}');
+        
+        changes = changeList.isNotEmpty ? 'التعديلات: (${changeList.join(')، (')})' : 'لم يتم تغيير أي بيانات أساسية.';
+      }
+
+      // تسجيل النشاط
+      await _activityController.logAction(
+        action: 'تعديل بيانات منتج',
+        details: 'المنتج: "$name" (المعرف: $id). $changes',
+        type: ActivityType.inventory,
+      );
+
       await fetchAllProducts();
 
-      // التحقق مما إذا كانت هناك أي نوافذ مفتوحة (مثل ديالوج التحذير) قبل العودة من شاشة التعديل الرئيسية
-      if(Get.isOverlaysOpen) {
-        Get.back(); // يغلق الديالوج أو الـ snackbar
-      }
-      if(Get.isBottomSheetOpen ?? false){
-        Get.back(); // يغلق bottom sheet
-      }
-      // وأخيراً، العودة من شاشة الإضافة/التعديل نفسها
-      if(Get.currentRoute != '/ProductsScreen') { // تأكد أننا لسنا في الشاشة الرئيسية
-        Get.back();
-      }
-
+      if(Get.isOverlaysOpen) Get.back();
+      if(Get.isBottomSheetOpen ?? false) Get.back();
+      if(Get.currentRoute != '/ProductsScreen') Get.back();
 
       Get.snackbar('نجاح', 'تم تعديل المنتج بنجاح.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.blue, colorText: Colors.white);
     } catch (e) {
@@ -247,6 +293,14 @@ class ProductController extends GetxController {
 
       // تحديث قائمة المنتجات بعد الاستيراد
       await fetchAllProducts();
+      
+      // تسجيل النشاط
+      await _activityController.logAction(
+        action: 'استيراد من Excel',
+        details: 'تم استيراد ${result['success']} منتج بنجاح، وفشل ${result['failure']} منتج.',
+        type: ActivityType.inventory,
+      );
+
       isImporting(false);
 
       // إغلاق رسالة التحميل وعرض النتيجة
@@ -294,12 +348,24 @@ class ProductController extends GetxController {
       case ExpiryFilterOption.expired:
         _tempList = _tempList.where((p) => p.isExpired).toList();
         break;
+      case ExpiryFilterOption.suspended:
+        _tempList = _tempList.where((p) => p.isSalesStopped).toList();
+        break;
       case ExpiryFilterOption.all:
-      // لا تفعل شيئًا
         break;
     }
 
-    // 3. تطبيق الفرز
+    // 3. تطبيق فلتر القسم
+    if (selectedCategory.value != 'الكل') {
+      _tempList = _tempList.where((p) => p.category == selectedCategory.value).toList();
+    }
+
+    // 4. تطبيق فلتر المنتجات الموقوفة
+    if (showStoppedOnly.value) {
+      _tempList = _tempList.where((p) => p.isSalesStopped).toList();
+    }
+
+    // 5. تطبيق الفرز
     switch (sortOption.value) {
       case ProductSortOption.newest:
         _tempList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -340,6 +406,15 @@ class ProductController extends GetxController {
   Future<void> deleteProduct(int id) async {
     try {
       await _repository.deleteProduct(id);
+      final product = _allProducts.firstWhereOrNull((p) => p.id == id);
+      
+      // تسجيل النشاط
+      await _activityController.logAction(
+        action: 'حذف منتج',
+        details: 'تم حذف المنتج "${product?.name ?? "غير معروف"}" (المعرف: $id) نهائياً.',
+        type: ActivityType.inventory,
+      );
+
       _allProducts.removeWhere((product) => product.id == id);
       _filterAndSortProducts();
       Get.snackbar('نجاح', 'تم حذف المنتج بنجاح.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.blue, colorText: Colors.white);
@@ -377,6 +452,19 @@ class ProductController extends GetxController {
       // تحديث البيانات في الواجهة
       await fetchAllProducts();
 
+      // تعريب المعايير للسجل
+      final String arScope = (scope == 'all') ? 'الكل' : 'قسم ($category)';
+      final String arPriceField = (targetPriceField == 'salePrice') ? 'سعر البيع' : 'سعر الشراء';
+      final String arOpType = (operationType == 'increase') ? 'زيادة' : (operationType == 'decrease' ? 'نقص' : 'تحديد');
+      final String arCalcMethod = (calculationMethod == 'fixed') ? 'قيمة ثابتة' : 'نسبة مئوية';
+
+      // تسجيل النشاط
+      await _activityController.logAction(
+        action: 'تحديث أسعار جماعي',
+        details: 'تم تحديث أسعار $updatedRows منتج في نطاق ($arScope). الإجراء: ($arOpType) لـ ($arPriceField) باستخدام ($arCalcMethod). القيمة: $value1',
+        type: ActivityType.inventory,
+      );
+
       Get.snackbar(
         'نجاح العملية',
         'تم تحديث أسعار $updatedRows منتج بنجاح.',
@@ -412,6 +500,50 @@ class ProductController extends GetxController {
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
+    }
+  }
+
+  /// دالة لتبديل حالة إيقاف البيع للمنتج فوراً
+  Future<void> toggleProductSalesStatus(ProductModel product) async {
+    try {
+      final updatedProduct = ProductModel(
+        id: product.id,
+        name: product.name,
+        code: product.code,
+        description: product.description,
+        quantity: product.quantity,
+        purchasePrice: product.purchasePrice,
+        salePrice: product.salePrice,
+        category: product.category,
+        unitId: product.unitId,
+        productionDate: product.productionDate,
+        expiryDate: product.expiryDate,
+        imageUrl: product.imageUrl,
+        minStockLevel: product.minStockLevel,
+        allowedUnits: product.allowedUnits,
+        isSalesStopped: !product.isSalesStopped, // عكس الحالة الحالية
+        createdAt: product.createdAt,
+      );
+
+      await _repository.updateProduct(updatedProduct);
+      await fetchAllProducts();
+      
+      // تسجيل النشاط
+      await _activityController.logAction(
+        action: updatedProduct.isSalesStopped ? 'إيقاف منتج' : 'تنشيط منتج',
+        details: 'تم ${updatedProduct.isSalesStopped ? "إيقاف" : "إعادة تنشيط"} بيع المنتج "${product.name}"',
+        type: ActivityType.inventory,
+      );
+
+      Get.snackbar(
+        'تحديث الحالة',
+        updatedProduct.isSalesStopped ? 'تم إيقاف بيع المنتج' : 'تم تفعيل بيع المنتج',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: updatedProduct.isSalesStopped ? Colors.orange : Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar('خطأ', 'فشل تحديث الحالة: $e', backgroundColor: Colors.red, colorText: Colors.white);
     }
   }
 }

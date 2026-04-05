@@ -4,6 +4,7 @@ import 'package:ehab_company_admin/features/products/data/models/product_model.d
 import 'package:ehab_company_admin/features/products/presentation/screens/add_edit_product_screen.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/controllers/add_purchase_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -142,7 +143,12 @@ class ProductSearchSheet extends StatelessWidget {
                       style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold),
                     ),
                     const Divider(height: 30),
-                    TextField(controller: quantityController, decoration: const InputDecoration(labelText: 'الكمية المشتراة *', border: OutlineInputBorder()), keyboardType: TextInputType.number),
+                    TextField(
+                      controller: quantityController, 
+                      decoration: const InputDecoration(labelText: 'الكمية المشتراة *', border: OutlineInputBorder()), 
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
                     const SizedBox(height: 16),
                     TextField(controller: purchasePriceController, decoration: const InputDecoration(labelText: 'سعر الشراء *', border: OutlineInputBorder()), keyboardType: TextInputType.number),
                     const SizedBox(height: 16),
@@ -157,7 +163,18 @@ class ProductSearchSheet extends StatelessWidget {
                         onPressed: () {
                           final quantity = double.tryParse(quantityController.text) ?? 0;
                           final price = double.tryParse(purchasePriceController.text) ?? 0;
-                          mainController.addProductToInvoice(selectedProduct.value!, quantity, price);
+                          final sPrice = double.tryParse(salePriceController.text);
+                          mainController.addProductToInvoice(
+                            selectedProduct.value!,
+                            quantity,
+                            rootPrice: price,
+                          );
+                          // إذا تم تزويد سعر بيع جديد، قم بتحديثه في الصنف (اختياري لهذا الودجت)
+                          if (sPrice != null) {
+                             final item = mainController.invoiceItems.firstWhereOrNull((i) => i.product.id == selectedProduct.value!.id);
+                             if (item != null) item.newSalePrice = sPrice;
+                          }
+                          Get.back();
                         },
                       ),
                     ),

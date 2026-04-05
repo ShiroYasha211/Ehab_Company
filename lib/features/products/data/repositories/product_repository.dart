@@ -39,25 +39,63 @@ class ProductRepository {
   // إضافة منتج جديد
   Future<int> addProduct(ProductModel product) async {
     final db = await _dbService.database;
-    // --- 2. بداية التعديل: تغيير سلوك الإضافة ---
-    // الآن، سيقوم بإرجاع خطأ إذا كان الباركود موجودًا، بدلاً من الاستبدال
-    return await db.insert(
-      'products',
-      product.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.fail,
-    );
-    // --- نهاية التعديل ---
+    int productId = -1;
+    
+    await db.transaction((txn) async {
+      productId = await txn.insert(
+        'products',
+        product.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.fail,
+      );
+
+      // --- ميزة المزامنة: إعطاء الرصيد الافتتاحي للمخزن الرئيسي ---
+      if (product.quantity > 0) {
+        await txn.insert('warehouse_stock', {
+          'warehouseId': 1,
+          'productId': productId,
+          'quantity': product.quantity,
+        });
+      }
+    });
+    
+    return productId;
   }
 
   // تعديل منتج موجود
   Future<int> updateProduct(ProductModel product) async {
     final db = await _dbService.database;
-    return await db.update(
-      'products',
-      product.toMap(),
-      where: 'id = ?',
-      whereArgs: [product.id],
-    );
+    int updatedRows = 0;
+    
+    await db.transaction((txn) async {
+      updatedRows = await txn.update(
+        'products',
+        product.toMap(),
+        where: 'id = ?',
+        whereArgs: [product.id],
+      );
+
+      // --- ميزة المزامنة: تحديث الرصيد للمخزن الرئيسي إذا تم تعديل الكمية يدوياً ---
+      // للتأكد من المزامنة، نبحث عن السجل
+      final stockResult = await txn.rawQuery(
+        'SELECT id FROM warehouse_stock WHERE warehouseId = 1 AND productId = ?',
+        [product.id],
+      );
+      
+      if (stockResult.isEmpty) {
+        await txn.insert('warehouse_stock', {
+          'warehouseId': 1,
+          'productId': product.id,
+          'quantity': product.quantity,
+        });
+      } else {
+        await txn.rawUpdate(
+          'UPDATE warehouse_stock SET quantity = ? WHERE warehouseId = 1 AND productId = ?',
+          [product.quantity, product.id],
+        );
+      }
+    });
+
+    return updatedRows;
   }
 
   // حذف منتج

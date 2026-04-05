@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/employees/data/models/user_model.dart';
 
 class AuthService extends GetxService {
   final Rx<UserModel?> currentUser = Rx<UserModel?>(null);
+  static const String _userKey = 'current_user_data';
 
   // قائمة الصلاحيات المتاحة في النظام
   static const String pViewDashboard = 'view_dashboard';
@@ -56,6 +59,25 @@ class AuthService extends GetxService {
     ),
   ];
 
+  @override
+  void onInit() {
+    super.onInit();
+    _loadUserFromStorage();
+  }
+
+  Future<void> _loadUserFromStorage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString(_userKey);
+    if (userData != null) {
+      try {
+        currentUser.value = UserModel.fromMap(jsonDecode(userData));
+      } catch (e) {
+        print('Error loading user: $e');
+        await prefs.remove(_userKey);
+      }
+    }
+  }
+
   bool get isLoggedIn => currentUser.value != null;
 
   Future<bool> login(String username, String password) async {
@@ -67,14 +89,21 @@ class AuthService extends GetxService {
         (u) => u.username == username && u.password == password,
       );
       currentUser.value = user;
+
+      // حفظ بيانات المستخدم في التخزين المحلي
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_userKey, jsonEncode(user.toMap()));
+
       return true;
     } catch (e) {
       return false;
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
     currentUser.value = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_userKey);
     Get.offAllNamed('/login');
   }
 

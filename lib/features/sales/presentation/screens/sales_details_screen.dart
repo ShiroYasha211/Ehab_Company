@@ -1,11 +1,12 @@
 // File: lib/features/sales/presentation/screens/sales_details_screen.dart
 
-import 'package:ehab_company_admin/core/services/settings_service.dart';
-import 'package:ehab_company_admin/features/sales/presentation/controllers/sales_details_controller.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
-import '../../../../core/services/sales_invoice_pdf_service.dart'; // سيتم تفعيله لاحقًا
+import '../../../../core/services/settings_service.dart';
+import '../../../../core/services/sales_invoice_pdf_service.dart';
+import '../controllers/sales_details_controller.dart';
 
 class SalesDetailsScreen extends StatelessWidget {
   final int invoiceId;
@@ -13,7 +14,9 @@ class SalesDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _buildScreen(context);
+    return SafeArea(
+      child: _buildScreen(context),
+    );
   }
 
   Widget _buildPriceWidget(double price, {Color? color}) {
@@ -57,12 +60,12 @@ class SalesDetailsScreen extends StatelessWidget {
   Widget _buildScreen(BuildContext context) {
     final SalesDetailsController controller = Get.put(
       SalesDetailsController(invoiceId),
-      tag: 'sales_${invoiceId.toString()}',
+      tag: invoiceId.toString(),
     );
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('تفاصيل فاتورة مبيعات #${invoiceId}'),
+        title: Text('تفاصيل فاتورة مبيعات #$invoiceId'),
         actions: [
           IconButton(
             icon: const Icon(Icons.print_outlined),
@@ -71,14 +74,9 @@ class SalesDetailsScreen extends StatelessWidget {
                 SalesInvoicePdfService.printInvoice(
                   controller.invoiceDetails.value!,
                 );
-              } else {
-                Get.snackbar('لا يمكن الطباعة', 'البيانات غير جاهزة بعد.');
               }
             },
           ),
-          // --- نهاية التعديل ---
-
-          // --- بداية الإضافة: زر إرجاع فاتورة المبيعات ---
           Obx(() {
             if (controller.isLoading.isTrue ||
                 controller.invoiceDetails.value == null) {
@@ -103,7 +101,6 @@ class SalesDetailsScreen extends StatelessWidget {
           }),
         ],
       ),
-      // --- بداية التعديل: إضافة bottomNavigationBar لتسجيل الدفعة ---
       bottomNavigationBar: Obx(() {
         if (controller.isLoading.isTrue ||
             controller.invoiceDetails.value == null) {
@@ -113,7 +110,6 @@ class SalesDetailsScreen extends StatelessWidget {
         final double remainingAmount = invoiceData['remainingAmount'];
         final String status = invoiceData['status'];
 
-        // إخفاء الزر إذا كانت الفاتورة مدفوعة أو مرتجعة
         if (remainingAmount <= 0 || status == 'RETURNED') {
           return const SizedBox.shrink();
         }
@@ -134,9 +130,7 @@ class SalesDetailsScreen extends StatelessWidget {
           ),
         );
       }),
-      // --- نهاية التعديل ---
-      body: SafeArea(
-        child: Obx(() {
+      body: Obx(() {
           if (controller.isLoading.isTrue) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -160,20 +154,70 @@ class SalesDetailsScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 10),
-              // --- بداية التعديل: استخدام Table بدلاً من DataTable ---
-              _buildItemsTable(itemsData),
-              // --- نهاية التعديل ---
+              _buildItemsList(itemsData),
               const Divider(height: 30),
-              // عرض الملاحظات (التي قد تحتوي على تفاصيل الدفع بالعملة المحلية)
+
+              // تفاصيل الملاحظات إذا وجدت
               if (invoiceData['notes'] != null &&
                   invoiceData['notes'].toString().isNotEmpty)
                 _buildNotesSection(invoiceData['notes']),
+
+              const SizedBox(height: 10),
+
+              // سجل المدفوعات
+              if (controller.invoiceDetails.value!['payments'] != null && 
+                 (controller.invoiceDetails.value!['payments'] as List).isNotEmpty)
+                _buildPaymentsBreakdown(context, controller.invoiceDetails.value!['payments']),
+
               const SizedBox(height: 10),
               _buildFinancialSummary(invoiceData),
+
+              // توثيق العملية (Issued By)
+              if (invoiceData['issuedBy'] != null)
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 20),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.amber.shade100),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade100,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.verified_user_outlined, size: 20, color: Colors.amber.shade700),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'توثيق المبيعات',
+                              style: TextStyle(fontSize: 10, color: Colors.amber.shade800, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                            ),
+                            Text(
+                              'صادرة بواسطة: ${invoiceData['issuedBy']}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           );
         }),
-      ),
     );
   }
 
@@ -190,11 +234,11 @@ class SalesDetailsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'ملاحظات / تفاصيل الدفع:',
+            'ملاحظات الفاتورة:',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 13,
-              color: Colors.orange,
+              color: Colors.amber,
             ),
           ),
           const SizedBox(height: 4),
@@ -204,7 +248,6 @@ class SalesDetailsScreen extends StatelessWidget {
     );
   }
 
-  // ودجت الهيدر (مشابه لتصميم المشتريات)
   Widget _buildHeader(Map<String, dynamic> invoiceData) {
     return Card(
       elevation: 2,
@@ -230,103 +273,125 @@ class SalesDetailsScreen extends StatelessWidget {
               ).format(DateTime.parse(invoiceData['invoiceDate'])),
               highlight: false,
             ),
-            // لاحقًا سنضيف سبب المرتجع هنا
+            if (invoiceData['status'] == 'RETURNED')
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: _buildInfoRow(
+                  "سبب الإرجاع:",
+                  (invoiceData['reason'] == null || (invoiceData['reason'] as String).isEmpty)
+                      ? 'لم يتم تحديد سبب'
+                      : invoiceData['reason'],
+                  color: Colors.red.shade700,
+                  highlight: true,
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  // --- بداية التعديل: استخدام Table بتصميم احترافي ---
-  Widget _buildItemsTable(List<dynamic> items) {
-    return Table(
-      border: TableBorder.all(color: Colors.grey.shade300, width: 1),
-      columnWidths: const {
-        0: FlexColumnWidth(3),
-        1: FlexColumnWidth(1.5),
-        2: FlexColumnWidth(1.5),
-        3: FlexColumnWidth(2),
-      },
-      children: [
-        // Table Header
-        TableRow(
-          decoration: BoxDecoration(
-            color: Get.theme.primaryColor.withOpacity(0.8),
+  Widget _buildItemsList(List<dynamic> items) {
+    return Column(
+      children: items.map((item) => _buildItemDetailCard(item)).toList(),
+    );
+  }
+
+  Widget _buildItemDetailCard(Map<String, dynamic> item) {
+    final double freeQty = (item['freeQuantity'] as num? ?? 0.0).toDouble();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
           ),
-          children: const [
-            Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                'الصنف',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                'الكمية',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                'السعر',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                'الإجمالي',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        // Table Rows
-        ...items.map(
-          (item) => TableRow(
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(item['productName']),
+              Expanded(
+                child: Text(
+                  item['productName'],
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+                ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text((item['quantity'] as num).toStringAsFixed(0)),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: _buildPriceWidget(item['salePrice']),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: _buildPriceWidget(item['totalPrice']),
-              ),
+              if (item['unit'] != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    item['unit'],
+                    style: TextStyle(color: Colors.blue.shade700, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildCompactInfo('الكمية', (item['quantity'] as num).toStringAsFixed(0)),
+                _buildCompactInfo('المجانية', freeQty.toStringAsFixed(0), color: freeQty > 0 ? Colors.orange.shade800 : null),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Text('السعر', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    _buildPriceWidget(item['salesPrice']),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('الإجمالي', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    _buildPriceWidget(item['totalPrice'], color: Get.theme.primaryColor),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactInfo(String label, String value, {Color? color}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13, 
+            fontWeight: FontWeight.bold,
+            color: color ?? Colors.black87,
           ),
         ),
       ],
     );
   }
-  // --- نهاية التعديل ---
 
-  // --- بداية التعديل: استخدام نفس تصميم الملخص المالي ---
   Widget _buildFinancialSummary(Map<String, dynamic> invoiceData) {
-    // ... (نفس الكود السابق للحالة)
     final String status = invoiceData['status'];
     final String statusText = status == 'RETURNED'
         ? 'مرتجعة'
@@ -341,7 +406,6 @@ class SalesDetailsScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // استخدام _buildInfoRowWithWidget للأسعار
             _buildInfoRowWithWidget(
               'الخصم:',
               _buildPriceWidget(invoiceData['discountAmount']),
@@ -352,7 +416,7 @@ class SalesDetailsScreen extends StatelessWidget {
             ),
             const Divider(),
             _buildInfoRowWithWidget(
-              'المقبوض:',
+              'المدفوع:',
               _buildPriceWidget(invoiceData['paidAmount'], color: Colors.green),
             ),
             _buildInfoRowWithWidget(
@@ -390,7 +454,6 @@ class SalesDetailsScreen extends StatelessWidget {
       ),
     );
   }
-  // --- نهاية التعديل ---
 
   Widget _buildInfoRow(
     String label,
@@ -420,7 +483,128 @@ class SalesDetailsScreen extends StatelessWidget {
     );
   }
 
-  // --- بداية التعديل: ديالوج إضافة الدفعة ---
+  Widget _buildPaymentsBreakdown(BuildContext context, List<dynamic> payments) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'سجل المدفوعات من العميل',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...payments.map((p) {
+          final String method = p['method'];
+          String methodLabel = 'نقد';
+          IconData methodIcon = Icons.money;
+          Color methodColor = Colors.green;
+
+          if (method == 'transfer') {
+            methodLabel = 'حوالة';
+            methodIcon = Icons.swap_horiz_rounded;
+            methodColor = Colors.blue;
+          } else if (method == 'bank') {
+            methodLabel = 'بنك';
+            methodIcon = Icons.account_balance_rounded;
+            methodColor = Colors.indigo;
+          }
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade100),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(methodIcon, color: methodColor, size: 18),
+                        const SizedBox(width: 8),
+                        Text(methodLabel, style: TextStyle(fontWeight: FontWeight.bold, color: methodColor)),
+                        if (p['fundName'] != null)
+                           Text('  🔗 ${p['fundIcon'] ?? ''} ${p['fundName']}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
+                    ),
+                    _buildPriceWidget((p['amount'] as num).toDouble()),
+                  ],
+                ),
+                if (method == 'transfer' || method == 'bank') ...[
+                  const Divider(height: 16),
+                  if (p['transferNumber'] != null || p['bankReference'] != null)
+                     _buildDetailRow(Icons.tag, 'المرجع:', p['transferNumber'] ?? p['bankReference']),
+                  if (p['senderName'] != null)
+                     _buildDetailRow(Icons.person_outline, 'المرسل:', p['senderName']),
+                  if (p['bankName'] != null || p['transferCompany'] != null)
+                     _buildDetailRow(Icons.business_outlined, 'الجهة:', p['bankName'] ?? p['transferCompany']),
+                  
+                  // عرض صورة السند إذا وجدت
+                  if (p['attachmentPath'] != null && p['attachmentPath'].toString().isNotEmpty)
+                    _buildReceiptImage(p['attachmentPath']),
+                ],
+                if (p['notes'] != null && p['notes'].toString().isNotEmpty) ...[
+                   const SizedBox(height: 8),
+                   Container(
+                     padding: const EdgeInsets.all(8),
+                     width: double.infinity,
+                     decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+                     child: Text('📝 ملاحظة: ${p['notes']}', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                   ),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String? value) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: Colors.grey),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(width: 4),
+          Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReceiptImage(String path) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('صورة السند:', style: TextStyle(fontSize: 10, color: Colors.grey)),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () => Get.to(() => Scaffold(appBar: AppBar(title: const Text('معاينة السند')), body: Center(child: InteractiveViewer(child: Image.file(File(path)))))),
+            child: Container(
+              height: 120, width: 120,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8), 
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+              ),
+              child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(path), fit: BoxFit.cover)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddPaymentDialog(
     BuildContext context,
     SalesDetailsController controller,
@@ -429,7 +613,7 @@ class SalesDetailsScreen extends StatelessWidget {
     final paymentController = TextEditingController();
     Get.dialog(
       AlertDialog(
-        title: const Text('تسجيل دفعة (سند قبض)'),
+        title: const Text('تسجيل دفعة من العميل'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -475,13 +659,12 @@ class SalesDetailsScreen extends StatelessWidget {
     );
   }
 
-  // --- بداية الإضافة: ديالوج تأكيد إرجاع فاتورة المبيعات ---
   void _showReturnInvoiceDialog(
     BuildContext context,
     SalesDetailsController controller,
   ) {
     final reasonController = TextEditingController();
-    final returnPayment = true.obs;
+    final payBack = true.obs;
 
     Get.dialog(
       AlertDialog(
@@ -505,9 +688,9 @@ class SalesDetailsScreen extends StatelessWidget {
             Obx(
               () => SwitchListTile(
                 title: const Text('إرجاع المبلغ نقداً'),
-                subtitle: const Text('سيتم خصم المبلغ المقبوض من الصندوق'),
-                value: returnPayment.value,
-                onChanged: (value) => returnPayment.value = value,
+                subtitle: const Text('سيتم صرف قيمة المرتجع من الصندوق'),
+                value: payBack.value,
+                onChanged: (value) => payBack.value = value,
                 dense: true,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -524,7 +707,7 @@ class SalesDetailsScreen extends StatelessWidget {
               onPressed: () {
                 controller.returnInvoice(
                   reason: reasonController.text,
-                  returnPayment: returnPayment.value,
+                  returnPayment: payBack.value,
                 );
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -535,7 +718,4 @@ class SalesDetailsScreen extends StatelessWidget {
       ),
     );
   }
-  // --- نهاية الإضافة ---
-
-  // --- نهاية التعديل ---
 }

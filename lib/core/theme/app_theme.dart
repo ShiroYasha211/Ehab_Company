@@ -1,6 +1,7 @@
 // File: lib/core/theme/app_theme.dart
 
-import 'package:flutter/material.dart';import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // اجعل الكونستركتور برايفت لمنع إنشاء نسخ من هذا الكلاس
@@ -20,7 +21,6 @@ class AppTheme {
   // ----------------- النص والألوان المحايدة ----------------- //
   static const Color textPrimaryColor = Color(0xFF1F1F1F);
   static const Color textSecondaryColor = Color(0xFF6c757d);
-
 
   // =================================================================================
   //                                  الثيم الرئيسي للتطبيق
@@ -48,26 +48,26 @@ class AppTheme {
         onError: Colors.white,
       ),
 
-        segmentedButtonTheme: SegmentedButtonThemeData(
-          style: ButtonStyle(
-            // لون الخلفية عندما يكون الزر غير محدد
-            backgroundColor: MaterialStateProperty.resolveWith<Color>(
-                  (Set<MaterialState> states) {
-                return Colors.white; // خلفية بيضاء واضحة
-              },
-            ),
-            // لون الخط والأيقونة عندما يكون الزر غير محدد
-            foregroundColor: MaterialStateProperty.resolveWith<Color>(
-                  (Set<MaterialState> states) {
-                return primaryColor; // لون كحلي واضح
-              },
-            ),
-            // لون الحدود
-            side: MaterialStateProperty.all(
-              BorderSide(color: primaryColor.withOpacity(0.5), width: 1.5),
-            ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          // لون الخلفية عندما يكون الزر غير محدد
+          backgroundColor: MaterialStateProperty.resolveWith<Color>((
+            Set<MaterialState> states,
+          ) {
+            return Colors.white; // خلفية بيضاء واضحة
+          }),
+          // لون الخط والأيقونة عندما يكون الزر غير محدد
+          foregroundColor: MaterialStateProperty.resolveWith<Color>((
+            Set<MaterialState> states,
+          ) {
+            return primaryColor; // لون كحلي واضح
+          }),
+          // لون الحدود
+          side: MaterialStateProperty.all(
+            BorderSide(color: primaryColor.withOpacity(0.5), width: 1.5),
           ),
         ),
+      ),
       // --- نهاية الإضافة ---
 
       // 2. تحديد الخطوط
@@ -76,15 +76,17 @@ class AppTheme {
         displayColor: textPrimaryColor,
       ),
 
-
-
       // 3. تخصيص مظهر الويدجتس
       appBarTheme: AppBarTheme(
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 2,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.cairo(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+        titleTextStyle: GoogleFonts.cairo(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
       ),
 
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
@@ -96,11 +98,12 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 28),
-          textStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16),
+          textStyle: GoogleFonts.cairo(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
       ),
 
@@ -108,45 +111,48 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryColor,
           side: const BorderSide(color: primaryColor, width: 2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 28),
-          textStyle: GoogleFonts.cairo(fontWeight: FontWeight.bold, fontSize: 16),
+          textStyle: GoogleFonts.cairo(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
       ),
 
       inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: surfaceColor,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: primaryColor, width: 2),
-          ),
-          labelStyle: const TextStyle(color: textSecondaryColor),
-          floatingLabelStyle: const TextStyle(color: primaryColor, fontWeight: FontWeight.bold)
+        filled: true,
+        fillColor: surfaceColor,
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: primaryColor, width: 2),
+        ),
+        labelStyle: const TextStyle(color: textSecondaryColor),
+        floatingLabelStyle: const TextStyle(
+          color: primaryColor,
+          fontWeight: FontWeight.bold,
+        ),
       ),
 
       cardTheme: CardThemeData(
         elevation: 2,
         color: surfaceColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
 
-      listTileTheme: const ListTileThemeData(
-        iconColor: primaryColor,
-      ),
+      listTileTheme: const ListTileThemeData(iconColor: primaryColor),
     );
   }
 }

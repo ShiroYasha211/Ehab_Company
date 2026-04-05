@@ -1,6 +1,7 @@
 // File: lib/main.dart
 
 import 'package:ehab_company_admin/core/database/database_service.dart';
+import 'package:ehab_company_admin/core/services/settings_service.dart';
 import 'package:ehab_company_admin/core/theme/app_theme.dart';
 import 'package:ehab_company_admin/features/auth/presentation/screens/login_screen.dart';
 import 'package:ehab_company_admin/features/purchases/presentation/screens/add_purchase_binding.dart';
@@ -11,9 +12,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-import 'core/services/settings_service.dart';
 import 'features/sales/presentation/screens/add_sales_invoice_binding.dart';
 import 'features/sales/presentation/screens/add_sales_invoice_screen.dart';
+import 'features/sales/presentation/screens/sales_returns_list_screen.dart';
+import 'package:ehab_company_admin/features/activities/presentation/screens/activities_dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,7 +65,9 @@ class MyApp extends StatelessWidget {
           page: () => const AddPurchaseInvoiceScreen(),
           binding: AddPurchaseBinding(),
         ),
+        GetPage(name: '/sales/returns', page: () => const SalesReturnsListScreen()),
         GetPage(name: '/login', page: () => const LoginScreen()),
+        GetPage(name: '/activities', page: () => const ActivitiesDashboardScreen()),
       ],
     );
   }

@@ -1,9 +1,9 @@
 // File: lib/features/purchases/data/repositories/purchase_repository.dart
 
 import 'package:ehab_company_admin/core/database/database_service.dart';
-import 'package:ehab_company_admin/features/purchases/presentation/controllers/add_purchase_controller.dart';
-
+import '../models/purchase_invoice_item.dart';
 import '../models/purchase_invoice_summary_model.dart';
+import '../models/purchase_invoice_payment_model.dart';
 
 class PurchaseRepository {
   final DatabaseService _dbService = DatabaseService();
@@ -18,8 +18,9 @@ class PurchaseRepository {
     required double paidAmount,
     required double remainingAmount,
     required String? notes,
-    required List<InvoiceItem> items,
-    required bool deductFromFund, // <-- إضافة
+    required List<PurchaseInvoiceItem> items,
+    required List<PurchaseInvoicePaymentModel> payments,
+    required String? issuedBy,
   }) async {
     final db = await _dbService.database;
     int invoiceId = -1;
@@ -35,27 +36,64 @@ class PurchaseRepository {
         'paidAmount': paidAmount,
         'remainingAmount': remainingAmount,
         'notes': notes,
+        'issuedBy': issuedBy,
       });
 
       // 2. إضافة الأصناف وتحديث المخزون
       for (final item in items) {
+        // حساب معامل التحويل بين وحدة الشراء ووحدة المنتج الأساسية
+        double conversionFactor = 1.0;
+        String unitName = '';
+
+        if (item.selectedUnitId != null) {
+          int? productMainUnitId = item.product.unitId; // الوحدة الكبيرة (المخزن بها)
+          int purchaseUnitId = item.selectedUnitId!;    // الوحدة التي تم الشراء بها
+          
+          if (productMainUnitId != purchaseUnitId) {
+            // نبحث عن المسار من وحدة المنتج الكبرى (مثلاً كرتون) هبوطاً إلى وحدة الشراء (مثلاً باكت)
+            int? tempId = productMainUnitId; 
+            while (tempId != null && tempId != purchaseUnitId) {
+              final unitDataList = await txn.query('units', where: 'id = ?', whereArgs: [tempId]);
+              if (unitDataList.isEmpty) break;
+              
+              final unitData = unitDataList.first;
+              double factor = (unitData['conversionFactor'] as num).toDouble();
+              
+              // نضرب في المعامل للانتقال للمستوى الأصغر
+              conversionFactor *= factor;
+              tempId = unitData['childUnitId'] as int?;
+            }
+          }
+          
+          final unitData = (await txn.query('units', where: 'id = ?', whereArgs: [purchaseUnitId])).first;
+          unitName = unitData['name'] as String;
+        }
+
+        // الكمية التي سيتم إضافتها للمخزون (مقدرة بالوحدة الأساسية للمنتج التي يتم التخزين بها، وهي غالباً الكبرى)
+        // تشمل الكمية المشتراة + الكمية المجانية (البونص)
+        double totalQuantity = item.quantity + item.freeQuantity;
+        double quantityToAdd = totalQuantity / conversionFactor;
+
+        // إضافة الصنف إلى تفاصيل الفاتورة
         await txn.insert('purchase_invoice_items', {
           'invoiceId': invoiceId,
           'productId': item.product.id,
           'productName': item.product.name,
           'quantity': item.quantity,
+          'freeQuantity': item.freeQuantity, // <-- إضافة
+          'unit': unitName, // حفظ اسم الوحدة التي تم الشراء بها
           'purchasePrice': item.purchasePrice,
           'totalPrice': item.subtotal,
         });
 
-
+        // تحديث المنتج (الكمية والأسعار)
         Map<String, dynamic> fieldsToUpdate = {
-          'quantity': item.product.quantity + item.quantity,
-          // الكمية الجديدة = القديمة + المشتراة
-          'purchasePrice': item.purchasePrice,
+          'quantity': item.product.quantity + quantityToAdd,
+          'purchasePrice': item.rootPurchasePrice, // تحديث السعر العالمي بالوحدة الكبرى
         };
+        
         if (item.newSalePrice != null) {
-          fieldsToUpdate['salePrice'] = item.newSalePrice;
+          fieldsToUpdate['salePrice'] = item.newSalePrice; // تحديث سعر البيع العالمي بالوحدة الكبرى
         }
 
         await txn.update(
@@ -64,7 +102,70 @@ class PurchaseRepository {
           where: 'id = ?',
           whereArgs: [item.product.id],
         );
+
+        // --- ميزة المزامنة: تحديث المخزن الرئيسي (ID=1) لضمان ظهوره في التحويلات ---
+        final mainStock = await txn.rawQuery(
+          'SELECT id FROM warehouse_stock WHERE warehouseId = 1 AND productId = ?',
+          [item.product.id],
+        );
+
+        if (mainStock.isEmpty) {
+          await txn.insert('warehouse_stock', {
+            'warehouseId': 1,
+            'productId': item.product.id,
+            'quantity': quantityToAdd,
+          });
+        } else {
+          await txn.rawUpdate(
+            'UPDATE warehouse_stock SET quantity = quantity + ? WHERE warehouseId = 1 AND productId = ?',
+            [quantityToAdd, item.product.id],
+          );
+        }
       }
+
+      // 3. إضافة المدفوعات وتحديث الصناديق/البنوك
+      for (final payment in payments) {
+        // أ. إدراج الدفعة في جدول المدفوعات
+        await txn.insert('purchase_invoice_payments', {
+          ...payment.toMap(),
+          'invoiceId': invoiceId,
+        });
+
+        // ب. تحديث الصندوق أو البنك المختار
+        final int targetFundId = payment.fundId ?? 1; // الافتراضي الصندوق الرئيسي
+        
+        final fundData = (await txn.query('funds', where: 'id = ?', whereArgs: [targetFundId])).first;
+        final double currentBalance = (fundData['balance'] as num).toDouble();
+        
+        if (currentBalance < payment.amount) {
+          throw Exception('الرصيد في ${fundData['name']} غير كافٍ. المتوفر: $currentBalance');
+        }
+
+        await txn.rawUpdate(
+          'UPDATE funds SET balance = balance - ? WHERE id = ?',
+          [payment.amount, targetFundId],
+        );
+
+        // ج. تسجيل حركة سحب في الصندوق/البنك
+        await txn.insert('fund_transactions', {
+          'fundId': targetFundId,
+          'type': 'WITHDRAWAL',
+          'amount': payment.amount,
+          'description': 'سحب لدفع فاتورة مشتريات رقم: $invoiceId',
+          'transactionDate': invoiceDate.toIso8601String(),
+          'notes': payment.notes ?? 'دفع فاتورة شراء',
+          'referenceType': 'purchase_invoice',
+          'referenceId': invoiceId,
+          'transferNumber': payment.transferNumber,
+          'senderName': payment.senderName,
+          'transferCompany': payment.transferCompany,
+          'attachmentPath': payment.transferImage ?? payment.bankImage,
+          'bankName': payment.bankName,
+          'bankReference': payment.bankReference,
+        });
+      }
+
+      // 4. مديونية المورد
       if (remainingAmount > 0 && supplierId != null) {
         // أ. زيادة رصيد المورد
         await txn.rawUpdate(
@@ -81,35 +182,7 @@ class PurchaseRepository {
           'notes': 'فاتورة شراء آجلة رقم: $invoiceId',
         });
       }
-
-      if (paidAmount > 0 && deductFromFund) { // أ. التحقق من رصيد الصندوق أولاً
-        final fund = (await txn.query('funds', where: 'id = ?', whereArgs: [1]))
-            .first;
-        final double currentFundBalance = fund['balance'] as double;
-        if (currentFundBalance < paidAmount) {
-          // إذا كان الرصيد غير كافٍ، قم بإلغاء العملية بأكملها
-          throw Exception(
-              'الرصيد في الصندوق غير كافٍ. الرصيد الحالي: $currentFundBalance');
-        }
-
-        // ب. تسجيل حركة سحب في الصندوق
-        await txn.insert('fund_transactions', {
-          'fundId': 1,
-          'type': 'WITHDRAWAL',
-          'amount': paidAmount,
-          'description': 'دفع جزء من فاتورة شراء رقم: $invoiceId',
-          'referenceId': invoiceId,
-          'transactionDate': DateTime.now().toIso8601String(),
-        });
-
-        // ج. تحديث رصيد الصندوق
-        await txn.rawUpdate(
-          'UPDATE funds SET balance = balance - ? WHERE id = ?',
-          [paidAmount, 1],
-        );
-      }
-      // --- نهاية التعديلات المهمة ---
-    });
+    }); // نهاية الـ transaction
 
     return invoiceId;
   }
@@ -142,10 +215,30 @@ class PurchaseRepository {
       whereArgs: [invoiceId],
     );
 
-    // 3. دمج النتائج في خريطة واحدة
+    // 3. جلب المدفوعات المرتبطة بهذه الفاتورة (مع اسم الصندوق والنوع)
+    final List<Map<String, dynamic>> rawPayments = await db.rawQuery('''
+      SELECT pip.*, f.name as fundName, f.fundType
+      FROM purchase_invoice_payments pip
+      LEFT JOIN funds f ON pip.fundId = f.id
+      WHERE pip.invoiceId = ?
+    ''', [invoiceId]);
+
+    // تحويل النتائج إلى خريطة قابلة للتعديل لإضافة الأيقونة برمجياً
+    final paymentsData = rawPayments.map((p) {
+      final map = Map<String, dynamic>.from(p);
+      final String? type = p['fundType'];
+      String icon = '💵'; // الافتراضي نقداً
+      if (type == 'bank') icon = '🏦';
+      if (type == 'transfer') icon = '📨';
+      map['fundIcon'] = icon;
+      return map;
+    }).toList();
+
+    // 4. دمج النتائج في خريطة واحدة
     final result = {
       'invoice': invoiceData.first,
       'items': itemsData,
+      'payments': paymentsData,
     };
 
     return result;
@@ -378,4 +471,57 @@ class PurchaseRepository {
   }
 
 // --- نهاية الإضافة ---
+
+  Future<List<Map<String, dynamic>>> getAllReturns({
+    DateTime? startDate,
+    DateTime? endDate,
+    int? supplierId,
+    int? warehouseId,
+    String? searchQuery,
+  }) async {
+    final db = await _dbService.database;
+    
+    List<String> whereClauses = [];
+    List<dynamic> whereArgs = [];
+
+    if (startDate != null) {
+      whereClauses.add('pr.returnDate >= ?');
+      whereArgs.add(startDate.toIso8601String());
+    }
+    if (endDate != null) {
+      final inclusiveEnd = endDate.add(const Duration(days: 1));
+      whereClauses.add('pr.returnDate < ?');
+      whereArgs.add(inclusiveEnd.toIso8601String());
+    }
+    if (supplierId != null) {
+      whereClauses.add('pi.supplierId = ?');
+      whereArgs.add(supplierId);
+    }
+    
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      if (int.tryParse(searchQuery) != null) {
+        whereClauses.add('pr.originalInvoiceId = ?');
+        whereArgs.add(int.parse(searchQuery));
+      } else {
+        whereClauses.add('pr.reason LIKE ?');
+        whereArgs.add('%$searchQuery%');
+      }
+    }
+
+    final whereStatement = whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
+
+    return await db.rawQuery('''
+      SELECT 
+        pr.*, 
+        pr.totalValue as totalReturnedValue, 
+        s.name as supplierName,
+        pi.invoiceDate as originalInvoiceDate,
+        'المخزن الرئيسي' as warehouseName
+      FROM purchase_returns pr
+      JOIN purchase_invoices pi ON pr.originalInvoiceId = pi.id
+      LEFT JOIN suppliers s ON pi.supplierId = s.id
+      $whereStatement
+      ORDER BY pr.returnDate DESC
+    ''', whereArgs);
+  }
 }

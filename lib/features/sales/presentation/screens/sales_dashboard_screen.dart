@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'list_sales_invoices_screen.dart';
+import 'package:ehab_company_admin/features/financial_docs/presentation/screens/list_receipt_vouchers_screen.dart';
 
 class SalesDashboardScreen extends StatelessWidget {
   const SalesDashboardScreen({super.key});
@@ -42,6 +43,27 @@ class SalesDashboardScreen extends StatelessWidget {
 
                 Get.to(() => const ListSalesInvoicesScreen(),
                 binding: AddSalesInvoiceBinding());
+            },
+          ),
+          _buildDashboardItem(
+            context: context,
+            icon: Icons.assignment_return_rounded,
+            title: 'إدارة المرتجعات',
+            subtitle: 'سجل المرتجعات التفصيلي، الأسباب، والإحصائيات',
+            isAdvanced: true,
+            onTap: () {
+               // سيتم توجيه المستخدم لشاشة المرتجعات الجديدة
+               Get.toNamed('/sales/returns');
+            },
+          ),
+          _buildDashboardItem(
+            context: context,
+            icon: Icons.download_done_rounded,
+            title: 'أرشيف سندات القبض',
+            subtitle: 'عرض كافة سندات التحصيل والقبض من العملاء',
+            isAdvanced: true,
+            onTap: () {
+               Get.to(() => const ListReceiptVouchersScreen());
             },
           ),
         ],

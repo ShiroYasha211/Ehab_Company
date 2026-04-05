@@ -1,5 +1,7 @@
 // File: lib/features/sales/data/models/sales_invoice_model.dart
 
+import 'sales_invoice_payment_model.dart';
+
 class SalesInvoiceModel {
   final int? id;
   final int? customerId;
@@ -10,6 +12,8 @@ class SalesInvoiceModel {
   final DateTime invoiceDate;
   final String? notes;
   final String status;
+  final String? issuedBy;
+  final List<SalesInvoicePaymentModel>? payments;
 
   SalesInvoiceModel({
     this.id,
@@ -21,6 +25,8 @@ class SalesInvoiceModel {
     required this.invoiceDate,
     this.notes,
     this.status = 'COMPLETED',
+    this.issuedBy,
+    this.payments,
   });
 
   Map<String, dynamic> toMap() {
@@ -34,6 +40,7 @@ class SalesInvoiceModel {
       'invoiceDate': invoiceDate.toIso8601String(),
       'notes': notes,
       'status': status,
+      'issuedBy': issuedBy,
     };
   }
 
@@ -48,6 +55,7 @@ class SalesInvoiceModel {
       invoiceDate: DateTime.parse(map['invoiceDate']),
       notes: map['notes'],
       status: map['status'],
+      issuedBy: map['issuedBy'],
     );
   }
 }

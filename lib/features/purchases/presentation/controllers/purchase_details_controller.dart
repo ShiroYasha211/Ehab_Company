@@ -3,6 +3,8 @@ import 'package:ehab_company_admin/features/purchases/data/repositories/purchase
 import 'package:ehab_company_admin/features/suppliers/presentation/controllers/supplier_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 import '../../../home/presentation/controllers/home_controller.dart';
 import 'list_purchases_controller.dart';
@@ -10,6 +12,7 @@ import 'list_purchases_controller.dart';
 class PurchaseDetailsController extends GetxController {
   final int invoiceId;
   final PurchaseRepository _repository = PurchaseRepository();
+  final ActivityController _activityController = Get.find<ActivityController>();
 
   final RxBool isLoading = true.obs;
   final RxBool isAddingPayment = false.obs; // <-- متغير جديد لتتبع حالة الدفع
@@ -63,6 +66,13 @@ class PurchaseDetailsController extends GetxController {
       Get.find<SupplierController>().fetchAllSuppliers();
       // TODO: Fetch fund balance
 
+      // تسجيل النشاط المالي (صرف دفعة للمورد)
+      await _activityController.logAction(
+        action: 'صرف دفعة لمورد',
+        details: 'تم صرف مبلغ $paymentAmount للمورد "${invoiceDetails.value!['invoice']['supplierName']}" عن الفاتورة (#$invoiceId)',
+        type: ActivityType.purchase,
+      );
+
       isAddingPayment(false);
       Get.back(); // إغلاق الديالوج
       Get.snackbar(
@@ -99,6 +109,13 @@ class PurchaseDetailsController extends GetxController {
       Get.find<ListPurchasesController>().applyFilters(); // تحديث قائمة الفواتير
       Get.find<SupplierController>().fetchAllSuppliers(); // تحديث أرصدة الموردين
       Get.find<HomeController>().refreshStats(); // تحديث إحصائيات الشاشة الرئيسية
+
+      // تسجيل نشاط المرتجع
+      await _activityController.logAction(
+        action: 'مرتجع مشتريات',
+        details: 'تم إرجاع فاتورة المشتريات رقم (#$invoiceId) للمورد "${invoiceDetails.value!['invoice']['supplierName']}". السبب: "$reason"',
+        type: ActivityType.purchase,
+      );
 
       isReturningInvoice(false);
       Get.back(); // إغلاق ديالوج التأكيد

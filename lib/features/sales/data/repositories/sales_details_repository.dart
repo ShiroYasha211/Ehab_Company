@@ -26,7 +26,20 @@ class SalesDetailsRepository {
       where: 'invoiceId = ?',
       whereArgs: [invoiceId],
     );
-    return {'invoice': invoiceData.first, 'items': itemsData};
+
+    // جلب تفاصيل طرق الدفع مع اسم الصندوق (الإصدار 25)
+    final List<Map<String, dynamic>> paymentsData = await db.rawQuery('''
+      SELECT sip.*, f.name as fundName
+      FROM sales_invoice_payments sip
+      LEFT JOIN funds f ON sip.fundId = f.id
+      WHERE sip.invoiceId = ?
+    ''', [invoiceId]);
+
+    return {
+      'invoice': invoiceData.first,
+      'items': itemsData,
+      'payments': paymentsData,
+    };
   }
 
   // --- بداية الإضافة: دالة تسجيل دفعة على فاتورة مبيعات ---
@@ -110,11 +123,49 @@ class SalesDetailsRepository {
       // 2. تحديث حالة الفاتورة الأصلية إلى "مرتجعة"
       await txn.update('sales_invoices', {'status': 'RETURNED'}, where: 'id = ?', whereArgs: [originalInvoiceId]);
 
-      // 3. إعادة الكميات المرتجعة إلى المخزون
+      // 3. إعادة الكميات المرتجعة إلى المخزون (الكمية الأساسية + الكمية المجانية)
+      final int warehouseId = invoiceData['warehouseId'] as int? ?? 1;
+      
       for (final item in itemsData) {
+        final double qty = (item['quantity'] as num).toDouble();
+        final double freeQty = (item['freeQuantity'] as num? ?? 0.0).toDouble();
+        final int productId = item['productId'] as int;
+        final int? unitId = item['unitId'] as int?;
+        
+        // حساب معامل التحويل لإعادة الكمية للوحدة الأساسية للمنتج
+        double conversionFactor = 1.0;
+        if (unitId != null) {
+            // نحتاج لحساب المعامل هنا أيضاً (أو مخزن في الصنف، لكن حالياً نحسبه)
+            // ملاحظة: للتوفير، يمكننا تحسين هذا لاحقاً، لكن حالياً سنعيد الكمية كـ quantityToReturn
+            // الكمية المخزنة في sales_invoice_items هي بالوحدة التي بيعت بها
+            // نحتاج لمعرف الوحدة الأساسية للمنتج
+            final productData = (await txn.query('products', columns: ['unitId'], where: 'id = ?', whereArgs: [productId])).first;
+            int? primaryUnitId = productData['unitId'] as int?;
+            
+            if (primaryUnitId != null && primaryUnitId != unitId) {
+                int? tempId = primaryUnitId;
+                while (tempId != null && tempId != unitId) {
+                    final unitDataList = await txn.query('units', where: 'id = ?', whereArgs: [tempId]);
+                    if (unitDataList.isEmpty) break;
+                    final unitData = unitDataList.first;
+                    conversionFactor *= (unitData['conversionFactor'] as num).toDouble();
+                    tempId = unitData['childUnitId'] as int?;
+                }
+            }
+        }
+
+        final double quantityToReturn = (qty + freeQty) / conversionFactor;
+
+        // تحديث الرصيد الإجمالي في جدول المنتجات
         await txn.rawUpdate(
           'UPDATE products SET quantity = quantity + ? WHERE id = ?',
-          [item['quantity'], item['productId']],
+          [quantityToReturn, productId],
+        );
+        
+        // تحديث الرصيد في المخزن المحدد
+        await txn.rawUpdate(
+          'UPDATE warehouse_stock SET quantity = quantity + ? WHERE warehouseId = ? AND productId = ?',
+          [quantityToReturn, warehouseId, productId],
         );
       }
 
@@ -151,9 +202,15 @@ class SalesDetailsRepository {
           [paidAmount, 1],
         );
       }
+
+      // 7. [جديد V27] حفظ سجل المرتجع في الجدول المستقل للأرشفة والتدقيق
+      await txn.insert('sales_returns', {
+        'originalInvoiceId': originalInvoiceId,
+        'returnDate': DateTime.now().toIso8601String(),
+        'reason': (reason.trim().isEmpty) ? 'بدون سبب' : reason,
+        'totalReturnedValue': totalValue,
+        'returnedToFund': returnPaymentToFund ? 1 : 0,
+      });
     });
   }
-// --- نهاية الإضافة ---
-
-// --- نهاية الإضافة ---
 }

@@ -1,7 +1,7 @@
-// File: lib/features/splash/splash_screen.dart
-
 import 'dart:async';
+import 'package:ehab_company_admin/core/services/auth_service.dart';
 import 'package:ehab_company_admin/features/auth/presentation/screens/login_screen.dart';
+import 'package:ehab_company_admin/features/home/presentation/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -16,10 +16,18 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    // الحصول على خدمة المصادقة
+    final AuthService authService = Get.find<AuthService>();
+
     // الانتقال بعد 3 ثوانٍ
     Timer(const Duration(seconds: 3), () {
-      // استخدام GetX للانتقال مع إزالة الشاشة السابقة من الـ stack
-      Get.off(() => const LoginScreen());
+      if (authService.isLoggedIn) {
+        // إذا كان مسجل الدخول، انتقل للرئيسية
+        Get.offAll(() => const HomeScreen());
+      } else {
+        // إذا لم يكن مسجل الدخول، انتقل لشاشة الدخول
+        Get.offAll(() => const LoginScreen());
+      }
     });
   }
 

@@ -88,6 +88,22 @@ class SalesInvoicePdfService {
           pw.SizedBox(height: 20),
           _buildFinancialSummary(invoiceData, formatMoney),
           // <-- الملخص المالي المحدث
+          pw.SizedBox(height: 15),
+          if (invoiceData['issuedBy'] != null)
+            pw.Align(
+              alignment: pw.Alignment.centerLeft,
+              child: pw.Text(
+                'مُصدر الفاتورة: ${invoiceData['issuedBy']}',
+                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+              ),
+            ),
+          
+          // --- إضافة: قسم تفاصيل السداد (الإصدار 24) ---
+          if (invoiceDetails['payments'] != null && (invoiceDetails['payments'] as List).isNotEmpty) ...[
+            pw.SizedBox(height: 15),
+            _buildPaymentsSection(invoiceDetails['payments'] as List, formatMoney),
+          ],
+          
           pw.Spacer(),
           // لدفع الملاحظات إلى أسفل الصفحة إذا كانت هناك مساحة
           if (invoiceData['notes'] != null && invoiceData['notes'].isNotEmpty)
@@ -209,13 +225,15 @@ class SalesInvoicePdfService {
     List<dynamic> items,
     String Function(double) formatNumber,
   ) {
-    final headers = ['الإجمالي', 'السعر', 'الكمية', 'الصنف'];
+    final headers = ['الإجمالي', 'السعر', 'المجانية', 'الأساسية', 'الوحدة', 'الصنف'];
 
     final data = items.map((item) {
       return [
         formatNumber(item['totalPrice']),
         formatNumber(item['salePrice']),
-        item['quantity'].toString(),
+        (item['freeQuantity'] as num? ?? 0.0).toStringAsFixed(0),
+        (item['quantity'] as num).toStringAsFixed(0),
+        item['unit'] ?? '-',
         item['productName'],
       ];
     }).toList();
@@ -225,8 +243,9 @@ class SalesInvoicePdfService {
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
-        fontSize: 11,
+        fontSize: 10,
       ),
+      cellStyle: const pw.TextStyle(fontSize: 9),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
       rowDecoration: const pw.BoxDecoration(
         border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200)),
@@ -234,10 +253,12 @@ class SalesInvoicePdfService {
       headers: headers,
       data: data,
       columnWidths: {
-        0: const pw.FlexColumnWidth(2.5),
-        1: const pw.FlexColumnWidth(2.5),
-        2: const pw.FlexColumnWidth(1.5),
-        3: const pw.FlexColumnWidth(4),
+        0: const pw.FlexColumnWidth(1.8), // الإجمالي
+        1: const pw.FlexColumnWidth(1.5), // السعر
+        2: const pw.FlexColumnWidth(1.2), // المجانية
+        3: const pw.FlexColumnWidth(1.2), // الأساسية
+        4: const pw.FlexColumnWidth(1.5), // الوحدة
+        5: const pw.FlexColumnWidth(2.8), // الصنف
       },
     );
   }
@@ -304,6 +325,62 @@ class SalesInvoicePdfService {
   }
 
   // --- نهاية التعديل ---
+
+  // ودجت عرض تفاصيل المدفوعات المتعددة
+  static pw.Widget _buildPaymentsSection(
+    List<dynamic> payments,
+    String Function(double) formatCurrency,
+  ) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'تفاصيل سداد المبالغ:',
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
+        ),
+        pw.SizedBox(height: 5),
+        pw.TableHelper.fromTextArray(
+          cellAlignment: pw.Alignment.centerRight,
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+          headers: ['الملاحظات', 'التفاصيل (رقم المرجع / المرسل)', 'الوسيلة', 'المبلغ'],
+          data: payments.map((p) {
+            String methodText = 'نقد (كاش)';
+            String details = '-';
+            
+            if (p['method'] == 'transfer') {
+              methodText = 'حوالة مصرفية';
+              details = 'رقم: ${p['transferNumber'] ?? ''} | مُرسل: ${p['senderName'] ?? ''}\n(إلى: ${p['fundName'] ?? 'صندوق غير محدد'})';
+            } else if (p['method'] == 'bank') {
+              methodText = 'بنك / مسبق';
+              details = 'مرجع: ${p['bankReference'] ?? ''} | بنك: ${p['bankName'] ?? ''}\n(إلى: ${p['fundName'] ?? 'حساب غير محدد'})';
+            } else {
+              details = 'إيداع في: ${p['fundName'] ?? 'صندوق النقد'}';
+            }
+
+            // إضافة الملاحظات إذا وجدت
+            if (p['notes'] != null && p['notes'].toString().trim().isNotEmpty) {
+              details += '\n📝 ملاحظة: ${p['notes']}';
+            }
+
+            return [
+              p['notes'] ?? '-',
+              details,
+              methodText,
+              formatCurrency(p['amount'] as double? ?? 0.0),
+            ];
+          }).toList(),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(2), 
+            1: const pw.FlexColumnWidth(3),
+            2: const pw.FlexColumnWidth(1.5),
+            3: const pw.FlexColumnWidth(1.5),
+          },
+        ),
+      ],
+    );
+  }
 
   static pw.Widget _buildNotes(String notes) {
     return pw.Container(

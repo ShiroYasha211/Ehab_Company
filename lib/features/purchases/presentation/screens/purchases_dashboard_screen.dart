@@ -6,6 +6,8 @@ import 'package:get/get.dart';
 
 import 'add_purchase_invoice_screen.dart';
 import 'list_purchases_screen.dart';
+import 'purchase_returns_list_screen.dart';
+import 'package:ehab_company_admin/features/financial_docs/presentation/screens/list_payment_vouchers_screen.dart';
 
 class PurchasesDashboardScreen extends StatelessWidget {
   const PurchasesDashboardScreen({super.key});
@@ -36,7 +38,26 @@ class PurchasesDashboardScreen extends StatelessWidget {
             subtitle: 'تصفح وبحث في أرشيف فواتير الشراء',
             onTap: () {
               Get.to(() => const ListPurchasesScreen());
-              print('Navigate to List All Invoices');
+            },
+          ),
+          _buildDashboardItem(
+            context: context,
+            icon: Icons.assignment_return_rounded,
+            title: 'مركز إدارة المرتجعات',
+            subtitle: 'تتبع وتحليل المشتريات المرتجعة وتقاريرها',
+            onTap: () {
+              Get.to(() => const PurchaseReturnsListScreen());
+            },
+            isAdvanced: true,
+          ),
+          _buildDashboardItem(
+            context: context,
+            icon: Icons.upload_file_rounded,
+            title: 'أرشيف سندات الدفع',
+            subtitle: 'عرض وتتبع كافة سندات الصرف للموردين',
+            isAdvanced: true,
+            onTap: () {
+               Get.to(() => const ListPaymentVouchersScreen());
             },
           ),
 

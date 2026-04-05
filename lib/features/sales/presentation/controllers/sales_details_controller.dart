@@ -5,12 +5,15 @@ import 'package:ehab_company_admin/features/sales/data/repositories/sales_detail
 import 'package:ehab_company_admin/features/sales/presentation/controllers/list_sales_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 import '../../../home/presentation/controllers/home_controller.dart';
 
 class SalesDetailsController extends GetxController {
   final int invoiceId;
   final SalesDetailsRepository _repository = SalesDetailsRepository();
+  final ActivityController _activityController = Get.find<ActivityController>();
 
   final RxBool isLoading = true.obs;
   final Rx<Map<String, dynamic>?> invoiceDetails = Rx<Map<String, dynamic>?>(null);
@@ -70,6 +73,13 @@ class SalesDetailsController extends GetxController {
       Get.find<CustomerController>().fetchAllCustomers();
       Get.find<HomeController>().refreshStats(); // تحديث إحصائيات الشاشة الرئيسية
 
+      // تسجيل النشاط المالي (دفعة جديدة)
+      await _activityController.logAction(
+        action: 'تحصيل دفعة مالية',
+        details: 'تم تحصيل مبلغ $paymentAmount للفاتورة (#$invoiceId). العميل: ${invoiceDetails.value!['invoice']['customerName'] ?? "غير محدد"}',
+        type: ActivityType.sale,
+      );
+
       isAddingPayment(false);
       Get.back(); // إغلاق الديالوج
 
@@ -109,6 +119,13 @@ class SalesDetailsController extends GetxController {
         Get.find<CustomerController>().fetchAllCustomers();
       }
       Get.find<HomeController>().refreshStats();
+
+      // تسجيل نشاط المرتجع
+      await _activityController.logAction(
+        action: 'إرجاع فاتورة مبيعات',
+        details: 'تم إرجاع الفاتورة رقم (#$invoiceId) بالكامل. السبب: "$reason"',
+        type: ActivityType.sale,
+      );
 
       isReturningInvoice(false);
       Get.back(); // إغلاق ديالوج التأكيد

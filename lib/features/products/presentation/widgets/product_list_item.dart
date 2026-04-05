@@ -3,6 +3,7 @@
 import 'dart:io';
 import 'package:ehab_company_admin/features/products/data/models/product_model.dart';
 import 'package:ehab_company_admin/features/products/presentation/screens/product_detail_screen.dart';
+import 'package:ehab_company_admin/features/units/presentation/controllers/unit_controller.dart'; // <-- إضافة
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -23,6 +24,7 @@ class ProductListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currency = Get.find<SettingsService>();
+    final unitController = Get.find<UnitController>(); // <-- إضافة
     final theme = Theme.of(context);
     final bool hasImage =
         product.imageUrl != null && product.imageUrl!.isNotEmpty;
@@ -60,16 +62,39 @@ class ProductListItem extends StatelessWidget {
                   )
                 : null,
           ),
-          title: Text(
-            product.name,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          title: Row(
+            children: [
+              Text(
+                product.name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              if (product.isSalesStopped) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.red.shade300),
+                  ),
+                  child: Text(
+                    'موقوف',
+                    style: TextStyle(
+                      color: Colors.red.shade900,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              'الكمية: ${product.quantity.toInt()} ${product.unit ?? 'قطعة'} | سعر البيع: ${product.salePrice} ${currency.primaryCurrency.value.symbol}',
+            child: Obx(() => Text(
+              'الكمية: ${unitController.formatSmartQuantity(product.unitId, product.quantity)} | سعر البيع: ${product.salePrice} ${currency.primaryCurrency.value.symbol}',
               style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-            ),
+            )),
           ),
           trailing: IconButton(
             icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),

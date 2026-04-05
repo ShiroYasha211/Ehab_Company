@@ -4,9 +4,12 @@ import 'package:ehab_company_admin/features/categories/data/models/category_mode
 import 'package:ehab_company_admin/features/categories/data/repositories/category_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 class CategoryController extends GetxController {
   final CategoryRepository _repository = CategoryRepository();
+  final ActivityController _activityController = Get.find<ActivityController>();
 
   final RxList<CategoryModel> categories = <CategoryModel>[].obs;
   final RxBool isLoading = true.obs;
@@ -37,6 +40,14 @@ class CategoryController extends GetxController {
     final newCategory = CategoryModel(name: name);
     try {
       await _repository.addCategory(newCategory);
+      
+      // تسجيل النشاط
+      await _activityController.logAction(
+        action: 'إضافة تصنيف جديد',
+        details: 'تم إضافة التصنيف "$name"',
+        type: ActivityType.inventory,
+      );
+
       await fetchAllCategories(); // تحديث القائمة
       Get.back(); // إغلاق نافذة الإدخال
       Get.snackbar('نجاح', 'تمت إضافة التصنيف بنجاح', backgroundColor: Colors.green, colorText: Colors.white);
@@ -47,7 +58,16 @@ class CategoryController extends GetxController {
 
   Future<void> removeCategory(int id) async {
     try {
+      final category = categories.firstWhereOrNull((c) => c.id == id);
       await _repository.deleteCategory(id);
+      
+      // تسجيل النشاط
+      await _activityController.logAction(
+        action: 'حذف تصنيف',
+        details: 'تم حذف التصنيف "${category?.name ?? "غير معروف"}"',
+        type: ActivityType.inventory,
+      );
+
       categories.removeWhere((cat) => cat.id == id);
       Get.snackbar('نجاح', 'تم حذف التصنيف بنجاح', backgroundColor: Colors.blue, colorText: Colors.white);
     } catch (e) {

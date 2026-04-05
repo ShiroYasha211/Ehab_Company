@@ -41,15 +41,14 @@ class CurrencySettingsScreen extends StatelessWidget {
               const SizedBox(height: 16),
 
               // بطاقة العملة المحلية
-              Obx(
-                () => _buildSectionCard(
-                  title: 'العملة المحلية',
-                  subtitle:
-                      'العملة المستخدمة في البيع اليومي (إذا كانت مختلفة)',
-                  icon: Icons.storefront,
-                  child: Column(
-                    children: [
-                      SwitchListTile(
+              _buildSectionCard(
+                title: 'العملة المحلية',
+                subtitle: 'العملة المستخدمة في البيع اليومي (إذا كانت مختلفة)',
+                icon: Icons.storefront,
+                child: Column(
+                  children: [
+                    Obx(
+                      () => SwitchListTile(
                         title: const Text('نفس العملة الأساسية'),
                         subtitle: const Text(
                           'تفعيل هذا يعني أنك تبيع بنفس عملة النظام',
@@ -59,52 +58,58 @@ class CurrencySettingsScreen extends StatelessWidget {
                             controller.toggleLocalSameAsPrimary(val),
                         contentPadding: EdgeInsets.zero,
                       ),
+                    ),
 
-                      // إذا لم تكن نفس الأساسية، نظهر خيارات اختيار العملة وسعر الصرف
-                      if (!controller.isLocalSameAsPrimary) ...[
-                        const Divider(),
-                        const SizedBox(height: 10),
-                        _buildCurrencySelector(
-                          context: context,
-                          label: 'اختر العملة المحلية',
-                          selectedCurrency: controller.localCurrency,
-                          onTap: () => _showCurrencyPicker(
-                            context,
-                            (currency) =>
-                                controller.updateLocalCurrency(currency),
+                    // إذا لم تكن نفس الأساسية، نظهر خيارات اختيار العملة وسعر الصرف
+                    Obx(() {
+                      if (controller.isLocalSameAsPrimary) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        children: [
+                          const Divider(),
+                          const SizedBox(height: 10),
+                          _buildCurrencySelector(
+                            context: context,
+                            label: 'اختر العملة المحلية',
+                            selectedCurrency: controller.localCurrency,
+                            onTap: () => _showCurrencyPicker(
+                              context,
+                              (currency) =>
+                                  controller.updateLocalCurrency(currency),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          textDirection: TextDirection.ltr,
-                          decoration: InputDecoration(
-                            labelText:
-                                'سعر الصرف (مقابل 1 ${controller.primaryCurrency.symbol})',
-                            hintText: 'مثلاً: 3.75',
-                            border: const OutlineInputBorder(),
-                            suffixText: controller.localCurrency.symbol,
+                          const SizedBox(height: 16),
+                          TextField(
+                            textDirection: TextDirection.rtl,
+                            textAlign: TextAlign.right,
+                            decoration: InputDecoration(
+                              labelText:
+                                  'سعر الصرف (مقابل 1 ${controller.primaryCurrency.symbol})',
+                              hintText: 'مثلاً: 3.75',
+                              border: const OutlineInputBorder(),
+                              suffixText: controller.localCurrency.symbol,
+                            ),
+                            controller: controller.exchangeRateController,
+                            onTap: () {
+                              // تحديد النص بالكامل عند الضغط لتسهيل الحذف أو الاستبدال
+                              controller.exchangeRateController.selection =
+                                  TextSelection(
+                                baseOffset: 0,
+                                extentOffset:
+                                    controller.exchangeRateController.text.length,
+                              );
+                            },
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            onChanged: (val) =>
+                                controller.updateExchangeRate(val),
                           ),
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          onChanged: (val) =>
-                              controller.updateExchangeRate(val),
-                          // قيمة ابتدائية
-                          controller:
-                              TextEditingController(
-                                  text: controller.exchangeRate.toString(),
-                                )
-                                ..selection = TextSelection.fromPosition(
-                                  TextPosition(
-                                    offset: controller.exchangeRate
-                                        .toString()
-                                        .length,
-                                  ),
-                                ),
-                        ),
-                      ],
-                    ],
-                  ),
+                        ],
+                      );
+                    }),
+                  ],
                 ),
               ),
 
