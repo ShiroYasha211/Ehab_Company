@@ -1,7 +1,6 @@
 // File: lib/features/home/presentation/screens/home_screen.dart
 
 import 'package:ehab_company_admin/core/services/auth_service.dart';
-import 'package:ehab_company_admin/features/customers/presentation/screens/customers_dashboard_screen.dart';
 import 'package:ehab_company_admin/features/expenses/presentation/screens/expenses_binding.dart';
 // --- 1. بداية الإضافة: إضافة import جديد ---
 import 'package:ehab_company_admin/features/expenses/presentation/screens/expenses_dashboard_screen.dart';
@@ -12,7 +11,6 @@ import 'package:ehab_company_admin/features/purchases/presentation/screens/add_p
 import 'package:ehab_company_admin/features/purchases/presentation/screens/purchases_dashboard_screen.dart';
 import 'package:ehab_company_admin/features/reports/presentation/screens/reports_binding.dart';
 import 'package:ehab_company_admin/features/sales/presentation/screens/sales_dashboard_screen.dart';
-import 'package:ehab_company_admin/features/suppliers/presentation/screens/suppliers_dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:get/get.dart';
@@ -37,6 +35,11 @@ class HomeScreen extends StatelessWidget {
     // قائمة الوظائف التي ستعرض في البطاقات مع ربطها بالصلاحيات
     final List<Map<String, dynamic>> allFeatures = [
       {
+        'title': 'الحسابات والصندوق',
+        'icon': Icons.account_balance_wallet_outlined,
+        'permission': AuthService.pManageMoney,
+      },
+      {
         'title': 'المخازن',
         'icon': Icons.inventory_2_outlined,
         'permission': AuthService.pViewInventory,
@@ -47,28 +50,13 @@ class HomeScreen extends StatelessWidget {
         'permission': AuthService.pViewSales,
       },
       {
-        'title': 'الصندوق',
-        'icon': Icons.account_balance_wallet_outlined,
-        'permission': AuthService.pManageMoney,
-      },
-      {
-        'title': 'المشتريات',
-        'icon': Icons.shopping_cart_outlined,
-        'permission': AuthService.pViewPurchases,
-      },
-      {
         'title': 'المصروفات',
         'icon': Icons.receipt_long_outlined,
         'permission': AuthService.pManageMoney,
       },
       {
-        'title': 'العملاء',
-        'icon': Icons.people_outline,
-        'permission': AuthService.pViewSales,
-      },
-      {
-        'title': 'الموردين',
-        'icon': Icons.local_shipping_outlined,
+        'title': 'المشتريات',
+        'icon': Icons.shopping_cart_outlined,
         'permission': AuthService.pViewPurchases,
       },
       {
@@ -94,7 +82,7 @@ class HomeScreen extends StatelessWidget {
       {
         'title': 'إدارة العمليات',
         'icon': Icons.history_edu_rounded,
-        'permission': AuthService.pManageSettings, // تتبع العمليات متاح للأدمن أو صلاحية إدارة الإعدادات
+        'permission': AuthService.pManageSettings,
       },
     ];
 
@@ -132,6 +120,27 @@ class HomeScreen extends StatelessWidget {
           ),
           centerTitle: true,
           actions: [
+            Obx(
+              () => homeController.isLoading.value
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.refresh_rounded),
+                      tooltip: 'تحديث البيانات',
+                      onPressed: () => homeController.refreshStats(),
+                    ),
+            ),
             IconButton(
               icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
               tooltip: 'تسجيل الخروج',
@@ -195,26 +204,18 @@ class HomeScreen extends StatelessWidget {
                         );
                       } else if (featureTitle == 'المبيعات') {
                         Get.to(() => const SalesDashboardScreen());
-                      }
-                      // --- 2. بداية التعديل: إضافة شرط المصروفات ---
-                      else if (featureTitle == 'المصروفات') {
+                      } else if (featureTitle == 'المصروفات') {
                         Get.to(
                           () => const ExpensesDashboardScreen(),
                           binding: ExpensesBinding(),
                         );
-                      }
-                      // --- نهاية التعديل ---
-                      else if (featureTitle == 'الصندوق') {
+                      } else if (featureTitle == 'الحسابات والصندوق') {
                         Get.to(() => const FundScreen());
-                      } else if (featureTitle == 'الموردين') {
-                        Get.to(() => const SuppliersDashboardScreen());
                       } else if (featureTitle == 'المشتريات') {
                         Get.to(
                           () => const PurchasesDashboardScreen(),
                           binding: AddPurchaseBinding(),
                         );
-                      } else if (featureTitle == 'العملاء') {
-                        Get.to(() => const CustomersDashboardScreen());
                       } else if (featureTitle == 'التقارير') {
                         Get.to(
                           () => const ReportsDashboardScreen(),
@@ -230,7 +231,7 @@ class HomeScreen extends StatelessWidget {
                       } else if (featureTitle == 'المخازن والعُهد') {
                         Get.to(() => const WarehousesScreen());
                       } else if (featureTitle == 'إدارة العمليات') {
-                         Get.toNamed('/activities'); // سنستخدم المسارات المسجلة أو Get.to مباشرة لاحقاً
+                         Get.toNamed('/activities');
                       } else {
                         print('$featureTitle card tapped');
                       }

@@ -32,7 +32,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 33,
+      version: 37,
       // --- نهاية الإصلاح ---
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -145,6 +145,18 @@ class DatabaseService {
     }
     if (oldVersion < 33) {
       await _createV33Tables(db);
+    }
+    if (oldVersion < 34) {
+      await _createV34Tables(db);
+    }
+    if (oldVersion < 35) {
+      await _createV35Tables(db);
+    }
+    if (oldVersion < 36) {
+      await _createV36Tables(db);
+    }
+    if (oldVersion < 37) {
+      await _createV37Tables(db);
     }
   }
 
@@ -906,5 +918,29 @@ class DatabaseService {
         createdAt TEXT NOT NULL
       )
     ''');
+  }
+  
+  /// الإصدار 34: إضافة معرف الصندوق لجدول المصروفات
+  Future<void> _createV34Tables(Database db) async {
+    // إضافة عمود معرف الصندوق للمصروفات
+    await _addColumnIfNotExists(db, 'expenses', 'fundId INTEGER DEFAULT 1');
+    // تحديث السجلات القديمة لتشير إلى الصندوق الرئيسي
+    await db.execute('UPDATE expenses SET fundId = 1 WHERE fundId IS NULL');
+  }
+
+  /// الإصدار 35: دعم مصروفات الموردين
+  Future<void> _createV35Tables(Database db) async {
+    // إضافة معرف المورد للمصروفات (اختياري)
+    await _addColumnIfNotExists(db, 'expenses', 'supplierId INTEGER');
+  }
+
+  /// الإصدار 36: إصلاح نقص عمود المرجع في حركات الموردين
+  Future<void> _createV36Tables(Database db) async {
+    await _addColumnIfNotExists(db, 'supplier_transactions', 'referenceId INTEGER');
+  }
+
+  /// الإصدار 37: إضافة مُصدر المصروف لجدول المصروفات
+  Future<void> _createV37Tables(Database db) async {
+    await _addColumnIfNotExists(db, 'expenses', 'issuedBy TEXT');
   }
 }

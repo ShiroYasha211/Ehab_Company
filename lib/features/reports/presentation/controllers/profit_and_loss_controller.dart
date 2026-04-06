@@ -4,10 +4,13 @@ import 'package:ehab_company_admin/features/expenses/data/repositories/expense_r
 import 'package:ehab_company_admin/features/sales/data/repositories/sales_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 class ProfitAndLossController extends GetxController {
   final SalesRepository _salesRepository = SalesRepository();
   final ExpenseRepository _expenseRepository = ExpenseRepository();
+  final ActivityController _activityController = Get.find<ActivityController>();
 
   // Observables for UI state
   final RxBool isLoading = false.obs;
@@ -43,6 +46,14 @@ class ProfitAndLossController extends GetxController {
   /// The main function to generate the profit and loss report
   Future<void> generateReport() async {
     isLoading(true);
+
+    // تسجيل الوصول للتقرير
+    await _activityController.logAction(
+      action: 'عرض تقرير الأرباح والخسائر',
+      details: 'تم عرض الأرباح والخسائر للفترة من (${fromDate.value.toString().split(' ')[0]}) إلى (${toDate.value.toString().split(' ')[0]})',
+      type: ActivityType.admin,
+    );
+
     try {
       // Fetch all data in parallel for better performance
       final results = await Future.wait([

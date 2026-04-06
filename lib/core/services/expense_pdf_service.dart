@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart' as intl;
+import 'tafqeet_service.dart';
 
 import 'settings_service.dart';
 
@@ -39,15 +40,15 @@ class ExpensePdfService {
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
-        header: (context) => _buildHeader(logoImage),
+        header: (context) => _buildHeader(logoImage, ttf, boldTtf),
         build: (context) => [
-          _buildReportTitle(from, to),
+          _buildReportTitle(from, to, ttf, boldTtf),
           pw.SizedBox(height: 20),
-          _buildGrandTotalSummary(grandTotal), // ملخص الإجمالي الكلي
+          _buildGrandTotalSummary(grandTotal, ttf, boldTtf), // ملخص الإجمالي الكلي
           pw.SizedBox(height: 20),
-          _buildExpensesTable(expenses), // جدول المصروفات المجمعة
+          _buildExpensesTable(expenses, ttf, boldTtf), // جدول المصروفات المجمعة
         ],
-        footer: (context) => _buildFooter(context),
+        footer: (context) => _buildFooter(context, ttf),
       ),
     );
 
@@ -62,7 +63,7 @@ class ExpensePdfService {
 
   // --- دوال بناء أجزاء التقرير (متوافقة مع الهوية البصرية) ---
 
-  static pw.Widget _buildHeader(pw.MemoryImage logo) {
+  static pw.Widget _buildHeader(pw.MemoryImage logo, pw.Font ttf, pw.Font boldTtf) {
     // (نفس دالة الهيدر من التقارير السابقة)
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 15),
@@ -82,16 +83,17 @@ class ExpensePdfService {
                 style: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold,
                   fontSize: 18,
+                  font: boldTtf,
                 ),
               ),
               pw.SizedBox(height: 5),
               pw.Text(
                 'هاتف: 777-777-777',
-                style: const pw.TextStyle(fontSize: 10),
+                style: pw.TextStyle(fontSize: 10, font: ttf),
               ),
               pw.Text(
                 'البريد الإلكتروني: info@ehab-company.com',
-                style: const pw.TextStyle(fontSize: 10),
+                style: pw.TextStyle(fontSize: 10, font: ttf),
               ),
             ],
           ),
@@ -101,7 +103,7 @@ class ExpensePdfService {
     );
   }
 
-  static pw.Widget _buildReportTitle(DateTime from, DateTime to) {
+  static pw.Widget _buildReportTitle(DateTime from, DateTime to, pw.Font ttf, pw.Font boldTtf) {
     return pw.Column(
       children: [
         pw.SizedBox(height: 15),
@@ -111,18 +113,19 @@ class ExpensePdfService {
             fontSize: 22,
             fontWeight: pw.FontWeight.bold,
             color: PdfColors.blueGrey800,
+            font: boldTtf,
           ),
         ),
         pw.SizedBox(height: 5),
         pw.Text(
           'للفترة من: ${intl.DateFormat('yyyy-MM-dd').format(from)}   إلى: ${intl.DateFormat('yyyy-MM-dd').format(to)}',
-          style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey600),
+          style: pw.TextStyle(fontSize: 11, color: PdfColors.grey600, font: ttf),
         ),
       ],
     );
   }
 
-  static pw.Widget _buildGrandTotalSummary(double grandTotal) {
+  static pw.Widget _buildGrandTotalSummary(double grandTotal, pw.Font ttf, pw.Font boldTtf) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),
       decoration: pw.BoxDecoration(
@@ -130,19 +133,33 @@ class ExpensePdfService {
         borderRadius: pw.BorderRadius.circular(8),
         border: pw.Border.all(color: PdfColors.red200),
       ),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.center,
+      child: pw.Column(
         children: [
-          pw.Text(
-            'إجمالي المصروفات للفترة: ',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.center,
+            children: [
+              pw.Text(
+                'إجمالي المصروفات للفترة: ',
+                style:
+                    pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, font: boldTtf),
+              ),
+              pw.Text(
+                '${_sanitize(intl.NumberFormat.decimalPattern('ar').format(grandTotal))} ${Get.find<SettingsService>().primaryCurrency.value.symbol}',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 16,
+                  color: PdfColors.red700,
+                  font: boldTtf,
+                ),
+              ),
+            ],
           ),
-          pw.Text(
-            '${intl.NumberFormat.decimalPattern('ar').format(grandTotal)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}',
-            style: pw.TextStyle(
-              fontWeight: pw.FontWeight.bold,
-              fontSize: 16,
-              color: PdfColors.red700,
+          pw.SizedBox(height: 5),
+          pw.Align(
+            alignment: pw.Alignment.center,
+            child: pw.Text(
+              _sanitize(TafqeetService.convert(grandTotal)),
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, font: boldTtf),
             ),
           ),
         ],
@@ -151,21 +168,23 @@ class ExpensePdfService {
   }
 
   // --- بداية التعديل: تحديث بناء الجدول ليتوافق مع الإصدار الحديث ---
-  static pw.Widget _buildExpensesTable(List<Map<String, dynamic>> expenses) {
+  static pw.Widget _buildExpensesTable(List<Map<String, dynamic>> expenses, pw.Font ttf, pw.Font boldTtf) {
     // --- بداية التعديل: تعديل تصميم الجدول ---
 
-    // 1. إضافة عمود "بند المصروف" إلى الهيدر
-    final headers = ['المبلغ', 'الوصف', 'التاريخ', 'بند المصروف'];
+    // 1. إضافة عمود "بند المصروف" و"الصندوق/المصدر" و"المورد" إلى الهيدر
+    final headers = ['المبلغ', 'الوصف', 'التاريخ', 'بند المصروف', 'الصندوق', 'المورد'];
 
     // 2. بناء الصفوف مباشرة بدون التحقق من البند
     final data = expenses.map((expense) {
       return [
-        '${intl.NumberFormat.decimalPattern('ar').format(expense['amount'])} ${Get.find<SettingsService>().primaryCurrency.value.symbol}',
+        _sanitize('${intl.NumberFormat.decimalPattern('ar').format(expense['amount'])} ${Get.find<SettingsService>().primaryCurrency.value.symbol}'),
         expense['notes'] ?? '',
         intl.DateFormat(
           'yyyy-MM-dd',
         ).format(DateTime.parse(expense['expenseDate'])),
-        expense['categoryName'], // <-- إضافة اسم البند كبيانات في العمود الرابع
+        expense['categoryName'],
+        expense['fundName'] ?? 'الصندوق الرئيسي',
+        expense['supplierName'] ?? '-', // <-- إضافة اسم المورد كبيانات في العمود السادس
       ];
     }).toList();
 
@@ -176,6 +195,7 @@ class ExpensePdfService {
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
         fontSize: 11,
+        font: boldTtf,
       ),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
       rowDecoration: const pw.BoxDecoration(
@@ -186,10 +206,13 @@ class ExpensePdfService {
       // 4. تحديد عرض الأعمدة الجديدة
       columnWidths: {
         0: const pw.FlexColumnWidth(2), // المبلغ
-        1: const pw.FlexColumnWidth(4), // الوصف
-        2: const pw.FlexColumnWidth(2.5), // التاريخ
+        1: const pw.FlexColumnWidth(3), // الوصف
+        2: const pw.FlexColumnWidth(2), // التاريخ
         3: const pw.FlexColumnWidth(2.5), // بند المصروف
+        4: const pw.FlexColumnWidth(2.5), // الصندوق
+        5: const pw.FlexColumnWidth(2.5), // المورد
       },
+      cellStyle: pw.TextStyle(font: ttf, fontSize: 10),
       cellAlignments: {
         // محاذاة الأرقام والتواريخ لليسار
         0: pw.Alignment.centerLeft,
@@ -201,15 +224,25 @@ class ExpensePdfService {
 
   // --- نهاية التعديل ---
 
-  static pw.Widget _buildFooter(pw.Context context) {
+  static pw.Widget _buildFooter(pw.Context context, pw.Font ttf) {
     // (نفس دالة التذييل من التقارير السابقة)
     return pw.Container(
       alignment: pw.Alignment.center,
       margin: const pw.EdgeInsets.only(top: 10),
       child: pw.Text(
         'صفحة ${context.pageNumber} من ${context.pagesCount} - © شركة إيهاب',
-        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+        style: pw.TextStyle(fontSize: 10, color: PdfColors.grey, font: ttf),
       ),
     );
   }
+  // دالة تنقية النصوص من المحافير التي قد تسبب انهيار محرك الـ PDF
+  static String _sanitize(String text) {
+    return text
+        .replaceAll('\u202f', ' ') // Narrow No-Break Space
+        .replaceAll('\u00a0', ' ') // No-Break Space
+        .replaceAll('\u066c', ',') // Arabic Thousands Separator
+        .replaceAll('\u066b', '.') // Arabic Decimal Separator
+        .replaceAll(RegExp(r'[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]'), ''); // BiDi Marks
+  }
 }
+

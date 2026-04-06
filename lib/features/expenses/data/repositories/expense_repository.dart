@@ -3,6 +3,8 @@
 import 'package:ehab_company_admin/core/database/database_service.dart';
 import 'package:ehab_company_admin/features/expenses/data/models/expense_category_model.dart';
 import 'package:ehab_company_admin/features/expenses/data/models/expense_model.dart';
+import 'package:ehab_company_admin/core/services/auth_service.dart';
+import 'package:get/get.dart';
 import 'package:sqflite/sqflite.dart';
 
 class ExpenseRepository {
@@ -68,9 +70,13 @@ class ExpenseRepository {
     final String query = '''
       SELECT 
         e.*, 
-        ec.name as categoryName 
+        ec.name as categoryName,
+        f.name as fundName,
+        s.name as supplierName
       FROM expenses e
       JOIN expense_categories ec ON e.categoryId = ec.id
+      LEFT JOIN funds f ON e.fundId = f.id
+      LEFT JOIN suppliers s ON e.supplierId = s.id
       $whereStatement
       ORDER BY e.expenseDate DESC
     ''';
@@ -92,27 +98,71 @@ class ExpenseRepository {
       dataToInsert.remove('id');
       expenseId = await txn.insert('expenses', dataToInsert);
 
-      // 2. إذا كان مطلوبًا، قم بخصم المبلغ من الصندوق
-      if (deductFromFund) {
-        // جلب اسم البند لتسجيله في وصف حركة الصندوق
-        final category = (await txn.query('expense_categories', where: 'id = ?',
-            whereArgs: [expense.categoryId])).first;
-        final categoryName = category['name'] as String;
+      // 2. جلب اسم البند لاستخدامه في الوصف (لكل من الصندوق والمورد)
+      final categoryData = (await txn.query('expense_categories', where: 'id = ?',
+          whereArgs: [expense.categoryId])).first;
+      final categoryName = categoryData['name'] as String;
 
-        // إضافة حركة سحب إلى الصندوق
+      // 3. إذا كان مطلوبًا، قم بخصم المبلغ من الصندوق
+      if (deductFromFund) {
+
+        // إضافة حركة سحب إلى الصندوق المختار
+        final int targetFundId = expense.fundId ?? 1;
+        
+        // جلب اسم المورد إذا كان المصروف مرتبطاً بمورد
+        String supplierSuffix = "";
+        if (expense.supplierId != null) {
+          final supplierData = await txn.query('suppliers', columns: ['name'], where: 'id = ?', whereArgs: [expense.supplierId]);
+          if (supplierData.isNotEmpty) {
+            supplierSuffix = " - المورد: ${supplierData.first['name']}";
+          }
+        }
+
         await txn.insert('fund_transactions', {
-          'fundId': 1, // الصندوق الرئيسي
+          'fundId': targetFundId,
           'type': 'WITHDRAWAL', // سحب
           'amount': expense.amount,
-          'description': 'مصروف ($categoryName): ${expense.notes ?? ''}',
+          'description': 'مصروف ($categoryName)${supplierSuffix}: ${expense.notes ?? ''}',
           'referenceId': expenseId,
           'transactionDate': expense.expenseDate.toIso8601String(),
         });
 
-        // تحديث رصيد الصندوق
+        // تحديث رصيد الصندوق المحدد
         await txn.rawUpdate(
           'UPDATE funds SET balance = balance - ? WHERE id = ?',
-          [expense.amount, 1],
+          [expense.amount, targetFundId],
+        );
+      }
+
+      // 3. إذا كان المصروف مرتبطاً بمورد، قم بتحديث حساب المورد
+      if (expense.supplierId != null) {
+        // إضافة حركة للمورد (سند قيد مصروف)
+        await txn.insert('supplier_transactions', {
+          'supplierId': expense.supplierId,
+          'type': 'EXPENSE', // نوع جديد: مصروف محمل
+          'amount': expense.amount,
+          'notes': 'مصروف محمل ($categoryName): ${expense.notes ?? ''}',
+          'transactionDate': expense.expenseDate.toIso8601String(),
+          'affectsFund': 0, // لا يؤثر على الصندوق هنا لأنه أثر عليه في خطوة المصروفات
+          'referenceId': expenseId,
+        });
+
+        // إنقاص رصيد المورد (لأننا دفعنا عنه مبلغاً، فتقل مديونيته لنا)
+        await txn.rawUpdate(
+          'UPDATE suppliers SET balance = balance - ? WHERE id = ?',
+          [expense.amount, expense.supplierId],
+        );
+      }
+
+      // 4. حفظ اسم الموظف الذي قام بالعملية
+      final authService = Get.find<AuthService>();
+      final currentUser = authService.currentUser.value;
+      if (currentUser != null) {
+        await txn.update(
+          'expenses',
+          {'issuedBy': currentUser.name},
+          where: 'id = ?',
+          whereArgs: [expenseId],
         );
       }
     });
@@ -152,12 +202,17 @@ class ExpenseRepository {
     final fromString = from.toIso8601String();
     final toString = inclusiveTo.toIso8601String();
 
-    // استعلام SQL بسيط لجلب كل المصروفات مع اسم البند
+    // استعلام SQL بسيط لجلب كل المصروفات مع اسم البند واسم الصندوق
     final List<Map<String, dynamic>> maps = await db.rawQuery('''
       SELECT 
         e.*,
-        ec.name as categoryName FROM expenses e
+        ec.name as categoryName,
+        f.name as fundName,
+        s.name as supplierName 
+      FROM expenses e
       JOIN expense_categories ec ON e.categoryId = ec.id
+      LEFT JOIN funds f ON e.fundId = f.id
+      LEFT JOIN suppliers s ON e.supplierId = s.id
       WHERE e.expenseDate >= ? AND e.expenseDate < ?
       ORDER BY e.expenseDate ASC
     ''', [fromString, toString]);

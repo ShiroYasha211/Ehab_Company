@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../../core/services/settings_service.dart';
 import '../../models/currency_model.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 class SettingsController extends GetxController {
   final SettingsService _settingsService = Get.find<SettingsService>();
+  final ActivityController _activityController = Get.find<ActivityController>();
   
   // كنترولر خاص بحقل إدخال سعر الصرف لمنع إعادة الإنشاء وضمان سلاسة الإدخال
   late final TextEditingController exchangeRateController;
@@ -55,13 +58,30 @@ class SettingsController extends GetxController {
 
   /// تغيير العملة الأساسية
   Future<void> updatePrimaryCurrency(CurrencyModel currency) async {
+    final oldCurrency = primaryCurrency.name;
     await _settingsService.setPrimaryCurrency(currency);
+
+    // تسجيل تعديل العملة
+    await _activityController.logAction(
+      action: 'تغيير العملة الأساسية',
+      details: 'تم تغيير العملة الأساسية للنظام من ($oldCurrency) إلى (${currency.name}).',
+      type: ActivityType.admin,
+    );
+
     update(); // لتحديث أي واجهة تستخدم GetBuilder بدلاً من Obx
   }
 
   /// تبديل خيار "العملة المحلية نفس الأساسية"
   Future<void> toggleLocalSameAsPrimary(bool value) async {
     await _settingsService.toggleLocalSameAsPrimary(value);
+
+    // تسجيل تغيير المطابقة
+    await _activityController.logAction(
+      action: 'تغيير سياسة تطابق العملات',
+      details: 'تم ${value ? "تفعيل" : "إلغاء"} خيار مطابقة العملة المحلية مع الأساسية.',
+      type: ActivityType.admin,
+    );
+
     // عند التبديل، قد نحتاج لتحديث نص الكنترولر للقيمة الجديدة (1.0 غالباً)
     if (value) {
       exchangeRateController.text = _formatRate(1.0);
@@ -80,7 +100,16 @@ class SettingsController extends GetxController {
     // نتأكد من تحويل النص لرقم، وفي حال الخطأ نستخدم 1.0 أو القيمة السابقة
     double? rate = double.tryParse(value);
     if (rate != null) {
+      final oldRate = exchangeRate;
       await _settingsService.setExchangeRate(rate);
+
+      // تسجيل تحديث سعر الصرف
+      await _activityController.logAction(
+        action: 'تحديث سعر الصرف',
+        details: 'تم تغيير سعر الصرف من ($oldRate) إلى ($rate). هذا التغيير يؤثر على كافة الفواتير والتقارير.',
+        type: ActivityType.admin,
+      );
+
       update();
     }
   }

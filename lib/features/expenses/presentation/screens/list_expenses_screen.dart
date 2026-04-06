@@ -222,13 +222,55 @@ class ListExpensesScreen extends StatelessWidget {
           '${expense.notes ?? 'لا توجد ملاحظات'}\n${intl.DateFormat('yyyy-MM-dd').format(expense.expenseDate)}',
           style: TextStyle(color: Colors.grey.shade600),
         ),
-        trailing: Text(
-          formatCurrency.format(expense.amount),
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: Colors.red.shade700,
-          ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              formatCurrency.format(expense.amount),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.red.shade700,
+              ),
+            ),
+            if (expense.deductFromFund && expense.fundName != null)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.blue.shade100),
+                ),
+                child: Text(
+                  expense.fundName!,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blue.shade800,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            if (expense.supplierId != null && expense.supplierName != null)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.orange.shade100),
+                ),
+                child: Text(
+                  'المورد: ${expense.supplierName!}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
         ),
         isThreeLine: true,
       ),

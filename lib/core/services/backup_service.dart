@@ -158,4 +158,33 @@ class BackupService extends GetxService {
       print('Restore Error: $e');
     }
   }
+
+  /// استعادة قاعدة البيانات من ملف محدد (يستخدم برمجياً، مثلاً عند التحميل من السحاب)
+  Future<void> restoreBackupFromFile(String filePath) async {
+    try {
+      // إغلاق الاتصال بقاعدة البيانات الحالية
+      await DatabaseService().close();
+
+      final dbFolder = await getDatabasesPath();
+      final dbPath = join(dbFolder, 'ehab_company.db');
+
+      // استبدال الملف الحالي بالملف الجديد
+      final File backupFile = File(filePath);
+      await backupFile.copy(dbPath);
+
+      // إشعار المستخدم بالنجاح
+      if (Get.isDialogOpen!) Get.back(); // إغلاق "جاري التحميل" إذا كان مفتوحاً
+      
+      Get.defaultDialog(
+        title: 'تمت الاستعادة بنجاح',
+        middleText: 'تمت استعادة النسخة الاحتياطية بنجاح. يجب إعادة تشغيل التطبيق.',
+        textConfirm: 'حسناً',
+        onConfirm: () => Get.offAllNamed('/'),
+        barrierDismissible: false,
+      );
+    } catch (e) {
+      if (Get.isDialogOpen!) Get.back();
+      Get.snackbar('خطأ', 'فشل في استبدال قاعدة البيانات: $e');
+    }
+  }
 }

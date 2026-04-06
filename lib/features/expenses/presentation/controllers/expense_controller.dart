@@ -5,8 +5,12 @@ import 'package:ehab_company_admin/features/expenses/data/models/expense_model.d
 import 'package:ehab_company_admin/features/expenses/data/repositories/expense_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 import '../../../fund/presentation/controllers/fund_controller.dart';
+import '../../../suppliers/data/models/supplier_model.dart';
+import '../../../suppliers/data/repositories/supplier_repository.dart';
 
 class ReportData {
   final String categoryName;
@@ -22,6 +26,7 @@ class ReportData {
 
 class ExpenseController extends GetxController {
   final ExpenseRepository _repository = ExpenseRepository();
+  final ActivityController _activityController = Get.find<ActivityController>();
 
   ExpenseRepository get expenseRepository => _repository;
 
@@ -31,6 +36,9 @@ class ExpenseController extends GetxController {
   final RxList<ExpenseCategoryModel> categories = <ExpenseCategoryModel>[].obs;
 
   final FundController _fundController = Get.find<FundController>();
+  final SupplierRepository _supplierRepository = SupplierRepository();
+
+  final RxList<SupplierModel> suppliers = <SupplierModel>[].obs;
 
   final RxList<ExpenseModel> filteredExpenses = <ExpenseModel>[].obs;
   final Rx<DateTime?> fromDate = Rx<DateTime?>(null);
@@ -46,8 +54,11 @@ class ExpenseController extends GetxController {
   final amountController = TextEditingController();
   final notesController = TextEditingController();
   final Rx<int?> selectedCategoryId = Rx<int?>(null);
+  final Rx<int?> selectedFundId = Rx<int?>(null); // الصندوق المختار للصرف
+  final Rx<int?> selectedSupplierId = Rx<int?>(null); // المورد المرتبط (اختياري)
   final Rx<DateTime> selectedDate = DateTime.now().obs;
   final RxBool deductFromFund = true.obs;
+  final RxBool isSupplierRelated = false.obs; // هل المصروف مرتبط بمورد؟
 
   @override
   void onInit() {
@@ -67,7 +78,11 @@ class ExpenseController extends GetxController {
   /// جلب كل البيانات اللازمة (المصروفات والبنود)
   Future<void> fetchInitialData() async {
     isLoading(true);
-    await Future.wait([fetchAllExpenses(), fetchAllCategories()]);
+    await Future.wait([
+      fetchAllExpenses(),
+      fetchAllCategories(),
+      fetchAllSuppliers(),
+    ]);
     isLoading(false);
   }
 
@@ -79,11 +94,17 @@ class ExpenseController extends GetxController {
     } catch (e) {
       Get.snackbar('خطأ', 'فشل في جلب المصروفات: $e');
     } finally {
-      // --- بداية الإصلاح ---
-      // قم بتطبيق الفلترة دائمًا بعد محاولة الجلب، سواء نجحت أم فشلت
-      // هذا يضمن أن filteredExpenses يتم تحديثها دائمًا
       _filterExpenses();
-      // --- نهاية الإصلاح ---
+    }
+  }
+
+  /// جلب كل الموردين لاستخدامهم في القائمة المنسدلة
+  Future<void> fetchAllSuppliers() async {
+    try {
+      final supplierList = await _supplierRepository.getAllSuppliers();
+      suppliers.assignAll(supplierList);
+    } catch (e) {
+      Get.snackbar('خطأ', 'فشل في جلب الموردين: $e');
     }
   }
 
@@ -108,20 +129,32 @@ class ExpenseController extends GetxController {
 
     final double amount = double.tryParse(amountController.text) ?? 0.0;
 
-    // 2. التحقق من رصيد الصندوق (فقط إذا كان خيار الخصم مفعلًا)
+    // 1.5 التحقق من اختيار مورد إذا كان الخيار مفعلاً
+    if (isSupplierRelated.value && selectedSupplierId.value == null) {
+      Get.snackbar('تنبيه', 'يرجى اختيار المورد المرتبط بهذا المصروف.', backgroundColor: Colors.orange);
+      return;
+    }
+
+    // 2. التحقق من رصيد الصندوق المحدد (فقط إذا كان خيار الخصم مفعلًا)
     if (deductFromFund.value) {
-      final double currentFundBalance =
-          _fundController.totalBalance.value;
+      if (selectedFundId.value == null) {
+        Get.snackbar('خطأ', 'يرجى اختيار الصندوق الذي سيتم الصرف منه.', backgroundColor: Colors.orange);
+        return;
+      }
+
+      // جلب رصيد الصندوق المحدد حصراً
+      final selectedFund = _fundController.subFunds.firstWhereOrNull((f) => f.id == selectedFundId.value);
+      final double currentFundBalance = selectedFund?.balance ?? 0.0;
+
       if (amount > currentFundBalance) {
-        // إذا كان الرصيد غير كافٍ، اعرض رسالة خطأ وأوقف العملية
         Get.snackbar(
           'رصيد الصندوق غير كافٍ',
-          'رصيد الصندوق الحالي (${currentFundBalance.toStringAsFixed(2)}) أقل من مبلغ المصروف.',
+          'رصيد الصندوق المختار (${selectedFund?.name}) الحالي ($currentFundBalance) أقل من مبلغ المصروف.',
           backgroundColor: Colors.red,
           colorText: Colors.white,
           duration: const Duration(seconds: 4),
         );
-        return; // أوقف العملية هنا
+        return;
       }
     }
 
@@ -133,14 +166,35 @@ class ExpenseController extends GetxController {
         expenseDate: selectedDate.value,
         notes: notesController.text,
         deductFromFund: deductFromFund.value,
+        fundId: selectedFundId.value,
+        supplierId: isSupplierRelated.value ? selectedSupplierId.value : null,
       );
       await _repository.addExpense(newExpense, deductFromFund.value);
 
       // تحديث البيانات في الواجهات الأخرى
-      fetchAllExpenses(); // تحديث قائمة المصروفات
+      fetchAllExpenses();
       if (deductFromFund.value) {
-        _fundController.loadAllData(); // تحديث بيانات الصندوق
+        _fundController.loadAllData();
       }
+
+      // تسجيل نشاط مصروف جديد
+      final categoryName = categories.firstWhereOrNull((c) => c.id == selectedCategoryId.value)?.name ?? "غير معروف";
+      final fundName = _fundController.subFunds.firstWhereOrNull((f) => f.id == selectedFundId.value)?.name ?? "صندوق غير محدد";
+      final supplierName = isSupplierRelated.value 
+          ? (suppliers.firstWhereOrNull((s) => s.id == selectedSupplierId.value)?.name ?? "مورد غير معروف")
+          : null;
+
+      String details = 'تم تسجيل مصروف بمبلغ $amount تحت بند ($categoryName) من صندوق ($fundName).';
+      if (supplierName != null) {
+        details += ' تم تحميله على المورد ($supplierName).';
+      }
+      details += ' ملاحظات: ${notesController.text}';
+
+      await _activityController.logAction(
+        action: 'تسجيل مصروف جديد',
+        details: details,
+        type: ActivityType.expense,
+      );
 
       Get.back(); // العودة من شاشة الإضافة
       Get.snackbar(
@@ -168,6 +222,13 @@ class ExpenseController extends GetxController {
     }
     await _repository.addCategory(name);
     await fetchAllCategories(); // تحديث قائمة البنود
+
+    // تسجيل إضافة بند
+    await _activityController.logAction(
+      action: 'إضافة بند مصروف جديد',
+      details: 'تم إضافة بند جديد باسم ($name) في قائمة المصروفات.',
+      type: ActivityType.expense,
+    );
   }
 
   @override
@@ -219,8 +280,17 @@ class ExpenseController extends GetxController {
       return;
     }
     try {
+      final oldName = categories.firstWhereOrNull((c) => c.id == id)?.name ?? "صنف قديم";
       await _repository.updateCategory(id, newName);
       await fetchAllCategories(); // تحديث قائمة البنود
+
+      // تسجيل تعديل بند
+      await _activityController.logAction(
+        action: 'تعديل بند مصروف',
+        details: 'تم تغيير اسم البند من ($oldName) إلى ($newName).',
+        type: ActivityType.expense,
+      );
+
       Get.snackbar(
         'نجاح',
         'تم تعديل اسم البند بنجاح',
@@ -240,8 +310,17 @@ class ExpenseController extends GetxController {
   /// حذف بند مصروف
   Future<void> deleteCategory(int id) async {
     try {
+      final categoryName = categories.firstWhereOrNull((c) => c.id == id)?.name ?? "صنف محذوف";
       await _repository.deleteCategory(id);
       await fetchAllCategories(); // تحديث قائمة البنود
+
+      // تسجيل حذف بند
+      await _activityController.logAction(
+        action: 'حذف بند مصروف',
+        details: 'تم حذف بند المصروف ($categoryName) من قائمة البنود.',
+        type: ActivityType.expense,
+      );
+
       Get.snackbar('نجاح', 'تم حذف البند بنجاح');
     } catch (e) {
       // التعامل مع خطأ الحذف إذا كان البند مستخدمًا

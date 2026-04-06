@@ -6,12 +6,15 @@ import 'package:flutter/material.dart' hide DateRangePickerDialog;
 import 'package:get/get.dart';
 import 'package:ehab_company_admin/core/services/customer_report_service.dart'; // <-- إضافة هذا السطر
 import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range_picker_dialog.dart';
-import '../../data/models/customer_transaction_model.dart';
+import 'package:ehab_company_admin/features/customers/data/models/customer_transaction_model.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 enum CustomerFilter { all, hasBalance, noBalance }
 
 class CustomerController extends GetxController {
   final CustomerRepository _repository = CustomerRepository();
+  final ActivityController _activityController = Get.find<ActivityController>();
 
   CustomerRepository get repository => _repository;
 
@@ -92,6 +95,14 @@ class CustomerController extends GetxController {
     try {
       await _repository.addCustomer(newCustomer);
       await fetchAllCustomers();
+
+      // تسجيل إضافة عميل
+      await _activityController.logAction(
+        action: 'إضافة عميل جديد',
+        details: 'تم إضافة العميل ($name) برقم هاتف ($phone) وعنوان ($address).',
+        type: ActivityType.admin,
+      );
+
       Get.back();
       Get.snackbar(
           'نجاح', 'تمت إضافة العميل بنجاح', backgroundColor: Colors.green,
@@ -170,9 +181,18 @@ class CustomerController extends GetxController {
   /// دالة مساعدة لتنفيذ الحذف الفعلي بعد التأكيد
   Future<void> _performDelete(int id) async {
     try {
+      final customerName = _allCustomers.firstWhereOrNull((c) => c.id == id)?.name ?? "عميل محذوف";
       await _repository.deleteCustomer(id);
       _allCustomers.removeWhere((customer) => customer.id == id);
       _filterCustomers(); // تحديث الواجهة
+
+      // تسجيل حذف عميل
+      await _activityController.logAction(
+        action: 'حذف ملف عميل',
+        details: 'تم حذف ملف العميل ($customerName) نهائياً من قاعدة البيانات.',
+        type: ActivityType.admin,
+      );
+
       Get.snackbar(
         'نجاح',
         'تم حذف العميل بنجاح.',
@@ -209,6 +229,15 @@ class CustomerController extends GetxController {
       final transactionId = await _repository.addCustomerTransaction(
           newTransaction);
       await fetchAllCustomers();
+
+      // تسجيل تسوية مالية
+      final typeAr = type == CustomerTransactionType.RECEIPT ? "سند قبض" : "سند صرف/تسوية";
+      await _activityController.logAction(
+        action: 'تسوية مالية لعميل',
+        details: 'نوع العملية: ($typeAr). المبلغ: $amount للعميل (${customer.name}). البيان: $notes. رقم السند: $transactionId',
+        type: ActivityType.admin,
+      );
+
       Get.back();
 
       Get.snackbar(
@@ -258,6 +287,14 @@ class CustomerController extends GetxController {
     try {
       await _repository.updateCustomer(updatedCustomer);
       await fetchAllCustomers();
+
+      // تسجيل تعديل بيانات عميل
+      await _activityController.logAction(
+        action: 'تعديل بيانات عميل',
+        details: 'تم تعديل بيانات العميل ($name). الهاتف الجديد: $phone، الشركة: $company.',
+        type: ActivityType.admin,
+      );
+
       Get.back();
 
       Get.snackbar(

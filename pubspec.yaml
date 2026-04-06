@@ -63,6 +63,12 @@ dependencies:
   currency_picker: ^2.0.21
   device_info_plus: ^12.3.0
 
+  # Google Drive Backup
+  google_sign_in: ^6.2.1
+  googleapis: ^13.2.0
+  http: ^1.2.1
+  extension_google_sign_in_as_googleapis_auth: ^2.0.12
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

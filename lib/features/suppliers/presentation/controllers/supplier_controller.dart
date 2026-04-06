@@ -9,11 +9,14 @@ import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range
 
 import '../../../../core/services/settings_service.dart';
 import '../../data/models/supplier_transaction_model.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 enum SupplierFilter { all, hasBalance, noBalance }
 
 class SupplierController extends GetxController {
   final SupplierRepository _repository = SupplierRepository();
+  final ActivityController _activityController = Get.find<ActivityController>();
   SupplierRepository get repository => _repository;
   final RxList<SupplierModel> suppliers = <SupplierModel>[].obs;
   final RxList<SupplierModel> _allSuppliers = <SupplierModel>[].obs;
@@ -105,6 +108,14 @@ class SupplierController extends GetxController {
     try {
       await _repository.addSupplier(newSupplier);
       await fetchAllSuppliers(); // تحديث القائمة
+
+      // تسجيل إضافة مورد
+      await _activityController.logAction(
+        action: 'إضافة مورد جديد',
+        details: 'تم إضافة المورد ($name) من شركة ($company) برقم هاتف ($phone).',
+        type: ActivityType.admin,
+      );
+
       Get.back(); // إغلاق شاشة الإضافة
       Get.snackbar(
         'نجاح',
@@ -178,6 +189,14 @@ class SupplierController extends GetxController {
       // تحديث قائمة الموردين لجلب الأرصدة الجديدة
       await fetchAllSuppliers();
 
+      // تسجيل تسوية مالية للمورد
+      final typeAr = type == SupplierTransactionType.PAYMENT ? "سند صرف" : "سند قبض/تسوية";
+      await _activityController.logAction(
+        action: 'تسوية مالية لمورد',
+        details: 'نوع العملية: ($typeAr). المبلغ: $amount للمورد (${supplier.name}). البيان: $notes. رقم السند: $transactionId',
+        type: ActivityType.admin,
+      );
+
       Get.back(); // العودة من شاشة الإضافة
 
       Get.snackbar(
@@ -231,6 +250,14 @@ class SupplierController extends GetxController {
     try {
       await _repository.updateSupplier(updatedSupplier);
       await fetchAllSuppliers(); // تحديث القائمة الرئيسية
+
+      // تسجيل تعديل بيانات مورد
+      await _activityController.logAction(
+        action: 'تعديل بيانات مورد',
+        details: 'تم تعديل بيانات المورد ($name). الهاتف: $phone، الشركة: $company.',
+        type: ActivityType.admin,
+      );
+
       Get.back(); // العودة من شاشة التعديل
 
       Get.snackbar(
@@ -354,9 +381,18 @@ class SupplierController extends GetxController {
   /// دالة مساعدة لتنفيذ الحذف الفعلي بعد التأكيد
   Future<void> _performDelete(int id) async {
     try {
+      final supplierName = _allSuppliers.firstWhereOrNull((s) => s.id == id)?.name ?? "مورد محذوف";
       await _repository.deleteSupplier(id);
       _allSuppliers.removeWhere((supplier) => supplier.id == id);
       _filterSuppliers(); // تحديث الواجهة
+
+      // تسجيل حذف مورد
+      await _activityController.logAction(
+        action: 'حذف ملف مورد',
+        details: 'تم حذف ملف المورد ($supplierName) نهائياً من قاعدة البيانات.',
+        type: ActivityType.admin,
+      );
+
       Get.snackbar(
         'نجاح',
         'تم حذف المورد بنجاح.',

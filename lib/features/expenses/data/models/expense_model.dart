@@ -9,6 +9,10 @@ class ExpenseModel {
   final String? notes;
   // --- 1. بداية الإضافة: تعريف الخاصية الجديدة ---
   final bool deductFromFund;
+  final int? fundId; // معرف الصندوق المختار
+  final String? fundName; // اسم الصندوق (قادم من JOIN)
+  final int? supplierId; // معرف المورد المرتبط (اختياري)
+  final String? supplierName; // اسم المورد (قادم من JOIN)
   // --- نهاية الإضافة ---
 
   ExpenseModel({
@@ -20,6 +24,10 @@ class ExpenseModel {
     this.notes,
     // --- 2. بداية الإضافة: إضافة الخاصية إلى المُنشئ ---
     required this.deductFromFund,
+    this.fundId,
+    this.fundName,
+    this.supplierId,
+    this.supplierName,
     // --- نهاية الإضافة ---
   });
 
@@ -35,6 +43,10 @@ class ExpenseModel {
       // --- 3. بداية الإضافة: قراءة الخاصية من قاعدة البيانات ---
       // في SQLite، القيم المنطقية تُخزن عادة كـ 0 أو 1
       deductFromFund: map['deductFromFund'] == 1,
+      fundId: map['fundId'],
+      fundName: map['fundName'],
+      supplierId: map['supplierId'],
+      supplierName: map['supplierName'],
       // --- نهاية الإضافة ---
     );
   }
@@ -49,6 +61,8 @@ class ExpenseModel {
       'notes': notes,
       // --- 4. بداية الإضافة: إضافة الخاصية إلى دالة الحفظ ---
       'deductFromFund': deductFromFund ? 1 : 0,
+      'fundId': fundId,
+      'supplierId': supplierId,
       // --- نهاية الإضافة ---
     };
   }

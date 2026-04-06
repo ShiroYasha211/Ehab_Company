@@ -8,6 +8,7 @@ import 'add_purchase_invoice_screen.dart';
 import 'list_purchases_screen.dart';
 import 'purchase_returns_list_screen.dart';
 import 'package:ehab_company_admin/features/financial_docs/presentation/screens/list_payment_vouchers_screen.dart';
+import 'package:ehab_company_admin/features/suppliers/presentation/screens/suppliers_dashboard_screen.dart';
 
 class PurchasesDashboardScreen extends StatelessWidget {
   const PurchasesDashboardScreen({super.key});
@@ -58,6 +59,16 @@ class PurchasesDashboardScreen extends StatelessWidget {
             isAdvanced: true,
             onTap: () {
                Get.to(() => const ListPaymentVouchersScreen());
+            },
+          ),
+          _buildDashboardItem(
+            context: context,
+            icon: Icons.local_shipping_rounded,
+            title: 'إدارة الموردين',
+            subtitle: 'بينات الموردين، حساباتهم، وتوريدات البضائع',
+            isAdvanced: true,
+            onTap: () {
+               Get.to(() => const SuppliersDashboardScreen());
             },
           ),
 

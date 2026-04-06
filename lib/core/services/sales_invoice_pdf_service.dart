@@ -8,14 +8,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart' as intl;
-
+import 'tafqeet_service.dart';
 import 'settings_service.dart';
 
 class SalesInvoicePdfService {
   static Future<void> printInvoice(Map<String, dynamic> invoiceDetails) async {
     final pdf = pw.Document();
 
-    // --- 1. بداية التعديل: استخدام خطين (عادي وداكن) ---
     final font = await rootBundle.load("assets/fonts/Tajawal-Regular.ttf");
     final boldFont = await rootBundle.load("assets/fonts/Tajawal-Bold.ttf");
     final ttf = pw.Font.ttf(font);
@@ -24,17 +23,18 @@ class SalesInvoicePdfService {
     final logoImage = pw.MemoryImage(
       (await rootBundle.load('assets/images/logo.png')).buffer.asUint8List(),
     );
-    // --- نهاية التعديل ---
 
     final invoiceData = invoiceDetails['invoice'] as Map<String, dynamic>;
     final itemsData = invoiceDetails['items'] as List<dynamic>;
+    final List<dynamic> payments = invoiceDetails['payments'] ?? [];
     final int invoiceId = invoiceData['id'];
+    final double remainingAmount = (invoiceData['remainingAmount'] as num? ?? 0.0).toDouble();
+    final bool isPaid = remainingAmount <= 0;
+    final String statusText = isPaid ? 'مدفوعة' : 'آجلة';
 
-    // محاولة استخراج سعر الصرف من الملاحظات لمعرفة ما إذا كان الدفع محليًا
     double? exchangeRate;
     String? localCurrencySymbol;
     bool printInLocal = false;
-
     if (invoiceData['notes'] != null) {
       final notes = invoiceData['notes'].toString();
       final rateMatch = RegExp(r'سعر الصرف:\s*([\d\.]+)').firstMatch(notes);
@@ -42,92 +42,95 @@ class SalesInvoicePdfService {
         exchangeRate = double.tryParse(rateMatch.group(1) ?? '');
         if (exchangeRate != null) {
           printInLocal = true;
-          localCurrencySymbol =
-              Get.find<SettingsService>().localCurrency.value.symbol;
+          localCurrencySymbol = Get.find<SettingsService>().localCurrency.value.symbol;
         }
       }
     }
 
-    // دالة تنسيق العملة المحدثة
-    String formatMoney(double amountInPrimary) {
+    String formatMoney(double amount) {
+      String symbol = Get.find<SettingsService>().primaryCurrency.value.symbol;
+      double finalAmount = amount;
       if (printInLocal && exchangeRate != null) {
-        final localAmount = amountInPrimary * exchangeRate;
-        return '${intl.NumberFormat.decimalPattern('ar').format(localAmount)} $localCurrencySymbol';
-      } else {
-        return '${intl.NumberFormat.decimalPattern('ar').format(amountInPrimary)} ${Get.find<SettingsService>().primaryCurrency.value.symbol}';
+        finalAmount = amount * exchangeRate;
+        symbol = localCurrencySymbol ?? symbol;
       }
+      
+      if (symbol.contains('ر.ي') || symbol.contains('﷼')) {
+        symbol = 'ريال';
+      }
+      final formatted = intl.NumberFormat.decimalPattern('ar').format(finalAmount);
+      return _sanitize("$formatted $symbol");
     }
 
-    // دالة تنسيق الأرقام فقط (بدون رمز العملة) - نحتاجها للجدول
-    String formatNumber(double amountInPrimary) {
+    String formatNum(double amount) {
+      double finalAmount = amount;
       if (printInLocal && exchangeRate != null) {
-        final localAmount = amountInPrimary * exchangeRate;
-        return intl.NumberFormat.decimalPattern('ar').format(localAmount);
-      } else {
-        return intl.NumberFormat.decimalPattern('ar').format(amountInPrimary);
+        finalAmount = amount * exchangeRate;
       }
+      return _sanitize(intl.NumberFormat.decimalPattern('ar').format(finalAmount));
     }
+
+    final qrData = 'INVOICE: #$invoiceId\nDATE: ${invoiceData['invoiceDate']}\nTOTAL: ${formatMoney(invoiceData['totalAmount'] as double)}';
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: ttf, bold: boldTtf),
-        // تطبيق الخطوط
-        header: (context) => _buildHeader(logoImage),
-        // <-- رأس الصفحة الموحد
+        header: (context) => _buildHeader(logoImage, ttf, boldTtf, qrData),
+        footer: (context) => _buildFooter(context, ttf),
         build: (context) => [
-          _buildInvoiceTitle(invoiceId, invoiceData['invoiceDate']),
-          // <-- عنوان الفاتورة
-          _buildCustomerInfo(invoiceData),
-          // <-- معلومات العميل
-          pw.SizedBox(height: 20),
-          // تمرير دوال التنسيق الجديدة
-          _buildItemsTable(itemsData, formatNumber),
-          // <-- جدول الأصناف المحدث
-          pw.SizedBox(height: 20),
-          _buildFinancialSummary(invoiceData, formatMoney),
-          // <-- الملخص المالي المحدث
-          pw.SizedBox(height: 15),
-          if (invoiceData['issuedBy'] != null)
-            pw.Align(
-              alignment: pw.Alignment.centerLeft,
-              child: pw.Text(
-                'مُصدر الفاتورة: ${invoiceData['issuedBy']}',
-                style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+          pw.Stack(
+            children: [
+              // العلامة المائية
+              pw.Opacity(
+                opacity: 0.05,
+                child: pw.Container(
+                  alignment: pw.Alignment.center,
+                  margin: const pw.EdgeInsets.only(top: 150),
+                  child: pw.Transform.rotate(
+                    angle: -0.5,
+                    child: _safeText(statusText, style: pw.TextStyle(fontSize: 100, font: boldTtf, color: isPaid ? PdfColors.green : PdfColors.red)),
+                  ),
+                ),
               ),
-            ),
-          
-          // --- إضافة: قسم تفاصيل السداد (الإصدار 24) ---
-          if (invoiceDetails['payments'] != null && (invoiceDetails['payments'] as List).isNotEmpty) ...[
-            pw.SizedBox(height: 15),
-            _buildPaymentsSection(invoiceDetails['payments'] as List, formatMoney),
-          ],
-          
-          pw.Spacer(),
-          // لدفع الملاحظات إلى أسفل الصفحة إذا كانت هناك مساحة
-          if (invoiceData['notes'] != null && invoiceData['notes'].isNotEmpty)
-            _buildNotes(invoiceData['notes']),
+              // المحتوى الفعلي
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  _buildInvoiceTitle(invoiceId, invoiceData['invoiceDate'], ttf, boldTtf),
+                  _buildCustomerInfo(invoiceData, ttf, boldTtf),
+                  pw.SizedBox(height: 15),
+                  _buildItemsTable(itemsData, formatNum, ttf, boldTtf),
+                  pw.SizedBox(height: 15),
+                  _buildFinancialSummary(invoiceData, formatMoney, ttf, boldTtf),
+                  if (payments.isNotEmpty) ...[
+                    pw.SizedBox(height: 15),
+                    _buildPaymentsTable(payments, formatMoney, ttf, boldTtf),
+                  ],
+                  if (invoiceData['notes'] != null && invoiceData['notes'].toString().isNotEmpty) ...[
+                    pw.SizedBox(height: 10),
+                    _buildNotes(invoiceData['notes'], ttf, boldTtf),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ],
-        footer: (context) => _buildFooter(context), // <-- تذييل الصفحة الموحد
       ),
     );
 
-    // حفظ وفتح الملف
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/sales_invoice_$invoiceId.pdf');
     await file.writeAsBytes(await pdf.save());
     await OpenFile.open(file.path);
   }
 
-  // --- 2. بداية التعديل: استخدام نفس تصميم رأس الصفحة من تقرير المخزون ---
-  static pw.Widget _buildHeader(pw.MemoryImage logo) {
+  static pw.Widget _buildHeader(pw.MemoryImage logo, pw.Font ttf, pw.Font boldTtf, String qrData) {
     return pw.Container(
-      padding: const pw.EdgeInsets.only(bottom: 15),
+      padding: const pw.EdgeInsets.only(bottom: 10),
       decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColors.grey, width: 1.5),
-        ),
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.indigo900, width: 2.0)),
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -135,53 +138,42 @@ class SalesInvoicePdfService {
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text(
-                'شركة إيهاب للتجارة',
-                style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              pw.SizedBox(height: 5),
-              pw.Text(
-                'هاتف: 777-777-777',
-                style: const pw.TextStyle(fontSize: 10),
-              ),
-              pw.Text(
-                'البريد الإلكتروني: info@ehab-company.com',
-                style: const pw.TextStyle(fontSize: 10),
+              _safeText('شركة إيهاب للتجارة العامة', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, font: boldTtf, color: PdfColors.indigo900)),
+              pw.SizedBox(height: 2),
+              _safeText('هاتف: 777-777-777', style: pw.TextStyle(fontSize: 9, font: ttf, color: PdfColors.grey700)),
+              _safeText('صنعاء - اليمن', style: pw.TextStyle(fontSize: 9, font: ttf, color: PdfColors.grey700)),
+            ],
+          ),
+          pw.Row(
+            children: [
+              pw.SizedBox(height: 50, width: 50, child: pw.Image(logo)),
+              pw.SizedBox(width: 8),
+              pw.BarcodeWidget(
+                barcode: pw.Barcode.qrCode(),
+                data: qrData,
+                width: 40,
+                height: 40,
+                drawText: false,
               ),
             ],
           ),
-          pw.SizedBox(height: 60, width: 60, child: pw.Image(logo)),
         ],
       ),
     );
   }
 
-  // --- نهاية التعديل ---
-
-  // ودجت جديد لعرض عنوان الفاتورة ورقمها
-  static pw.Widget _buildInvoiceTitle(int invoiceId, String dateString) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(top: 20),
+  static pw.Widget _buildInvoiceTitle(int id, String date, pw.Font ttf, pw.Font boldTtf) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.symmetric(vertical: 10),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(
-            'فاتورة مبيعات',
-            style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
-          ),
+          _safeText('فاتورة مبيعات', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, font: boldTtf, color: PdfColors.indigo900)),
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
-              pw.Text(
-                'رقم الفاتورة: #$invoiceId',
-                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-              ),
-              pw.Text(
-                'التاريخ: ${intl.DateFormat('yyyy-MM-dd').format(DateTime.parse(dateString))}',
-              ),
+              _safeText('رقم: #$id', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, font: boldTtf, fontSize: 11)),
+              _safeText('تاريخ: $date', style: pw.TextStyle(font: ttf, fontSize: 10)),
             ],
           ),
         ],
@@ -189,133 +181,101 @@ class SalesInvoicePdfService {
     );
   }
 
-  // ودجت جديد لعرض معلومات العميل
-  static pw.Widget _buildCustomerInfo(Map<String, dynamic> data) {
+  static pw.Widget _buildCustomerInfo(Map<String, dynamic> data, pw.Font ttf, pw.Font boldTtf) {
     return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 20),
-      padding: const pw.EdgeInsets.all(10),
+      padding: const pw.EdgeInsets.all(8),
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey300),
-        borderRadius: pw.BorderRadius.circular(5),
+        color: PdfColors.indigo50,
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
       ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
+      child: pw.Row(
         children: [
-          pw.Text(
-            'فاتورة إلى العميل:',
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-          ),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            data['customerName'] ?? 'عميل نقدي',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
-          ),
-          if (data['customerPhone'] != null)
-            pw.Text(
-              'الهاتف: ${data['customerPhone']}',
-              style: const pw.TextStyle(fontSize: 11),
-            ),
+          _safeText('العميل: ', style: pw.TextStyle(fontSize: 10, color: PdfColors.indigo700, font: ttf)),
+          _safeText('${data['customerName'] ?? 'عميل نقدي'}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, font: boldTtf)),
         ],
       ),
     );
   }
 
-  // --- 3. بداية التعديل: استخدام نفس تصميم جدول الأصناف ---
-  static pw.Widget _buildItemsTable(
-    List<dynamic> items,
-    String Function(double) formatNumber,
-  ) {
-    final headers = ['الإجمالي', 'السعر', 'المجانية', 'الأساسية', 'الوحدة', 'الصنف'];
-
-    final data = items.map((item) {
-      return [
-        formatNumber(item['totalPrice']),
-        formatNumber(item['salePrice']),
-        (item['freeQuantity'] as num? ?? 0.0).toStringAsFixed(0),
-        (item['quantity'] as num).toStringAsFixed(0),
-        item['unit'] ?? '-',
-        item['productName'],
-      ];
-    }).toList();
-
-    return pw.TableHelper.fromTextArray(
-      cellAlignment: pw.Alignment.centerRight,
-      headerStyle: pw.TextStyle(
-        fontWeight: pw.FontWeight.bold,
-        color: PdfColors.white,
-        fontSize: 10,
-      ),
-      cellStyle: const pw.TextStyle(fontSize: 9),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
-      rowDecoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200)),
-      ),
-      headers: headers,
-      data: data,
+  static pw.Widget _buildItemsTable(List<dynamic> items, String Function(double) formatNum, pw.Font ttf, pw.Font boldTtf) {
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
       columnWidths: {
-        0: const pw.FlexColumnWidth(1.8), // الإجمالي
-        1: const pw.FlexColumnWidth(1.5), // السعر
-        2: const pw.FlexColumnWidth(1.2), // المجانية
-        3: const pw.FlexColumnWidth(1.2), // الأساسية
-        4: const pw.FlexColumnWidth(1.5), // الوحدة
-        5: const pw.FlexColumnWidth(2.8), // الصنف
+        0: const pw.FlexColumnWidth(1.2),
+        1: const pw.FlexColumnWidth(1.2),
+        2: const pw.FlexColumnWidth(1),
+        3: const pw.FlexColumnWidth(1),
+        4: const pw.FlexColumnWidth(1.2),
+        5: const pw.FlexColumnWidth(3),
       },
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.indigo800),
+          children: [
+            _tableCell('الإجمالي', boldTtf, color: PdfColors.white, weight: pw.FontWeight.bold),
+            _tableCell('السعر', boldTtf, color: PdfColors.white, weight: pw.FontWeight.bold),
+            _tableCell('المجانية', boldTtf, color: PdfColors.white, weight: pw.FontWeight.bold),
+            _tableCell('الكمية', boldTtf, color: PdfColors.white, weight: pw.FontWeight.bold),
+            _tableCell('الوحدة', boldTtf, color: PdfColors.white, weight: pw.FontWeight.bold),
+            _tableCell('الصنف', boldTtf, color: PdfColors.white, weight: pw.FontWeight.bold),
+          ],
+        ),
+        ...List.generate(items.length, (index) {
+          final item = items[index];
+          return pw.TableRow(
+            decoration: pw.BoxDecoration(color: index % 2 == 1 ? PdfColors.grey100 : PdfColors.white),
+            children: [
+              _tableCell(formatNum(item['totalPrice'] as double), ttf),
+              _tableCell(formatNum(item['salePrice'] as double), ttf),
+              _tableCell((item['freeQuantity'] as num? ?? 0).toString(), ttf),
+              _tableCell((item['quantity'] as num).toString(), ttf),
+              _tableCell(item['unit'] ?? '-', ttf),
+              _tableCell(item['productName'] ?? '-', ttf),
+            ],
+          );
+        }),
+      ],
     );
   }
 
-  // --- نهاية التعديل ---
-
-  // --- 4. بداية التعديل: إعادة تصميم الملخص المالي ---
-  static pw.Widget _buildFinancialSummary(
-    Map<String, dynamic> data,
-    String Function(double) formatCurrency,
-  ) {
-    final double totalBeforeDiscount =
-        data['totalAmount'] + data['discountAmount'];
-
+  static pw.Widget _buildFinancialSummary(Map<String, dynamic> data, String Function(double) formatMoney, pw.Font ttf, pw.Font boldTtf) {
+    final subTotal = (data['totalAmount'] as double) + (data['discountAmount'] as double);
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Spacer(), // لدفع الملخص إلى اليسار
         pw.Expanded(
-          flex: 2,
-          child: pw.Column(
+          flex: 1,
+          child: (data['issuedBy'] != null) ? pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              _buildSummaryRow(
-                'الإجمالي قبل الخصم:',
-                formatCurrency(totalBeforeDiscount),
-              ),
-              _buildSummaryRow(
-                'الخصم:',
-                '- ${formatCurrency(data['discountAmount'])}',
-                color: PdfColors.orange800,
-              ),
+              _safeText('مُسجل العملية:', style: pw.TextStyle(fontSize: 8, font: ttf, color: PdfColors.grey600)),
+              _safeText(data['issuedBy'], style: pw.TextStyle(fontSize: 9, font: boldTtf)),
+              pw.SizedBox(height: 15),
+              pw.Container(width: 70, decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: PdfColors.grey400)))),
+              _safeText('توقيع المحاسب', style: pw.TextStyle(fontSize: 7, font: ttf)),
+            ],
+          ) : pw.SizedBox(),
+        ),
+        pw.Expanded(
+          flex: 1,
+          child: pw.Column(
+            children: [
+              _buildSummaryRow('الإجمالي:', formatMoney(subTotal), ttf, boldTtf),
+              _buildSummaryRow('الخصم:', '- ${formatMoney(data['discountAmount'] as double)}', ttf, boldTtf, color: PdfColors.orange900),
+              pw.Divider(color: PdfColors.indigo100, thickness: 0.5),
               pw.Container(
-                margin: const pw.EdgeInsets.symmetric(vertical: 4),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(top: pw.BorderSide(color: PdfColors.grey)),
-                ),
-                padding: const pw.EdgeInsets.only(top: 4),
-                child: _buildSummaryRow(
-                  'الإجمالي بعد الخصم:',
-                  formatCurrency(data['totalAmount']),
-                  isTotal: true,
-                ),
-              ),
-              _buildSummaryRow(
-                'المبلغ المدفوع:',
-                formatCurrency(data['paidAmount']),
-                color: PdfColors.green700,
-              ),
-              pw.Container(
-                color: PdfColors.grey200,
                 padding: const pw.EdgeInsets.all(6),
-                child: _buildSummaryRow(
-                  'المبلغ المتبقي:',
-                  formatCurrency(data['remainingAmount']),
-                  isTotal: true,
-                ),
+                decoration: const pw.BoxDecoration(color: PdfColors.indigo900, borderRadius: pw.BorderRadius.all(pw.Radius.circular(4))),
+                child: _buildSummaryRow('الصافي:', formatMoney(data['totalAmount'] as double), ttf, boldTtf, isTotal: true, color: PdfColors.white),
+              ),
+              _buildSummaryRow('المدفوع:', formatMoney(data['paidAmount'] as double), ttf, boldTtf, color: PdfColors.green800),
+              _buildSummaryRow('المتبقي:', formatMoney(data['remainingAmount'] as double), ttf, boldTtf, color: PdfColors.red800),
+              pw.SizedBox(height: 5),
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(4),
+                decoration: pw.BoxDecoration(color: PdfColors.indigo50, border: pw.Border.all(color: PdfColors.indigo100)),
+                child: _safeText(TafqeetService.convert(data['totalAmount'] as double), style: pw.TextStyle(fontSize: 8, font: ttf), align: pw.TextAlign.center),
               ),
             ],
           ),
@@ -324,127 +284,107 @@ class SalesInvoicePdfService {
     );
   }
 
-  // --- نهاية التعديل ---
-
-  // ودجت عرض تفاصيل المدفوعات المتعددة
-  static pw.Widget _buildPaymentsSection(
-    List<dynamic> payments,
-    String Function(double) formatCurrency,
-  ) {
+  static pw.Widget _buildPaymentsTable(List<dynamic> payments, String Function(double) formatMoney, pw.Font ttf, pw.Font boldTtf) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(
-          'تفاصيل سداد المبالغ:',
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12),
-        ),
-        pw.SizedBox(height: 5),
-        pw.TableHelper.fromTextArray(
-          cellAlignment: pw.Alignment.centerRight,
-          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white),
-          cellStyle: const pw.TextStyle(fontSize: 8),
-          headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-          headers: ['الملاحظات', 'التفاصيل (رقم المرجع / المرسل)', 'الوسيلة', 'المبلغ'],
-          data: payments.map((p) {
-            String methodText = 'نقد (كاش)';
-            String details = '-';
-            
-            if (p['method'] == 'transfer') {
-              methodText = 'حوالة مصرفية';
-              details = 'رقم: ${p['transferNumber'] ?? ''} | مُرسل: ${p['senderName'] ?? ''}\n(إلى: ${p['fundName'] ?? 'صندوق غير محدد'})';
-            } else if (p['method'] == 'bank') {
-              methodText = 'بنك / مسبق';
-              details = 'مرجع: ${p['bankReference'] ?? ''} | بنك: ${p['bankName'] ?? ''}\n(إلى: ${p['fundName'] ?? 'حساب غير محدد'})';
-            } else {
-              details = 'إيداع في: ${p['fundName'] ?? 'صندوق النقد'}';
-            }
-
-            // إضافة الملاحظات إذا وجدت
-            if (p['notes'] != null && p['notes'].toString().trim().isNotEmpty) {
-              details += '\n📝 ملاحظة: ${p['notes']}';
-            }
-
-            return [
-              p['notes'] ?? '-',
-              details,
-              methodText,
-              formatCurrency(p['amount'] as double? ?? 0.0),
-            ];
-          }).toList(),
-          columnWidths: {
-            0: const pw.FlexColumnWidth(2), 
-            1: const pw.FlexColumnWidth(3),
-            2: const pw.FlexColumnWidth(1.5),
-            3: const pw.FlexColumnWidth(1.5),
-          },
+        _safeText('سجل السداد:', style: pw.TextStyle(font: boldTtf, fontSize: 10, color: PdfColors.indigo900)),
+        pw.SizedBox(height: 4),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey200),
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey50),
+              children: [
+                _tableCell('الملاحظات', boldTtf, size: 8),
+                _tableCell('التفاصيل', boldTtf, size: 8),
+                _tableCell('المبلغ', boldTtf, size: 8),
+              ],
+            ),
+            ...payments.map((p) => pw.TableRow(
+              children: [
+                _tableCell(p['notes'] ?? '-', ttf, size: 8),
+                _tableCell(p['method'] == 'cash' ? 'نقد (${p['fundName']})' : 'حوالة/بنك', ttf, size: 8),
+                _tableCell(formatMoney(p['amount'] as double), ttf, size: 8),
+              ],
+            )),
+          ],
         ),
       ],
     );
   }
 
-  static pw.Widget _buildNotes(String notes) {
+  static pw.Widget _buildNotes(String notes, pw.Font ttf, pw.Font boldTtf) {
     return pw.Container(
-      padding: const pw.EdgeInsets.all(10),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey, width: 0.5),
-        borderRadius: pw.BorderRadius.circular(5),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            'ملاحظات:',
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 5),
-          pw.Text(notes),
-        ],
-      ),
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(6),
+      decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey300), borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4))),
+      child: _safeText('ملاحظات: $notes', style: pw.TextStyle(fontSize: 8, font: ttf, color: PdfColors.grey800)),
     );
   }
 
-  static pw.Widget _buildSummaryRow(
-    String label,
-    String value, {
-    bool isTotal = false,
-    PdfColor? color,
-  }) {
+  static pw.Widget _tableCell(String text, pw.Font font, {PdfColor? color, double size = 9, pw.FontWeight? weight, double padding = 4}) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+      padding: pw.EdgeInsets.all(padding),
+      child: _safeText(text, style: pw.TextStyle(font: font, fontSize: size, color: color, fontWeight: weight)),
+    );
+  }
+
+  static pw.Widget _buildSummaryRow(String label, String value, pw.Font ttf, pw.Font boldTtf, {bool isTotal = false, PdfColor? color}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontWeight: isTotal ? pw.FontWeight.bold : pw.FontWeight.normal,
-              fontSize: 11,
-            ),
-          ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              fontWeight: pw.FontWeight.bold,
-              color: color,
-              fontSize: 11,
-            ),
-          ),
+          _safeText(label, style: pw.TextStyle(font: isTotal ? boldTtf : ttf, fontSize: 9, color: isTotal ? color : null)),
+          _safeText(value, style: pw.TextStyle(font: boldTtf, fontSize: 9, color: color)),
         ],
       ),
     );
   }
 
-  // --- 5. بداية التعديل: استخدام نفس تصميم تذييل الصفحة ---
-  static pw.Widget _buildFooter(pw.Context context) {
+  static pw.Widget _buildFooter(pw.Context context, pw.Font ttf) {
     return pw.Container(
       alignment: pw.Alignment.center,
       margin: const pw.EdgeInsets.only(top: 10),
-      child: pw.Text(
-        'صفحة ${context.pageNumber} من ${context.pagesCount} - © شركة إيهاب',
-        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+      decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: PdfColors.grey200))),
+      padding: const pw.EdgeInsets.only(top: 4),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          _safeText('صفحة ${context.pageNumber}', style: pw.TextStyle(fontSize: 7, font: ttf, color: PdfColors.grey500)),
+          _safeText('طُبع بواسطة نظام إيهاب', style: pw.TextStyle(fontSize: 7, font: ttf, color: PdfColors.grey500)),
+        ],
       ),
     );
   }
 
-  // --- نهاية التعديل ---
+  static pw.Widget _safeText(String? text, {required pw.TextStyle style, pw.TextAlign align = pw.TextAlign.right}) {
+    String sanitized = _sanitize(text ?? '');
+    if (sanitized.trim().isEmpty) sanitized = " ";
+    return pw.Text(sanitized, style: style, textAlign: align);
+  }
+
+  static String _sanitize(String text) {
+    if (text.isEmpty) return " ";
+    String cleaned = text
+        .replaceAll('\u202f', ' ')
+        .replaceAll('\u00a0', ' ')
+        .replaceAll('\u066c', ',')
+        .replaceAll('\u066b', '.')
+        .replaceAll('\ufdfc', 'ر.ي')
+        .replaceAll('﷼', 'ر.ي');
+
+    final buffer = StringBuffer();
+    for (final rune in cleaned.runes) {
+      if (rune == 0x0A || rune == 0x0D) { buffer.writeCharCode(rune); continue; }
+      if (rune >= 0x0020 && rune <= 0x007E) { buffer.writeCharCode(rune); continue; }
+      if (rune >= 0x0600 && rune <= 0x06FF) { buffer.writeCharCode(rune); continue; }
+      if (rune >= 0x0750 && rune <= 0x077F) { buffer.writeCharCode(rune); continue; }
+      if (rune >= 0xFB50 && rune <= 0xFDFF) { buffer.writeCharCode(rune); continue; }
+      if (rune >= 0xFE70 && rune <= 0xFEFF) { buffer.writeCharCode(rune); continue; }
+      if (rune >= 0x0660 && rune <= 0x0669) { buffer.writeCharCode(rune); continue; }
+    }
+    return buffer.toString();
+  }
 }

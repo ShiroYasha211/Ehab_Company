@@ -29,7 +29,8 @@ class ExpensesDashboardScreen extends StatelessWidget {
             title: 'تسجيل مصروف جديد',
             subtitle: 'تسجيل المصروفات اليومية والنثرية.',
             onTap: () {
-              Get.to(() => const AddExpenseScreen());
+              Get.to(() => const AddExpenseScreen(),
+              binding: ExpensesBinding());
             },
           ),
           _buildDashboardItem(

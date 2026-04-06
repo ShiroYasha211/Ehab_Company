@@ -3,6 +3,7 @@
 // --- 1. بداية التعديل: إضافة imports جديدة ---
 import 'package:ehab_company_admin/features/sales/presentation/screens/add_sales_invoice_binding.dart';
 import 'package:ehab_company_admin/features/sales/presentation/screens/add_sales_invoice_screen.dart';
+import 'package:ehab_company_admin/features/customers/presentation/screens/customers_dashboard_screen.dart';
 // --- نهاية التعديل ---
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -64,6 +65,16 @@ class SalesDashboardScreen extends StatelessWidget {
             isAdvanced: true,
             onTap: () {
                Get.to(() => const ListReceiptVouchersScreen());
+            },
+          ),
+          _buildDashboardItem(
+            context: context,
+            icon: Icons.people_outline_rounded,
+            title: 'إدارة العملاء',
+            subtitle: 'إضافة عملاء جدد، تتبع حساباتهم، وكشوفات الأرصدة',
+            isAdvanced: true,
+            onTap: () {
+              Get.to(() => const CustomersDashboardScreen());
             },
           ),
         ],

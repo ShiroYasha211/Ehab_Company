@@ -147,11 +147,20 @@ class PurchaseRepository {
         );
 
         // ج. تسجيل حركة سحب في الصندوق/البنك
+        // جلب اسم المورد لتفاصيل الصندوق
+        String supplierPart = "";
+        if (supplierId != null) {
+          final supplierData = await txn.query('suppliers', columns: ['name'], where: 'id = ?', whereArgs: [supplierId]);
+          if (supplierData.isNotEmpty) {
+            supplierPart = " - المورد: ${supplierData.first['name']}";
+          }
+        }
+
         await txn.insert('fund_transactions', {
           'fundId': targetFundId,
           'type': 'WITHDRAWAL',
           'amount': payment.amount,
-          'description': 'سحب لدفع فاتورة مشتريات رقم: $invoiceId',
+          'description': 'سحب لدفع فاتورة مشتريات رقم: $invoiceId$supplierPart',
           'transactionDate': invoiceDate.toIso8601String(),
           'notes': payment.notes ?? 'دفع فاتورة شراء',
           'referenceType': 'purchase_invoice',
@@ -351,7 +360,7 @@ class PurchaseRepository {
         'notes': 'تسديد جزء من فاتورة شراء رقم: $invoiceId',
       });
 
-      // 5. التحقق من رصيد الصندوق وتسجيل حركة سحب
+      // 5. التحقق من رصيد الصندوق وتسجيل حركة سحب مع اسم المورد
       final fund = (await txn.query('funds', where: 'id = ?', whereArgs: [1]))
           .first;
       final double currentFundBalance = fund['balance'] as double;
@@ -359,11 +368,14 @@ class PurchaseRepository {
         throw Exception('الرصيد في الصندوق غير كافٍ لإتمام الدفعة.');
       }
 
+      final supplier = (await txn.query('suppliers', columns: ['name'], where: 'id = ?', whereArgs: [supplierId])).first;
+      final supplierName = supplier['name'] as String;
+
       await txn.insert('fund_transactions', {
         'fundId': 1,
         'type': 'WITHDRAWAL',
         'amount': paymentAmount,
-        'description': 'تسديد جزء من فاتورة شراء رقم: $invoiceId',
+        'description': 'تسديد جزء من فاتورة شراء رقم: $invoiceId - المورد: $supplierName',
         'referenceId': invoiceId,
         'transactionDate': DateTime.now().toIso8601String(),
       });

@@ -1,6 +1,7 @@
 // File: lib/features/expenses/presentation/screens/add_expense_screen.dart
 
 import 'package:ehab_company_admin/features/expenses/presentation/controllers/expense_controller.dart';
+import 'package:ehab_company_admin/features/fund/presentation/controllers/fund_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
@@ -10,7 +11,8 @@ const AddExpenseScreen({super.key});
 
 @override
 Widget build(BuildContext context) {
-final controller = Get.put(ExpenseController());
+final controller = Get.find<ExpenseController>();
+final fundController = Get.find<FundController>();
 final dateController = TextEditingController(
 text: intl.DateFormat('yyyy-MM-dd').format(controller.selectedDate.value),
 );
@@ -113,6 +115,92 @@ side: BorderSide(color: Colors.grey.shade300),
 ),
 )),
 const SizedBox(height: 16),
+
+// 4.1 اختيار الصندوق (يظهر فقط إذا تم تفعيل الخصم)
+Obx(() => controller.deductFromFund.value
+    ? Column(
+        children: [
+          DropdownButtonFormField<int>(
+            value: controller.selectedFundId.value,
+            items: fundController.subFunds
+                .where((f) => f.isActive) // الصناديق النشطة فقط
+                .map((fund) {
+              return DropdownMenuItem<int>(
+                value: fund.id,
+                child: Row(
+                  children: [
+                    Text(fund.displayIcon),
+                    const SizedBox(width: 10),
+                    Text(fund.name),
+                    const SizedBox(width: 8),
+                    Text(
+                      '(${fund.balance.toStringAsFixed(2)})',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              controller.selectedFundId.value = value;
+            },
+            decoration: const InputDecoration(
+              labelText: 'اختر الصندوق للصرف منه *',
+              prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => (controller.deductFromFund.value && value == null)
+                ? 'الرجاء اختيار الصندوق'
+                : null,
+          ),
+          const SizedBox(height: 16),
+        ],
+      )
+    : const SizedBox.shrink()),
+
+// 4.2 خيار الربط بمورد
+Obx(() => Column(
+      children: [
+        SwitchListTile(
+          title: const Text('مرتبط بمورد؟'),
+          subtitle: const Text('سيتم تحميل هذا المصروف على حساب مورد معين'),
+          value: controller.isSupplierRelated.value,
+          onChanged: (value) {
+            controller.isSupplierRelated.value = value;
+          },
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: Colors.grey.shade300),
+          ),
+        ),
+        if (controller.isSupplierRelated.value) ...[
+          const SizedBox(height: 16),
+          DropdownButtonFormField<int>(
+            value: controller.selectedSupplierId.value,
+            items: controller.suppliers.map((supplier) {
+              return DropdownMenuItem<int>(
+                value: supplier.id,
+                child: Text(supplier.name),
+              );
+            }).toList(),
+            onChanged: (value) {
+              controller.selectedSupplierId.value = value;
+            },
+            decoration: const InputDecoration(
+              labelText: 'اختر المورد *',
+              prefixIcon: Icon(Icons.person_search_outlined),
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) => (controller.isSupplierRelated.value && value == null)
+                ? 'الرجاء اختيار المورد'
+                : null,
+          ),
+        ],
+      ],
+    )),
 
 // 5. الملاحظات
 TextFormField(

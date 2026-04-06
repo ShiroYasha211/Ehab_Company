@@ -3,9 +3,12 @@
 import 'package:ehab_company_admin/features/fund/data/repositories/fund_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
 
 class FundFlowReportController extends GetxController {
   final FundRepository _fundRepository = FundRepository();
+  final ActivityController _activityController = Get.find<ActivityController>();
 
   // Observables for UI state
   final RxBool isLoading = false.obs;
@@ -37,6 +40,14 @@ class FundFlowReportController extends GetxController {
       /// The main function to generate the fund flow report
   Future<void> generateReport() async {
     isLoading(true);
+
+    // تسجيل الوصول للتقرير
+    await _activityController.logAction(
+      action: 'عرض تقرير التدفق المالي',
+      details: 'تم عرض حركة الصندوق والسيولة للفترة من (${fromDate.value.toString().split(' ')[0]}) إلى (${toDate.value.toString().split(' ')[0]})',
+      type: ActivityType.admin,
+    );
+
     try {
       final summary = await _fundRepository.getFundFlowSummary(
           from: fromDate.value, to: toDate.value);

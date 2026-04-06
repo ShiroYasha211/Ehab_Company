@@ -1,6 +1,6 @@
 // File: lib/features/suppliers/data/models/supplier_transaction_model.dart
 
-enum SupplierTransactionType { PAYMENT, OPENING_BALANCE, PURCHASE, RETURN }
+enum SupplierTransactionType { PAYMENT, OPENING_BALANCE, PURCHASE, RETURN, EXPENSE }
 
 class SupplierTransactionModel {final int? id; // رقم السند
 final int supplierId;

@@ -31,11 +31,11 @@ class HomeController extends GetxController { // <-- تم حذف "with WidgetsBi
   // تم حذف دالة didChangeAppLifecycleState بالكامل
 
   Future<void> refreshStats() async {
-    // لا نظهر مؤشر التحميل في كل مرة لتجنب الوميض
-    // isLoading(true);
+    isLoading(true); // تفعيل مؤشر التحميل
 
     try {
-      final results = await Future.wait([        _productRepo.getTotalInventoryValue(),
+      final results = await Future.wait([
+        _productRepo.getTotalInventoryValue(),
         _supplierRepo.getTotalBalance(),
         _purchaseRepo.getTotalRemainingAmount(),
         _fundRepo.getFundBalance(1),
@@ -48,13 +48,17 @@ class HomeController extends GetxController { // <-- تم حذف "with WidgetsBi
       currentFundBalance.value = results[3] as double;
       totalProductsCount.value = results[4] as int;
 
+      // إظهار رسالة نجاح بسيطة في الأسفل (بدون تعليق الشاشة)
+      Get.rawSnackbar(
+        message: 'تم تحديث البيانات بنجاح',
+        duration: const Duration(seconds: 1),
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Get.theme.primaryColor.withOpacity(0.7),
+      );
     } catch (e) {
       Get.snackbar('خطأ', 'فشل في تحديث إحصائيات لوحة التحكم: $e');
     } finally {
-      // فقط في المرة الأولى عند التحميل
-      if (isLoading.isTrue) {
-        isLoading(false);
-      }
+      isLoading(false); // إيقاف مؤشر التحميل
     }
   }
 

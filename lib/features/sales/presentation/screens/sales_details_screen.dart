@@ -107,8 +107,8 @@ class SalesDetailsScreen extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final invoiceData = controller.invoiceDetails.value!['invoice'];
-        final double remainingAmount = invoiceData['remainingAmount'];
-        final String status = invoiceData['status'];
+        final double remainingAmount = (invoiceData['remainingAmount'] as num? ?? 0.0).toDouble();
+        final String status = invoiceData['status'] ?? 'PENDING';
 
         if (remainingAmount <= 0 || status == 'RETURNED') {
           return const SizedBox.shrink();
@@ -299,6 +299,9 @@ class SalesDetailsScreen extends StatelessWidget {
 
   Widget _buildItemDetailCard(Map<String, dynamic> item) {
     final double freeQty = (item['freeQuantity'] as num? ?? 0.0).toDouble();
+    final double quantity = (item['quantity'] as num? ?? 0.0).toDouble();
+    final double salesPrice = (item['salesPrice'] as num? ?? 0.0).toDouble();
+    final double totalPrice = (item['totalPrice'] as num? ?? 0.0).toDouble();
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -350,20 +353,24 @@ class SalesDetailsScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildCompactInfo('الكمية', (item['quantity'] as num).toStringAsFixed(0)),
-                _buildCompactInfo('المجانية', freeQty.toStringAsFixed(0), color: freeQty > 0 ? Colors.orange.shade800 : null),
+                _buildCompactInfo('الكمية', quantity.toStringAsFixed(0)),
+                _buildCompactInfo('المجانية', freeQty.toStringAsFixed(0),
+                    color: freeQty > 0 ? Colors.orange.shade800 : null),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Text('السعر', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    _buildPriceWidget(item['salesPrice']),
+                    const Text('السعر',
+                        style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    _buildPriceWidget(salesPrice),
                   ],
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text('الإجمالي', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    _buildPriceWidget(item['totalPrice'], color: Get.theme.primaryColor),
+                    const Text('الإجمالي',
+                        style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    _buildPriceWidget(totalPrice,
+                        color: Get.theme.primaryColor),
                   ],
                 ),
               ],
@@ -400,6 +407,15 @@ class SalesDetailsScreen extends StatelessWidget {
         ? Colors.red
         : (invoiceData['remainingAmount'] <= 0 ? Colors.green : Colors.orange);
 
+    final double discountAmount =
+        (invoiceData['discountAmount'] as num? ?? 0.0).toDouble();
+    final double totalAmount =
+        (invoiceData['totalAmount'] as num? ?? 0.0).toDouble();
+    final double paidAmount =
+        (invoiceData['paidAmount'] as num? ?? 0.0).toDouble();
+    final double remainingAmount =
+        (invoiceData['remainingAmount'] as num? ?? 0.0).toDouble();
+
     return Card(
       elevation: 2,
       child: Padding(
@@ -408,21 +424,21 @@ class SalesDetailsScreen extends StatelessWidget {
           children: [
             _buildInfoRowWithWidget(
               'الخصم:',
-              _buildPriceWidget(invoiceData['discountAmount']),
+              _buildPriceWidget(discountAmount),
             ),
             _buildInfoRowWithWidget(
               'الإجمالي:',
-              _buildPriceWidget(invoiceData['totalAmount']),
+              _buildPriceWidget(totalAmount),
             ),
             const Divider(),
             _buildInfoRowWithWidget(
               'المدفوع:',
-              _buildPriceWidget(invoiceData['paidAmount'], color: Colors.green),
+              _buildPriceWidget(paidAmount, color: Colors.green),
             ),
             _buildInfoRowWithWidget(
               'المتبقي:',
               _buildPriceWidget(
-                invoiceData['remainingAmount'],
+                remainingAmount,
                 color: Colors.red,
               ),
             ),
@@ -531,7 +547,7 @@ class SalesDetailsScreen extends StatelessWidget {
                            Text('  🔗 ${p['fundIcon'] ?? ''} ${p['fundName']}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                       ],
                     ),
-                    _buildPriceWidget((p['amount'] as num).toDouble()),
+                    _buildPriceWidget((p['amount'] as num? ?? 0.0).toDouble()),
                   ],
                 ),
                 if (method == 'transfer' || method == 'bank') ...[
