@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:ehab_company_admin/core/services/auth_service.dart';
 import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
 import 'package:ehab_company_admin/features/activities/data/providers/activity_provider.dart';
@@ -10,16 +11,31 @@ class ActivityController extends GetxController {
   final RxList<ActivityModel> activities = <ActivityModel>[].obs;
   final RxBool isLoading = false.obs;
 
+  // فلاتر البحث
+  final RxnInt selectedUserId = RxnInt();
+  final Rxn<ActivityType> selectedType = Rxn<ActivityType>();
+  final Rxn<DateTimeRange> selectedDateRange = Rxn<DateTimeRange>();
+  final RxString searchQuery = ''.obs;
+
   @override
   void onInit() {
     super.onInit();
     loadActivities();
+    
+    // ربط البحث التلقائي مع تأخير (Debounce) لتحسين الأداء
+    debounce(searchQuery, (_) => loadActivities(), time: const Duration(milliseconds: 500));
   }
 
   Future<void> loadActivities() async {
     isLoading.value = true;
     try {
-      final list = await _provider.getAllActivities();
+      final list = await _provider.getFilteredActivities(
+        userId: selectedUserId.value,
+        type: selectedType.value,
+        startDate: selectedDateRange.value?.start,
+        endDate: selectedDateRange.value?.end.add(const Duration(hours: 23, minutes: 59)),
+        query: searchQuery.value,
+      );
       activities.value = list;
     } catch (e) {
       Get.snackbar('خطأ', 'فشل تحميل سجل النشاطات: $e');
@@ -44,20 +60,34 @@ class ActivityController extends GetxController {
       details: details,
       type: type,
       time: now,
-      deviceInfo: 'Admin App', // يمكن توسيعه لاحقاً
+      deviceInfo: 'Admin App',
       createdAt: now,
     );
 
     await _provider.recordActivity(activity);
-    await loadActivities(); // تحديث القائمة فورياً
+    await loadActivities(); // تحديث القائمة فورياً مع مراعاة الفلاتر الحالية
   }
 
-  // دوال مساعدة للفلترة (سيتم تفعيلها في المرحلة الثالثة)
-  void filterByUser(int? userId) {
-    if (userId == null) {
-      loadActivities();
-    } else {
-      // منطق الفلترة
-    }
+  void resetFilters() {
+    selectedUserId.value = null;
+    selectedType.value = null;
+    selectedDateRange.value = null;
+    searchQuery.value = '';
+    loadActivities();
+  }
+
+  bool get isAnyFilterActive => 
+    selectedUserId.value != null || 
+    selectedType.value != null || 
+    selectedDateRange.value != null || 
+    searchQuery.value.isNotEmpty;
+
+  int get activeFiltersCount {
+    int count = 0;
+    if (selectedUserId.value != null) count++;
+    if (selectedType.value != null) count++;
+    if (selectedDateRange.value != null) count++;
+    if (searchQuery.value.isNotEmpty) count++;
+    return count;
   }
 }

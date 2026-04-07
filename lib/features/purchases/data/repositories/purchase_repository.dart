@@ -4,6 +4,8 @@ import 'package:ehab_company_admin/core/database/database_service.dart';
 import '../models/purchase_invoice_item.dart';
 import '../models/purchase_invoice_summary_model.dart';
 import '../models/purchase_invoice_payment_model.dart';
+import 'package:get/get.dart';
+import '../../../../core/services/auth_service.dart';
 
 class PurchaseRepository {
   final DatabaseService _dbService = DatabaseService();
@@ -156,6 +158,13 @@ class PurchaseRepository {
           }
         }
 
+        // جلب الرصيد الحالي للصندوق لحساب الرصيد المتراكم (جديد الإصدار 37)
+        final double newBalance = currentBalance - payment.amount;
+
+        // جلب الموظف الحالي (جديد الإصدار 37)
+        final authService = Get.find<AuthService>();
+        final user = authService.currentUser.value;
+
         await txn.insert('fund_transactions', {
           'fundId': targetFundId,
           'type': 'WITHDRAWAL',
@@ -165,6 +174,10 @@ class PurchaseRepository {
           'notes': payment.notes ?? 'دفع فاتورة شراء',
           'referenceType': 'purchase_invoice',
           'referenceId': invoiceId,
+          // بيانات الموظف والرقابة (V37)
+          'userId': user?.id,
+          'userName': user?.name,
+          'balanceAfter': newBalance,
           'transferNumber': payment.transferNumber,
           'senderName': payment.senderName,
           'transferCompany': payment.transferCompany,
@@ -371,6 +384,13 @@ class PurchaseRepository {
       final supplier = (await txn.query('suppliers', columns: ['name'], where: 'id = ?', whereArgs: [supplierId])).first;
       final supplierName = supplier['name'] as String;
 
+      // جلب الرصيد الحالي للصندوق لحساب الرصيد المتراكم (جديد الإصدار 37)
+      final double newBalance = currentFundBalance - paymentAmount;
+
+      // جلب الموظف الحالي (جديد الإصدار 37)
+      final authService = Get.find<AuthService>();
+      final user = authService.currentUser.value;
+
       await txn.insert('fund_transactions', {
         'fundId': 1,
         'type': 'WITHDRAWAL',
@@ -378,6 +398,9 @@ class PurchaseRepository {
         'description': 'تسديد جزء من فاتورة شراء رقم: $invoiceId - المورد: $supplierName',
         'referenceId': invoiceId,
         'transactionDate': DateTime.now().toIso8601String(),
+        'userId': user?.id,
+        'userName': user?.name,
+        'balanceAfter': newBalance,
       });
 
       await txn.rawUpdate('UPDATE funds SET balance = balance - ? WHERE id = ?',
@@ -466,6 +489,14 @@ class PurchaseRepository {
         // التحقق من رصيد الصندوق ليس ضروريًا عند الإيداع، لكنه ممارسة جيدة
 
         // أ. إضافة المبلغ المدفوع أصلاً إلى الصندوق
+        final fundResult = await txn.query('funds', columns: ['balance'], where: 'id = ?', whereArgs: [1]);
+        final double currentBalance = (fundResult.first['balance'] as num).toDouble();
+        final double newBalance = currentBalance + paidAmount;
+
+        // جلب الموظف الحالي (جديد الإصدار 37)
+        final authService = Get.find<AuthService>();
+        final user = authService.currentUser.value;
+
         await txn.insert('fund_transactions', {
           'fundId': 1,
           'type': 'DEPOSIT',
@@ -473,6 +504,12 @@ class PurchaseRepository {
           'description': 'استلام قيمة مرتجع من فاتورة شراء رقم: $originalInvoiceId',
           'referenceId': returnId,
           'transactionDate': DateTime.now().toIso8601String(),
+          // بيانات الرقابة والارتجاع (V37)
+          'userId': user?.id,
+          'userName': user?.name,
+          'balanceAfter': newBalance,
+          'originalInvoiceId': originalInvoiceId,
+          'returnReason': reason,
         });
         await txn.rawUpdate('UPDATE funds SET balance = balance + ? WHERE id = ?', [paidAmount, 1]);
       }

@@ -2,6 +2,8 @@
 
 import 'package:ehab_company_admin/core/database/database_service.dart';
 import '../models/settlement_model.dart';
+import 'package:get/get.dart';
+import '../../../../core/services/auth_service.dart';
 
 class SettlementRepository {
   final DatabaseService _dbService = DatabaseService();
@@ -107,6 +109,15 @@ class SettlementRepository {
 
         // 1. تحصيل نقدي (كاش)
         if (item.cashAmount > 0 && item.cashFundId != null) {
+          // جلب الرصيد الحالي للصندوق لحساب الرصيد المتراكم (جديد الإصدار 37)
+          final fundResult = await txn.query('funds', columns: ['balance'], where: 'id = ?', whereArgs: [item.cashFundId]);
+          final double currentBalance = (fundResult.first['balance'] as num).toDouble();
+          final double newBalance = currentBalance + item.cashAmount;
+
+          // جلب الموظف الحالي (جديد الإصدار 37)
+          final authService = Get.find<AuthService>();
+          final user = authService.currentUser.value;
+
           await txn.insert('fund_transactions', {
             'fundId': item.cashFundId,
             'type': 'تحصيل نقدي (تسوية)',
@@ -114,12 +125,25 @@ class SettlementRepository {
             'description': 'تحصيل صنف ${item.productId} - تسوية $settlementId',
             'referenceId': settlementId,
             'transactionDate': settlementDate.toIso8601String(),
+            // بيانات الموظف والرقابة (V37)
+            'userId': user?.id,
+            'userName': user?.name,
+            'balanceAfter': newBalance,
           });
           await txn.rawUpdate('UPDATE funds SET balance = balance + ? WHERE id = ?', [item.cashAmount, item.cashFundId]);
         }
 
         // 2. تحصيل بنكي
         if (item.bankAmount > 0 && item.bankFundId != null) {
+          // جلب الرصيد الحالي للصندوق لحساب الرصيد المتراكم (جديد الإصدار 37)
+          final fundResult = await txn.query('funds', columns: ['balance'], where: 'id = ?', whereArgs: [item.bankFundId]);
+          final double currentBalance = (fundResult.first['balance'] as num).toDouble();
+          final double newBalance = currentBalance + item.bankAmount;
+
+          // جلب الموظف الحالي (جديد الإصدار 37)
+          final authService = Get.find<AuthService>();
+          final user = authService.currentUser.value;
+
           await txn.insert('fund_transactions', {
             'fundId': item.bankFundId,
             'type': 'تحصيل بنكي (تسوية)',
@@ -127,12 +151,25 @@ class SettlementRepository {
             'description': 'إيداع بنكي صنف ${item.productId} - $settlementId - ${item.bankDetails ?? ""}',
             'referenceId': settlementId,
             'transactionDate': settlementDate.toIso8601String(),
+            // بيانات الموظف والرقابة (V37)
+            'userId': user?.id,
+            'userName': user?.name,
+            'balanceAfter': newBalance,
           });
           await txn.rawUpdate('UPDATE funds SET balance = balance + ? WHERE id = ?', [item.bankAmount, item.bankFundId]);
         }
 
         // 3. تحصيل حوالة
         if (item.transferAmount > 0 && item.transferFundId != null) {
+          // جلب الرصيد الحالي للصندوق لحساب الرصيد المتراكم (جديد الإصدار 37)
+          final fundResult = await txn.query('funds', columns: ['balance'], where: 'id = ?', whereArgs: [item.transferFundId]);
+          final double currentBalance = (fundResult.first['balance'] as num).toDouble();
+          final double newBalance = currentBalance + item.transferAmount;
+
+          // جلب الموظف الحالي (جديد الإصدار 37)
+          final authService = Get.find<AuthService>();
+          final user = authService.currentUser.value;
+
           await txn.insert('fund_transactions', {
             'fundId': item.transferFundId,
             'type': 'تحصيل حوالة (تسوية)',
@@ -140,6 +177,10 @@ class SettlementRepository {
             'description': 'حوالة صنف ${item.productId} - $settlementId - ${item.transferDetails ?? ""}',
             'referenceId': settlementId,
             'transactionDate': settlementDate.toIso8601String(),
+            // بيانات الموظف والرقابة (V37)
+            'userId': user?.id,
+            'userName': user?.name,
+            'balanceAfter': newBalance,
           });
           await txn.rawUpdate('UPDATE funds SET balance = balance + ? WHERE id = ?', [item.transferAmount, item.transferFundId]);
         }

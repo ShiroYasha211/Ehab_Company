@@ -59,6 +59,8 @@ class AuthService extends GetxService {
     ),
   ];
 
+  List<UserModel> get mockUsers => _mockUsers;
+
   @override
   void onInit() {
     super.onInit();

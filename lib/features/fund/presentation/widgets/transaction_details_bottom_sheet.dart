@@ -58,7 +58,7 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
               
               const SizedBox(height: 30),
               
-              _buildPremiumInfoGrid(fundName, fundTypeName),
+              _buildPremiumInfoGrid(fundName, fundTypeName, formatCurrency),
 
               const SizedBox(height: 30),
               
@@ -124,7 +124,7 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildPremiumInfoGrid(String fundName, String fundTypeName) {
+  Widget _buildPremiumInfoGrid(String fundName, String fundTypeName, intl.NumberFormat formatCurrency) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -173,6 +173,28 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
           
           if (transaction.bankReference != null && transaction.bankReference!.isNotEmpty)
             _buildPremiumInfoRow(Icons.confirmation_number_rounded, 'رقم المرجع البنكي', transaction.bankReference!, Colors.blueGrey),
+
+          // تفاصيل الموظف والرقابة (V37)
+          if (transaction.userName != null)
+            _buildPremiumInfoRow(Icons.person_rounded, 'بواسطة الموظف', transaction.userName!, Colors.blue),
+          
+          if (transaction.customerId != null)
+            _buildPremiumInfoRow(Icons.person_pin_rounded, 'معرف العميل المرتبط', '#${transaction.customerId}', Colors.indigo),
+
+          if (transaction.balanceAfter != null)
+            _buildPremiumInfoRow(
+              Icons.account_balance_wallet_rounded, 
+              'الرصيد بعد الحركة', 
+              formatCurrency.format(transaction.balanceAfter), 
+              Colors.green,
+              isBold: true
+            ),
+
+          if (transaction.originalInvoiceId != null)
+            _buildPremiumInfoRow(Icons.history_rounded, 'الفاتورة الأصلية', '#${transaction.originalInvoiceId}', Colors.orange),
+
+          if (transaction.returnReason != null && transaction.returnReason!.isNotEmpty)
+            _buildPremiumInfoRow(Icons.help_outline_rounded, 'سبب الإرجاع', transaction.returnReason!, Colors.red),
         ],
       ),
     );

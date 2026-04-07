@@ -4,6 +4,8 @@ import 'package:ehab_company_admin/core/database/database_service.dart';
 import 'package:ehab_company_admin/features/fund/data/models/fund_model.dart';
 import 'package:ehab_company_admin/features/fund/data/models/fund_transaction_model.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:get/get.dart';
+import '../../../../core/services/auth_service.dart';
 
 class FundRepository {
   final DatabaseService _dbService = DatabaseService();
@@ -100,10 +102,7 @@ class FundRepository {
   /// المنطق الداخلي لتنفيذ الحركة
   Future<void> _executeTransaction(
       DatabaseExecutor txn, FundTransactionModel transaction) async {
-    // 1. إضافة السجل (toMap يشمل الرسوم الآن)
-    await txn.insert('fund_transactions', transaction.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
-
-    // 2. تحديث الرصيد مع خصم الرسوم
+    // 1. جلب الرصيد الحالي للصندوق
     final currentFund = await txn.query('funds', where: 'id = ?', whereArgs: [transaction.fundId]);
     if (currentFund.isNotEmpty) {
       double currentBalance = (currentFund.first['balance'] as num?)?.toDouble() ?? 0.0;
@@ -114,7 +113,23 @@ class FundRepository {
       double newBalance = transaction.type == TransactionType.DEPOSIT
           ? currentBalance + transaction.amount - transaction.fees
           : currentBalance - transaction.amount - transaction.fees;
-          
+
+      // جلب الموظف الحالي (جديد الإصدار 37)
+      final authService = Get.find<AuthService>();
+      final user = authService.currentUser.value;
+
+      // 2. إضافة السجل مع بيانات الرقابة (V37)
+      await txn.insert(
+        'fund_transactions', 
+        transaction.copyWith(
+          userId: user?.id,
+          userName: user?.name,
+          balanceAfter: newBalance,
+        ).toMap(), 
+        conflictAlgorithm: ConflictAlgorithm.replace
+      );
+
+      // 3. تحديث رصيد الصندوق
       await txn.update('funds', {'balance': newBalance}, where: 'id = ?', whereArgs: [transaction.fundId]);
     }
   }

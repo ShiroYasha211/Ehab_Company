@@ -40,7 +40,7 @@ class AboutDeveloperScreen extends StatelessWidget {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Image.asset('assets/images/2.png', fit: BoxFit.cover),
+                    Image.asset('assets/images/2.png', fit: BoxFit.cover),
                     Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -64,12 +64,12 @@ class AboutDeveloperScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     // شعار الفريق (يمكن استبداله بصورة)
-                    //_buildTeamLogo(primaryColor),
+                    _buildTeamLogo(primaryColor),
                     const SizedBox(height: 24),
 
                     // اسم الفريق والرسالة
                     const Text(
-                      'Mohammed Alhemyari',
+                      'جرافيك استديو للإنتاج الرقمي',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,

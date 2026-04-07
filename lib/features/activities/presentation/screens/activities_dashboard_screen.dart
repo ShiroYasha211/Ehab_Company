@@ -1,19 +1,19 @@
-// File: lib/features/activities/presentation/screens/activities_dashboard_screen.dart
-
-import 'package:ehab_company_admin/features/activities/presentation/widgets/advanced_filter_bottom_sheet.dart';
+import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
+import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';
+import 'package:ehab_company_admin/features/activities/presentation/widgets/activity_filter_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
-
-import '../controllers/operations_controller.dart';
-import '../../data/models/operation_model.dart';
 
 class ActivitiesDashboardScreen extends StatelessWidget {
   const ActivitiesDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final OperationsController controller = Get.put(OperationsController());
+    // التأكد من تهيئة المتحكم
+    final ActivityController controller = Get.isRegistered<ActivityController>() 
+        ? Get.find<ActivityController>() 
+        : Get.put(ActivityController());
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -23,41 +23,90 @@ class ActivitiesDashboardScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => controller.loadOperations(),
-            tooltip: 'تحديث',
+            onPressed: () => controller.loadActivities(),
+            tooltip: 'تحديث السجلات',
           ),
-          IconButton(
-            icon: const Icon(Icons.filter_alt_outlined),
-            onPressed: () {
-              Get.bottomSheet(
-                const AdvancedFilterBottomSheet(),
-                isScrollControlled: true,
-              );
-            },
-            tooltip: 'فلترة متقدمة',
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.filter_list_rounded),
+                onPressed: () {
+                  Get.bottomSheet(
+                    const ActivityFilterDialog(),
+                    isScrollControlled: true,
+                  );
+                },
+              ),
+              Obx(() => controller.isAnyFilterActive 
+                ? Positioned(
+                    right: 8, top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      child: Text(
+                        '${controller.activeFiltersCount}',
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ) 
+                : const SizedBox.shrink()),
+            ],
           ),
         ],
       ),
       body: Column(
         children: [
-          _buildActiveFilters(controller),
           _buildHeaderStats(controller),
+          _buildSearchBar(controller),
+          _buildActiveFilters(controller),
           Expanded(
             child: Obx(() {
               if (controller.isLoading.value) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              if (controller.operations.isEmpty) {
-                return _buildEmptyState();
+              if (controller.activities.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.history_toggle_off_rounded,
+                          size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text(
+                        controller.isAnyFilterActive 
+                          ? 'لا توجد نتائج تطابق الفلاتر المختارة'
+                          : 'لا توجد سجلات عمليات حتى الآن',
+                        style: TextStyle(color: Colors.grey.shade500),
+                      ),
+                      const SizedBox(height: 16),
+                      if (!controller.isAnyFilterActive)
+                        ElevatedButton.icon(
+                          onPressed: () => _seedMockData(controller),
+                          icon: const Icon(Icons.bolt_rounded),
+                          label: const Text('توليد سجلات تجريبية حقيقية'),
+                        )
+                      else
+                        TextButton.icon(
+                          onPressed: () => controller.resetFilters(),
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('إعادة تعيين الفلاتر'),
+                        ),
+                    ],
+                  ),
+                );
               }
 
               return ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                itemCount: controller.operations.length,
+                itemCount: controller.activities.length,
                 itemBuilder: (context, index) {
-                  final operation = controller.operations[index];
-                  return _buildOperationItem(context, operation, controller);
+                  final activity = controller.activities[index];
+                  final bool isLast = index == controller.activities.length - 1;
+                  return _buildTimelineItem(context, activity, isLast);
                 },
               );
             }),
@@ -67,84 +116,91 @@ class ActivitiesDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActiveFilters(OperationsController controller) {
+  Widget _buildSearchBar(ActivityController controller) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: TextField(
+        onChanged: (val) => controller.searchQuery.value = val,
+        decoration: InputDecoration(
+          hintText: 'بحث في الإجراءات أو التفاصيل...',
+          prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty 
+            ? IconButton(
+                icon: const Icon(Icons.clear_rounded), 
+                onPressed: () => controller.searchQuery.value = ''
+              ) 
+            : const SizedBox.shrink()),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveFilters(ActivityController controller) {
     return Obx(() {
-      if (!controller.isAnyFilterApplied()) return const SizedBox.shrink();
+      if (!controller.isAnyFilterActive) return const SizedBox.shrink();
+      
       return Container(
-        height: 50,
-        margin: const EdgeInsets.symmetric(vertical: 8),
+        height: 40,
+        margin: const EdgeInsets.only(bottom: 8),
         child: ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           children: [
-            if (controller.selectedTypes.isNotEmpty)
-              ...controller.selectedTypes.map((t) => _buildFilterChip(
-                label: 'النوع: ${_getTypeLabel(t)}',
-                onDeleted: () {
-                  controller.selectedTypes.remove(t);
-                  controller.loadOperations();
-                },
-              )),
-            if (controller.selectedEmployee.value.isNotEmpty)
-              _buildFilterChip(
-                label: 'الموظف: ${controller.selectedEmployee.value}',
-                onDeleted: () {
-                  controller.selectedEmployee.value = "";
-                  controller.loadOperations();
-                },
-              ),
-            if (controller.minAmount.value != null)
-              _buildFilterChip(
-                label: 'من: ${controller.minAmount.value}',
-                onDeleted: () {
-                  controller.minAmount.value = null;
-                  controller.loadOperations();
-                },
-              ),
+            if (controller.selectedUserId.value != null)
+              _buildFilterChip('الموظف', () => controller.selectedUserId.value = null),
+            if (controller.selectedType.value != null)
+              _buildFilterChip(controller.selectedType.value!.label, () => controller.selectedType.value = null),
+            if (controller.selectedDateRange.value != null)
+              _buildFilterChip('الفترة الزمنية', () => controller.selectedDateRange.value = null),
           ],
         ),
       );
     });
   }
 
-  Widget _buildFilterChip({required String label, required VoidCallback onDeleted}) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8.0),
-      child: Chip(
-        label: Text(label, style: const TextStyle(fontSize: 12)),
-        onDeleted: onDeleted,
-        deleteIcon: const Icon(Icons.close, size: 14),
+  Widget _buildFilterChip(String label, VoidCallback onDeleted) {
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      child: InputChip(
+        label: Text(label, style: const TextStyle(fontSize: 11)),
+        onDeleted: () {
+          onDeleted();
+          Get.find<ActivityController>().loadActivities();
+        },
+        deleteIcon: const Icon(Icons.close_rounded, size: 14),
         backgroundColor: Colors.blue.shade50,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        side: BorderSide(color: Colors.blue.shade100),
       ),
     );
   }
 
-  String _getTypeLabel(OperationType type) {
-    switch (type) {
-      case OperationType.sale: return 'بيع';
-      case OperationType.purchase: return 'شراء';
-      case OperationType.expense: return 'مصروف';
-      case OperationType.transfer: return 'تحويل';
-      case OperationType.settlement: return 'تسوية';
-      case OperationType.returnSale: return 'مرتجع بيع';
-      case OperationType.returnPurchase: return 'مرتجع شراء';
-    }
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text('لا توجد عمليات تطابق هذه الفلاتر', style: TextStyle(color: Colors.grey.shade500)),
-        ],
-      ),
+  // دالة مساعدة لتوليد بيانات حقيقية في قاعدة البيانات للاختبار
+  void _seedMockData(ActivityController controller) async {
+    await controller.logAction(
+      action: 'تسجيل دخول (تجريبي)',
+      details: 'تم الدخول للنظام من لوحة التحكم',
+      type: ActivityType.auth,
     );
+    await controller.logAction(
+      action: 'فحص المخزون',
+      details: 'قام الأدمن بمراجعة حالة المخازن الرئيسية',
+      type: ActivityType.inventory,
+    );
+    Get.snackbar('تم', 'تم توليد سجلات حقيقية في قاعدة البيانات بنجاح');
   }
 
-  Widget _buildHeaderStats(OperationsController controller) {
+  Widget _buildHeaderStats(ActivityController controller) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -156,20 +212,20 @@ class ActivitiesDashboardScreen extends StatelessWidget {
         ],
       ),
       child: Obx(() {
-        final totalSales = controller.operations
-            .where((o) => o.type == OperationType.sale)
-            .fold(0.0, (sum, o) => sum + o.amount);
-        
-        final totalExpenses = controller.operations
-            .where((o) => o.type == OperationType.expense)
-            .fold(0.0, (sum, o) => sum + o.amount);
+        final todayCount = controller.activities.where((a) {
+          final now = DateTime.now();
+          return a.time.year == now.year && a.time.month == now.month && a.time.day == now.day;
+        }).length;
+
+        final sensitiveCount = controller.activities.where((a) => 
+          a.type == ActivityType.admin || a.type == ActivityType.inventory).length;
 
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildStatItem('إجمالي المبيعات', totalSales.toStringAsFixed(0), Colors.green),
-            _buildStatItem('إجمالي المصاريف', totalExpenses.toStringAsFixed(0), Colors.red),
-            _buildStatItem('عدد العمليات', controller.operations.length.toString(), Colors.blue),
+            _buildStatItem('سجلات اليوم', todayCount.toString(), Colors.blue),
+            _buildStatItem('عمليات حساسة', sensitiveCount.toString(), Colors.orange),
+            _buildStatItem('إجمالي السجلات', controller.activities.length.toString(), Colors.purple),
           ],
         );
       }),
@@ -185,110 +241,109 @@ class ActivitiesDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOperationItem(BuildContext context, OperationModel operation, OperationsController controller) {
-    final String timeStr = intl.DateFormat('hh:mm a').format(operation.date);
-    final String dateStr = intl.DateFormat('MM/dd').format(operation.date);
+  Widget _buildTimelineItem(BuildContext context, ActivityModel activity, bool isLast) {
+    final String timeStr = intl.DateFormat('hh:mm a').format(activity.time);
+    final String dateStr = intl.DateFormat('MMM dd').format(activity.time);
 
+    // استخدام الـ extension الجديد للحصول على اللون والأيقونة
+    final color = activity.type.color;
     IconData icon;
-    Color color;
-    switch (operation.type) {
-      case OperationType.sale:
-        icon = Icons.shopping_cart_checkout_rounded;
-        color = Colors.green;
-        break;
-      case OperationType.purchase:
-        icon = Icons.shopping_bag_outlined;
-        color = Colors.blue;
-        break;
-      case OperationType.expense:
-        icon = Icons.money_off_csred_rounded;
-        color = Colors.red;
-        break;
-      case OperationType.transfer:
-        icon = Icons.swap_horiz_rounded;
-        color = Colors.orange;
-        break;
-      default:
-        icon = Icons.receipt_long_rounded;
-        color = Colors.grey;
+    switch (activity.type) {
+      case ActivityType.auth: icon = Icons.lock_person_outlined; break;
+      case ActivityType.sale: icon = Icons.point_of_sale_rounded; break;
+      case ActivityType.inventory: icon = Icons.inventory_2_outlined; break;
+      case ActivityType.admin: icon = Icons.admin_panel_settings_outlined; break;
+      case ActivityType.purchase: icon = Icons.shopping_bag_outlined; break;
+      case ActivityType.expense: icon = Icons.receipt_long_outlined; break;
+      case ActivityType.fund: icon = Icons.account_balance_wallet_outlined; break;
+      default: icon = Icons.history_rounded;
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: InkWell(
-        onTap: () => controller.showOperationDetails(operation),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Column(
             children: [
               Container(
-                width: 50, height: 50,
-                decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, color: color, size: 28),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            operation.typeLabel, 
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          operation.amount.toStringAsFixed(2),
-                          style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      operation.details ?? 'لا توجد تفاصيل', 
-                      maxLines: 1, 
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.person_outline, size: 14, color: Colors.grey),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  operation.userName ?? 'النظام', 
-                                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text('$dateStr | $timeStr', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                      ],
-                    ),
-                  ],
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1), shape: BoxShape.circle,
+                  border: Border.all(color: color.withOpacity(0.3), width: 2),
                 ),
+                child: Icon(icon, color: color, size: 20),
               ),
+              if (!isLast) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
             ],
           ),
-        ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '${activity.userName} (${activity.userRole})',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text('$dateStr | $timeStr', style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 24),
+                  elevation: 0, color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                activity.type.label,
+                                style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                activity.action,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (activity.details != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            activity.details!,
+                            style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,8 @@
 
 import 'package:ehab_company_admin/core/database/database_service.dart';
 import 'package:ehab_company_admin/features/sales/presentation/controllers/add_sales_invoice_controller.dart';
+import 'package:get/get.dart';
+import '../../../../core/services/auth_service.dart';
 
 import '../models/sales_invoice_summary_model.dart'; // سنقوم بإنشاء هذا لاحقًا
 
@@ -159,41 +161,55 @@ class SalesRepository {
             'createdAt': payment['createdAt'] ?? DateTime.now().toIso8601String(),
           });
 
-          // 6. تسجيل حركة الصندوق وتحديث الرصيد لكل دفعة بشكل مستقل (جديد الإصدار 25)
-          final int? fundId = payment['fundId'] as int?;
-          final double amount = (payment['amount'] as num?)?.toDouble() ?? 0.0;
+            // 6. تسجيل حركة الصندوق وتحديث الرصيد لكل دفعة بشكل مستقل (جديد الإصدار 25)
+            final int? fundId = payment['fundId'] as int?;
+            final double amount = (payment['amount'] as num?)?.toDouble() ?? 0.0;
 
-          if (fundId != null && amount > 0) {
-            String methodDesc = 'نقد';
-            if (payment['method'] == 'transfer') methodDesc = 'حوالة';
-            else if (payment['method'] == 'bank') methodDesc = 'بنك';
+            if (fundId != null && amount > 0) {
+              String methodDesc = 'نقد';
+              if (payment['method'] == 'transfer') methodDesc = 'حوالة';
+              else if (payment['method'] == 'bank') methodDesc = 'بنك';
 
-            // تسجيل الحركة في الصندوق المختار بكافة التفاصيل (جديد الإصدار 26)
-            await txn.insert('fund_transactions', {
-              'fundId': fundId,
-              'type': 'DEPOSIT',
-              'amount': amount,
-              'description': 'دفعة مبيعات ($methodDesc) - فاتورة رقم: $invoiceId',
-              'referenceId': invoiceId,
-              'transactionDate': DateTime.now().toIso8601String(),
-              // بيانات إضافية للتوثيق المحاسبي
-              'transferNumber': payment['transferNumber'],
-              'senderName': payment['senderName'],
-              'transferCompany': payment['transferCompany'],
-              'attachmentPath': payment['transferImage'] ?? payment['bankImage'], // استخدام الصورة المتوفرة
-              'bankName': payment['bankName'],
-              'bankReference': payment['bankReference'],
-              'notes': payment['notes'],
-            });
+              // جلب الرصيد الحالي للصندوق لحساب الرصيد المتراكم (جديد الإصدار 37)
+              final fundResult = await txn.query('funds', columns: ['balance'], where: 'id = ?', whereArgs: [fundId]);
+              double currentFundBalance = (fundResult.first['balance'] as num).toDouble();
+              double newBalance = currentFundBalance + amount;
 
-            // تحديث رصيد الصندوق المختار
-            await txn.rawUpdate(
-              'UPDATE funds SET balance = balance + ? WHERE id = ?',
-              [amount, fundId],
-            );
+              // جلب الموظف الحالي (جديد الإصدار 37)
+              final authService = Get.find<AuthService>();
+              final user = authService.currentUser.value;
+
+              // تسجيل الحركة في الصندوق المختار بكافة التفاصيل (جديد الإصدار 26 + 37)
+              await txn.insert('fund_transactions', {
+                'fundId': fundId,
+                'type': 'DEPOSIT',
+                'amount': amount,
+                'description': 'دفعة مبيعات ($methodDesc) - فاتورة رقم: $invoiceId',
+                'referenceId': invoiceId,
+                'transactionDate': DateTime.now().toIso8601String(),
+                // بيانات الموظف والعميل والرقابة (V37)
+                'userId': user?.id,
+                'userName': user?.name,
+                'customerId': customerId,
+                'balanceAfter': newBalance,
+                // بيانات إضافية للتوثيق المحاسبي
+                'transferNumber': payment['transferNumber'],
+                'senderName': payment['senderName'],
+                'transferCompany': payment['transferCompany'],
+                'attachmentPath': payment['transferImage'] ?? payment['bankImage'], // استخدام الصورة المتوفرة
+                'bankName': payment['bankName'],
+                'bankReference': payment['bankReference'],
+                'notes': payment['notes'],
+              });
+
+              // تحديث رصيد الصندوق المختار
+              await txn.rawUpdate(
+                'UPDATE funds SET balance = balance + ? WHERE id = ?',
+                [amount, fundId],
+              );
+            }
           }
         }
-      }
     });
 
     return invoiceId;

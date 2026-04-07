@@ -3,9 +3,9 @@
 import 'package:ehab_company_admin/core/database/database_service.dart';
 import 'package:ehab_company_admin/features/expenses/data/models/expense_category_model.dart';
 import 'package:ehab_company_admin/features/expenses/data/models/expense_model.dart';
-import 'package:ehab_company_admin/core/services/auth_service.dart';
-import 'package:get/get.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:get/get.dart';
+import '../../../../core/services/auth_service.dart';
 
 class ExpenseRepository {
   final DatabaseService _dbService = DatabaseService();
@@ -118,6 +118,15 @@ class ExpenseRepository {
           }
         }
 
+        // جلب الرصيد الحالي للصندوق لحساب الرصيد المتراكم (جديد الإصدار 37)
+        final fundResult = await txn.query('funds', columns: ['balance'], where: 'id = ?', whereArgs: [targetFundId]);
+        final double currentBalance = (fundResult.first['balance'] as num).toDouble();
+        final double newBalance = currentBalance - expense.amount;
+
+        // جلب الموظف الحالي (جديد الإصدار 37)
+        final authService = Get.find<AuthService>();
+        final user = authService.currentUser.value;
+
         await txn.insert('fund_transactions', {
           'fundId': targetFundId,
           'type': 'WITHDRAWAL', // سحب
@@ -125,6 +134,10 @@ class ExpenseRepository {
           'description': 'مصروف ($categoryName)${supplierSuffix}: ${expense.notes ?? ''}',
           'referenceId': expenseId,
           'transactionDate': expense.expenseDate.toIso8601String(),
+          // بيانات الموظف والرقابة (V37)
+          'userId': user?.id,
+          'userName': user?.name,
+          'balanceAfter': newBalance,
         });
 
         // تحديث رصيد الصندوق المحدد
@@ -151,18 +164,6 @@ class ExpenseRepository {
         await txn.rawUpdate(
           'UPDATE suppliers SET balance = balance - ? WHERE id = ?',
           [expense.amount, expense.supplierId],
-        );
-      }
-
-      // 4. حفظ اسم الموظف الذي قام بالعملية
-      final authService = Get.find<AuthService>();
-      final currentUser = authService.currentUser.value;
-      if (currentUser != null) {
-        await txn.update(
-          'expenses',
-          {'issuedBy': currentUser.name},
-          where: 'id = ?',
-          whereArgs: [expenseId],
         );
       }
     });

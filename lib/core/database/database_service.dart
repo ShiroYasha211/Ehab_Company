@@ -939,8 +939,24 @@ class DatabaseService {
     await _addColumnIfNotExists(db, 'supplier_transactions', 'referenceId INTEGER');
   }
 
-  /// الإصدار 37: إضافة مُصدر المصروف لجدول المصروفات
+  /// الإصدار 37: تعزيز بيانات حركات الصندوق (الموظف، العميل، الرصيد، المرتجعات)
   Future<void> _createV37Tables(Database db) async {
-    await _addColumnIfNotExists(db, 'expenses', 'issuedBy TEXT');
+    final batch = db.batch();
+    
+    // بيانات الموظف
+    await _addColumnIfNotExists(db, 'fund_transactions', 'userId INTEGER');
+    await _addColumnIfNotExists(db, 'fund_transactions', 'userName TEXT');
+    
+    // معرف العميل (للمبيعات والمرتجعات)
+    await _addColumnIfNotExists(db, 'fund_transactions', 'customerId INTEGER');
+    
+    // الرصيد بعد الحركة (للرقابة المالية)
+    await _addColumnIfNotExists(db, 'fund_transactions', 'balanceAfter REAL');
+    
+    // بيانات المرتجع (خاصة بالمرتجعات)
+    await _addColumnIfNotExists(db, 'fund_transactions', 'originalInvoiceId INTEGER');
+    await _addColumnIfNotExists(db, 'fund_transactions', 'returnReason TEXT');
+    
+    await batch.commit(noResult: true);
   }
 }

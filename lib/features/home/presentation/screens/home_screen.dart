@@ -138,7 +138,7 @@ class HomeScreen extends StatelessWidget {
                   : IconButton(
                       icon: const Icon(Icons.refresh_rounded),
                       tooltip: 'تحديث البيانات',
-                      onPressed: () => homeController.refreshStats(),
+                      onPressed: () => homeController.refreshStats(showSnackbar: true),
                     ),
             ),
             IconButton(
@@ -162,7 +162,7 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         body: RefreshIndicator(
-          onRefresh: () => homeController.refreshStats(),
+          onRefresh: () => homeController.refreshStats(showSnackbar: true),
           child: ListView(
             children: [
               const Padding(

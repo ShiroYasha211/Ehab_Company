@@ -58,62 +58,95 @@ class TransactionListItem extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      transaction.description,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      intl.DateFormat('yyyy-MM-dd • hh:mm a', 'ar').format(transaction.transactionDate),
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
-                    ),
-                    if (transaction.transferNumber != null && transaction.transferNumber!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Wrap(
-                          spacing: 6,
-                          children: [
-                            _buildPremiumTag(transaction.transferNumber!, Icons.tag, Colors.blue),
-                            if (transaction.transferCompany != null) 
-                              _buildPremiumTag(transaction.transferCompany!, Icons.business, Colors.indigo),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
                 children: [
-                  Text(
-                    '$prefix ${formatCurrency.format(transaction.amount)}',
-                    style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 14),
-                  ),
-                  if (transaction.fees > 0)
-                    Text(
-                      'رسوم: ${transaction.fees}',
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 9),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(15),
                     ),
+                    child: Icon(icon, color: color, size: 24),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          transaction.description,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          intl.DateFormat('yyyy-MM-dd • hh:mm a', 'ar').format(transaction.transactionDate),
+                          style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+                        ),
+                        if (transaction.transferNumber != null && transaction.transferNumber!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 6,
+                              children: [
+                                _buildPremiumTag(transaction.transferNumber!, Icons.tag, Colors.blue),
+                                if (transaction.transferCompany != null) 
+                                  _buildPremiumTag(transaction.transferCompany!, Icons.business, Colors.indigo),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '$prefix ${formatCurrency.format(transaction.amount)}',
+                        style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 14),
+                      ),
+                      if (transaction.fees > 0)
+                        Text(
+                          'رسوم: ${transaction.fees}',
+                          style: TextStyle(color: Colors.grey.shade400, fontSize: 9),
+                        ),
+                      if (transaction.balanceAfter != null)
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'الرصيد: ${formatCurrency.format(transaction.balanceAfter!)}',
+                            style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 9),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
+              if (transaction.userName != null) ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1, color: Color(0xFFF5F5F5)),
+                ),
+                Row(
+                  children: [
+                    Icon(Icons.person_outline, size: 12, color: Colors.grey.shade400),
+                    const SizedBox(width: 4),
+                    Text(
+                      'بواسطة: ${transaction.userName}',
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

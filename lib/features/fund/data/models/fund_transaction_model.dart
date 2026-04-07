@@ -29,6 +29,14 @@ class FundTransactionModel {
   final String? bankReference;
   final String? notes;
 
+  // حقول جديدة للإصدار V37 (الرقابة المالية)
+  final int? userId;
+  final String? userName;
+  final int? customerId;
+  final double? balanceAfter;
+  final int? originalInvoiceId;
+  final String? returnReason;
+
   FundTransactionModel({
     this.id,
     required this.fundId,
@@ -49,6 +57,12 @@ class FundTransactionModel {
     this.bankName,
     this.bankReference,
     this.notes,
+    this.userId,
+    this.userName,
+    this.customerId,
+    this.balanceAfter,
+    this.originalInvoiceId,
+    this.returnReason,
   });
 
   factory FundTransactionModel.fromMap(Map<String, dynamic> map) {
@@ -72,6 +86,12 @@ class FundTransactionModel {
       bankName: map['bankName'],
       bankReference: map['bankReference'],
       notes: map['notes'],
+      userId: map['userId'],
+      userName: map['userName'],
+      customerId: map['customerId'],
+      balanceAfter: (map['balanceAfter'] as num?)?.toDouble(),
+      originalInvoiceId: map['originalInvoiceId'],
+      returnReason: map['returnReason'],
     );
   }
 
@@ -96,6 +116,12 @@ class FundTransactionModel {
       'bankName': bankName,
       'bankReference': bankReference,
       'notes': notes,
+      'userId': userId,
+      'userName': userName,
+      'customerId': customerId,
+      'balanceAfter': balanceAfter,
+      'originalInvoiceId': originalInvoiceId,
+      'returnReason': returnReason,
     };
   }
 
@@ -132,6 +158,12 @@ class FundTransactionModel {
     String? bankName,
     String? bankReference,
     String? notes,
+    int? userId,
+    String? userName,
+    int? customerId,
+    double? balanceAfter,
+    int? originalInvoiceId,
+    String? returnReason,
   }) {
     return FundTransactionModel(
       id: id ?? this.id,
@@ -153,6 +185,12 @@ class FundTransactionModel {
       bankName: bankName ?? this.bankName,
       bankReference: bankReference ?? this.bankReference,
       notes: notes ?? this.notes,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      customerId: customerId ?? this.customerId,
+      balanceAfter: balanceAfter ?? this.balanceAfter,
+      originalInvoiceId: originalInvoiceId ?? this.originalInvoiceId,
+      returnReason: returnReason ?? this.returnReason,
     );
   }
 }

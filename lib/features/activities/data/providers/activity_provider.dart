@@ -29,6 +29,54 @@ class ActivityProvider {
     return List.generate(maps.length, (i) => ActivityModel.fromMap(maps[i]));
   }
 
+  Future<List<ActivityModel>> getFilteredActivities({
+    int? userId,
+    ActivityType? type,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? query,
+  }) async {
+    final db = await _dbService.database;
+    
+    String whereClause = '1=1';
+    List<dynamic> whereArgs = [];
+
+    if (userId != null) {
+      whereClause += ' AND userId = ?';
+      whereArgs.add(userId);
+    }
+
+    if (type != null) {
+      whereClause += ' AND type = ?';
+      whereArgs.add(type.name);
+    }
+
+    if (startDate != null) {
+      whereClause += ' AND time >= ?';
+      whereArgs.add(startDate.toIso8601String());
+    }
+
+    if (endDate != null) {
+      whereClause += ' AND time <= ?';
+      whereArgs.add(endDate.toIso8601String());
+    }
+
+    if (query != null && query.isNotEmpty) {
+      whereClause += ' AND (action LIKE ? OR details LIKE ?)';
+      whereArgs.add('%$query%');
+      whereArgs.add('%$query%');
+    }
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'activities',
+      where: whereClause,
+      whereArgs: whereArgs,
+      orderBy: 'time DESC',
+    );
+    
+    return List.generate(maps.length, (i) => ActivityModel.fromMap(maps[i]));
+  }
+
   Future<void> clearOldActivities(DateTime before) async {
     final db = await _dbService.database;
     await db.delete(

@@ -30,7 +30,7 @@ class HomeController extends GetxController { // <-- تم حذف "with WidgetsBi
 
   // تم حذف دالة didChangeAppLifecycleState بالكامل
 
-  Future<void> refreshStats() async {
+  Future<void> refreshStats({bool showSnackbar = false}) async {
     isLoading(true); // تفعيل مؤشر التحميل
 
     try {
@@ -48,13 +48,15 @@ class HomeController extends GetxController { // <-- تم حذف "with WidgetsBi
       currentFundBalance.value = results[3] as double;
       totalProductsCount.value = results[4] as int;
 
-      // إظهار رسالة نجاح بسيطة في الأسفل (بدون تعليق الشاشة)
-      Get.rawSnackbar(
-        message: 'تم تحديث البيانات بنجاح',
-        duration: const Duration(seconds: 1),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Get.theme.primaryColor.withOpacity(0.7),
-      );
+      // إظهار رسالة نجاح بسيطة في الأسفل (فقط إذا كان التحديث يدوياً)
+      if (showSnackbar) {
+        Get.rawSnackbar(
+          message: 'تم تحديث البيانات بنجاح',
+          duration: const Duration(seconds: 1),
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Get.theme.primaryColor.withOpacity(0.7),
+        );
+      }
     } catch (e) {
       Get.snackbar('خطأ', 'فشل في تحديث إحصائيات لوحة التحكم: $e');
     } finally {

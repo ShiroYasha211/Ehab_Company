@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 enum ActivityType {
   auth,
   sale,
@@ -7,6 +9,34 @@ enum ActivityType {
   fund,
   system,
   admin,
+}
+
+extension ActivityTypeExt on ActivityType {
+  String get label {
+    switch (this) {
+      case ActivityType.auth: return 'الأمان والدخول';
+      case ActivityType.sale: return 'المبيعات';
+      case ActivityType.purchase: return 'المشتريات';
+      case ActivityType.inventory: return 'المخازن';
+      case ActivityType.expense: return 'المصروفات';
+      case ActivityType.fund: return 'الصناديق';
+      case ActivityType.system: return 'النظام';
+      case ActivityType.admin: return 'الإدارة';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case ActivityType.auth: return Colors.blue;
+      case ActivityType.sale: return Colors.green;
+      case ActivityType.purchase: return Colors.orange;
+      case ActivityType.inventory: return Colors.brown;
+      case ActivityType.expense: return Colors.red;
+      case ActivityType.fund: return Colors.teal;
+      case ActivityType.system: return Colors.grey;
+      case ActivityType.admin: return Colors.purple;
+    }
+  }
 }
 
 class ActivityModel {
