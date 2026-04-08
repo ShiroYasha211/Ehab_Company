@@ -1,11 +1,13 @@
+import 'package:ehab_company_admin/features/fund/data/models/fund_model.dart';
+import 'package:ehab_company_admin/features/fund/presentation/controllers/fund_controller.dart';
+import 'package:ehab_company_admin/features/units/data/models/unit_model.dart';
+import 'package:ehab_company_admin/features/units/presentation/controllers/unit_controller.dart';
+import 'package:ehab_company_admin/features/warehouses/data/models/custody_model.dart';
+import 'package:ehab_company_admin/features/warehouses/data/repositories/custody_repository.dart';
+import 'package:ehab_company_admin/features/warehouses/presentation/controllers/settlement_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:ehab_company_admin/features/fund/presentation/controllers/fund_controller.dart';
-import 'package:ehab_company_admin/features/warehouses/presentation/controllers/settlement_controller.dart';
-import 'package:ehab_company_admin/features/units/presentation/controllers/unit_controller.dart';
-import 'package:ehab_company_admin/features/units/data/models/unit_model.dart';
-import 'package:ehab_company_admin/features/customers/presentation/controllers/customer_controller.dart';
 
 class ManualSettlementScreen extends StatefulWidget {
   const ManualSettlementScreen({super.key});
@@ -18,641 +20,908 @@ class _ManualSettlementScreenState extends State<ManualSettlementScreen> {
   final SettlementController _controller = Get.find<SettlementController>();
   final FundController _fundController = Get.find<FundController>();
   final UnitController _unitController = Get.find<UnitController>();
-  final CustomerController _customerController = Get.find<CustomerController>();
+  final CustodyRepository _repo = CustodyRepository();
 
-  final TextEditingController _notesController = TextEditingController();
+  final _receivedController = TextEditingController(text: '0');
+  final _notesController = TextEditingController();
+  final _debtAmountController = TextEditingController();
+  final _debtNotesController = TextEditingController();
+  final _debtTransferNumberController = TextEditingController();
+  final _debtSenderNameController = TextEditingController();
+  final _debtReceiverNameController = TextEditingController();
+  final _debtTransferCompanyController = TextEditingController();
+  final _debtBankNameController = TextEditingController();
+  final _debtBankReferenceController = TextEditingController();
+  final Map<int, TextEditingController> _soldControllers = {};
+  final Map<int, TextEditingController> _returnedControllers = {};
 
-  bool _isStockCleared = false;
-  
-  // تتبع المربعات المفتوحة للحسابات المالية لكل منتج
-  final Map<int, bool> _isExpanded = {};
-  
-  // تتبع الوحدات المختارة للإدخال لكل منتج
-  final Map<int, int> _selectedSoldUnitId = {};
-  final Map<int, int> _selectedReturnedUnitId = {};
-  
-  // تتبع طريقة الدفع المختارة حالياً لكل منتج (للعرض فقط)
-  final Map<int, String> _itemPaymentMode = {}; // 'cash', 'bank', 'transfer', 'credit'
-  
-  // تتبع القيم النصية المدخلة لتجنب المسح عند تغيير الوحدة
-  final Map<int, String> _inputSoldValues = {};
-  final Map<int, String> _inputReturnedValues = {};
+  String _debtPaymentMethod = 'cash';
+  int? _debtFundId;
+  bool _isDebtSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _customerController.fetchAllCustomers();
-    // التأكد من تحميل الصناديق
     _fundController.loadAllData();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final selectedRep = _controller.selectedWarehouse.value;
+  void dispose() {
+    for (final c in _soldControllers.values) {
+      c.dispose();
+    }
+    for (final c in _returnedControllers.values) {
+      c.dispose();
+    }
+    _receivedController.dispose();
+    _notesController.dispose();
+    _debtAmountController.dispose();
+    _debtNotesController.dispose();
+    _debtTransferNumberController.dispose();
+    _debtSenderNameController.dispose();
+    _debtReceiverNameController.dispose();
+    _debtTransferCompanyController.dispose();
+    _debtBankNameController.dispose();
+    _debtBankReferenceController.dispose();
+    super.dispose();
+  }
 
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      body: CustomScrollView(
+  double get _receivedAmount =>
+      double.tryParse(_receivedController.text) ?? 0.0;
+  double get _debtAmount => double.tryParse(_debtAmountController.text) ?? 0.0;
+
+  TextEditingController _soldCtrl(int productId) =>
+      _soldControllers.putIfAbsent(
+        productId,
+        () => TextEditingController(
+          text: _controller.getSoldQty(productId) == 0
+              ? ''
+              : _controller.getSoldQty(productId).toStringAsFixed(2),
+        ),
+      );
+
+  TextEditingController _returnedCtrl(int productId) =>
+      _returnedControllers.putIfAbsent(
+        productId,
+        () => TextEditingController(
+          text: _controller.getReturnedQty(productId) == 0
+              ? ''
+              : _controller.getReturnedQty(productId).toStringAsFixed(2),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final warehouse = _controller.selectedWarehouse.value;
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        appBar: AppBar(
+          title: Text('تسوية ${warehouse?.salesRepName ?? ""}'),
+          bottom: const TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
+            dividerColor: Colors.transparent,
+            tabs: [
+              Tab(text: 'تسوية العهدة'),
+              Tab(text: 'تسوية المديونية'),
+            ],
+          ),
+        ),
+        body: TabBarView(children: [_buildCustodyTab(), _buildDebtTab()]),
+      ),
+    );
+  }
+
+  Widget _buildCustodyTab() {
+    return Obx(() {
+      final warehouse = _controller.selectedWarehouse.value;
+      final products = _controller.currentProducts;
+      final newBalance =
+          (warehouse?.balance ?? 0.0) +
+          (_controller.totalSoldValue - _receivedAmount);
+
+      if (_controller.isLoading.value && products.isEmpty) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      return CustomScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: [
-          SliverAppBar(
-            expandedHeight: 140,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [theme.primaryColor, theme.primaryColor.withBlue(100)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+          SliverToBoxAdapter(
+            child: _topSummary(context, [
+              ('المديونية السابقة', warehouse?.balance ?? 0.0),
+              ('قيمة المباع', _controller.totalSoldValue),
+              ('المديونية الجديدة', newBalance),
+            ]),
+          ),
+          if (products.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'لا توجد عهدة حالية على هذا المندوب. استخدم تاب تسوية المديونية إذا كان عليه دين فقط.',
                   ),
                 ),
+              ),
+            )
+          else ...[
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  if (index.isOdd) return const SizedBox(height: 10);
+                  return _productCard(products[index ~/ 2]);
+                }, childCount: products.length * 2 - 1),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: _custodyFooter(),
+              ),
+            ),
+          ],
+        ],
+      );
+    });
+  }
+
+  Widget _buildDebtTab() {
+    return Obx(() {
+      final warehouse = _controller.selectedWarehouse.value;
+      final balance = warehouse?.balance ?? 0.0;
+      final isPayout = balance < -0.0001;
+      final absBalance = balance.abs();
+      final nextBalance = isPayout
+          ? balance + _debtAmount
+          : balance - _debtAmount;
+      final methods = {
+        'cash': FundType.cash,
+        'bank': FundType.bank,
+        'transfer': FundType.transfer,
+      };
+      final funds = _fundController.getFundsByType(
+        methods[_debtPaymentMethod] ?? FundType.cash,
+      );
+      final safeFundId = funds.any((f) => f.id == _debtFundId)
+          ? _debtFundId
+          : null;
+
+      return ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.all(16),
+        children: [
+          _topSummary(context, [
+            (
+              isPayout ? 'الرصيد الدائن الحالي' : 'المديونية الحالية',
+              absBalance,
+            ),
+            (isPayout ? 'مبلغ السداد للمندوب' : 'مبلغ التحصيل', _debtAmount),
+            ('الرصيد بعد العملية', nextBalance.abs()),
+          ], alt: true),
+          const SizedBox(height: 16),
+          if (balance.abs() <= 0.0001)
+            const _SimpleCard(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Text(
+                  'لا توجد مديونية أو رصيد دائن على هذا المندوب حالياً.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          else
+            _SimpleCard(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 40),
-                    Text(
-                      selectedRep?.salesRepName ?? "المندوب",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
+                    _numberField(
+                      _debtAmountController,
+                      isPayout ? 'مبلغ السداد للمندوب' : 'مبلغ التحصيل',
+                      setStateRefresh: true,
                     ),
-                    Text(
-                      'تسوية مديونية وعهدة ميدانية',
-                      style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _debtPaymentMethod,
+                      decoration: const InputDecoration(
+                        labelText: 'طريقة التحصيل',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'cash', child: Text('نقد')),
+                        DropdownMenuItem(value: 'bank', child: Text('بنك')),
+                        DropdownMenuItem(
+                          value: 'transfer',
+                          child: Text('حوالة'),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _debtPaymentMethod = v;
+                          _debtFundId = null;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      value: safeFundId,
+                      decoration: const InputDecoration(
+                        labelText: 'الصندوق / الحساب',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: funds
+                          .map(
+                            (f) => DropdownMenuItem<int>(
+                              value: f.id,
+                              child: Text(f.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => _debtFundId = v),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_debtPaymentMethod == 'bank') ...[
+                      TextField(
+                        controller: _debtTransferNumberController,
+                        decoration: const InputDecoration(
+                          labelText: 'رقم العملية / المرجع',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _debtBankNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'اسم البنك',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _debtBankReferenceController,
+                        decoration: const InputDecoration(
+                          labelText: 'المرجع البنكي',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                    if (_debtPaymentMethod == 'transfer') ...[
+                      TextField(
+                        controller: _debtTransferNumberController,
+                        decoration: const InputDecoration(
+                          labelText: 'رقم الحوالة / المرجع',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _debtTransferCompanyController,
+                        decoration: const InputDecoration(
+                          labelText: 'الشركة / الجهة',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _debtSenderNameController,
+                        decoration: InputDecoration(
+                          labelText: isPayout ? 'اسم المرسل' : 'اسم المرسل',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _debtReceiverNameController,
+                        decoration: InputDecoration(
+                          labelText: isPayout ? 'اسم المستلم' : 'اسم المستلم',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _debtNotesController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'ملاحظات السداد',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _summaryBox([
+                      (
+                        isPayout ? 'الرصيد الدائن الحالي' : 'المديونية الحالية',
+                        absBalance,
+                      ),
+                      (
+                        isPayout ? 'مبلغ السداد للمندوب' : 'مبلغ التحصيل',
+                        _debtAmount,
+                      ),
+                      ('الرصيد بعد العملية', nextBalance.abs()),
+                    ]),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _isDebtSubmitting
+                            ? null
+                            : _submitDebtPayment,
+                        icon: _isDebtSubmitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.account_balance_wallet_outlined),
+                        label: Text(
+                          _isDebtSubmitting
+                              ? 'جاري التنفيذ...'
+                              : isPayout
+                              ? 'اعتماد سداد للمندوب'
+                              : 'اعتماد تحصيل من المندوب',
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            title: const Text('مركـز التسويـة', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-            centerTitle: true,
-          ),
-
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            sliver: Obx(() {
-              if (_controller.isLoading.value) {
-                return const SliverFillRemaining(child: Center(child: CircularProgressIndicator()));
-              }
-
-              final itemsToShow = _controller.currentStock.where((item) {
-                final pid = item['productId'];
-                final initial = (item['quantity'] as num).toDouble();
-                final entry = _controller.entryData[pid] ?? {};
-                final sold = (entry['sold'] ?? 0.0) as double;
-                final returned = (entry['returned'] ?? 0.0) as double;
-                double remaining = initial - sold - returned;
-                if (remaining <= 0.0001 && sold <= 0) return false;
-                return true;
-              }).toList();
-
-              if (itemsToShow.isEmpty) {
-                return SliverFillRemaining(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.check_circle_outline, size: 80, color: Colors.green.shade200),
-                      const SizedBox(height: 16),
-                      Text('تمت تسوية كافة العهـدة بنجاح', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 16)),
-                    ],
-                  ),
-                );
-              }
-
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final item = itemsToShow[index];
-                    final productId = item['productId'];
-                    return _buildPremiumProductCard(theme, item, productId);
-                  },
-                  childCount: itemsToShow.length,
-                ),
-              );
-            }),
-          ),
-
-          SliverToBoxAdapter(child: _buildFinalOptions(theme)),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 200)),
         ],
+      );
+    });
+  }
+
+  Widget _productCard(CustodyProductSummary product) {
+    final theme = Theme.of(context);
+    final units = _controller.getAllowedUnits(product.productId);
+    return _SimpleCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              product.productName,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _controller.getProductPricingHint(product.productId),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'العهدة الحالية: ${_unitController.formatSmartQuantity(product.unitId, product.quantity)}',
+              style: TextStyle(
+                color: theme.primaryColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _qtyRow(
+              label: 'المباع',
+              controller: _soldCtrl(product.productId),
+              unitId: _controller.getSoldUnitId(product.productId),
+              units: units,
+              color: Colors.green,
+              onChanged: (v) {
+                _controller.updateEntry(
+                  product.productId,
+                  sold: double.tryParse(v) ?? 0.0,
+                );
+                setState(() {});
+              },
+              onUnitChanged: (v) {
+                if (v == null) return;
+                _controller.updateEntryUnit(product.productId, soldUnitId: v);
+                setState(() {});
+              },
+            ),
+            const SizedBox(height: 10),
+            _qtyRow(
+              label: 'المرتجع',
+              controller: _returnedCtrl(product.productId),
+              unitId: _controller.getReturnedUnitId(product.productId),
+              units: units,
+              color: Colors.orange,
+              onChanged: (v) {
+                _controller.updateEntry(
+                  product.productId,
+                  returned: double.tryParse(v) ?? 0.0,
+                );
+                setState(() {});
+              },
+              onUnitChanged: (v) {
+                if (v == null) return;
+                _controller.updateEntryUnit(
+                  product.productId,
+                  returnedUnitId: v,
+                );
+                setState(() {});
+              },
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _miniInfo(
+                    'المتبقي',
+                    _unitController.formatSmartQuantity(
+                      product.unitId,
+                      _controller.getRemainingQty(product.productId),
+                    ),
+                    Colors.blue,
+                  ),
+                ),
+                Expanded(
+                  child: _miniInfo(
+                    'قيمة المباع',
+                    _controller
+                        .getItemSoldValue(product.productId)
+                        .toStringAsFixed(2),
+                    Colors.purple,
+                  ),
+                ),
+              ],
+            ),
+            if (!_controller.isItemValid(product.productId)) ...[
+              const SizedBox(height: 10),
+              Text(
+                'الكمية المدخلة تتجاوز العهدة الحالية بعد التحويل بين الوحدات.',
+                style: TextStyle(
+                  color: Colors.red.shade700,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
-      bottomSheet: Obx(() => _buildNavigationFooter(theme)),
     );
   }
 
-  Widget _buildPremiumProductCard(ThemeData theme, dynamic item, int productId) {
-    final entry = _controller.entryData[productId]!;
-    final isValid = _controller.isItemValid(productId);
-    final isPayComplete = _controller.isItemPaymentComplete(productId);
-    final initial = (item['quantity'] as num).toDouble();
-    final unitString = _unitController.formatSmartQuantity(item['unitId'], initial);
-    final sold = (entry['sold'] as double);
-    final salePrice = (item['salePrice'] as num).toDouble();
-    final expectedAmount = sold * salePrice;
-    
-    final expanded = _isExpanded[productId] ?? false;
-    final mode = _itemPaymentMode[productId] ?? 'none';
+  Widget _qtyRow({
+    required String label,
+    required TextEditingController controller,
+    required int? unitId,
+    required List<UnitModel> units,
+    required Color color,
+    required ValueChanged<String> onChanged,
+    required ValueChanged<int?> onUnitChanged,
+  }) {
+    final unitItems = units
+        .map((u) => DropdownMenuItem<int>(value: u.id, child: Text(u.name)))
+        .toList();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final field = TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+          ],
+          textAlign: TextAlign.center,
+          decoration: InputDecoration(
+            labelText: label,
+            filled: true,
+            fillColor: color.withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          onChanged: onChanged,
+        );
+        final unit = DropdownButtonFormField<int>(
+          value: unitItems.any((i) => i.value == unitId) ? unitId : null,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: 'الوحدة',
+            filled: true,
+            fillColor: color.withOpacity(0.05),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          items: unitItems,
+          onChanged: unitItems.isEmpty ? null : onUnitChanged,
+        );
+        if (constraints.maxWidth < 420) {
+          return Column(children: [field, const SizedBox(height: 8), unit]);
+        }
+        return Row(
+          children: [
+            Expanded(flex: 3, child: field),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: unit),
+          ],
+        );
+      },
+    );
+  }
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 8))
-        ],
-        border: Border.all(
-          color: !isValid ? Colors.red.shade200 : (!isPayComplete && sold > 0 ? Colors.orange.shade200 : Colors.white),
-          width: 2,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+  Widget _custodyFooter() {
+    return _SimpleCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Head
-            _buildCardHead(item, unitString, theme),
-            
-            if (!isValid) _buildErrorStrip('تحذير: الكمية المدخلة تجاوزت عهدة المندوب!'),
-
-            // Units & Quantities
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-              child: _buildQtySection(productId, item, theme),
+            _numberField(
+              _receivedController,
+              'المبلغ المستلم الآن',
+              setStateRefresh: true,
             ),
-
-            if (sold > 0) ...[
-              _buildModernSummaryBar(expectedAmount, isPayComplete, productId, theme),
-              
-              const SizedBox(height: 12),
-              // Payment Selection
-              _buildPaymentModeSelector(productId, mode, theme),
-              
-              if (mode != 'none')
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                  child: _buildSelectedPaymentForm(productId, mode, theme),
-                ),
-              
-              const SizedBox(height: 10),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCardHead(dynamic item, String unitString, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      color: Colors.grey.shade50.withOpacity(0.5),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: theme.primaryColor.withOpacity(0.1),
-            child: Icon(Icons.inventory_2, color: theme.primaryColor, size: 20),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item['productName'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Text('العهدة الحالية: $unitString', style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('${item['salePrice']?.toStringAsFixed(2)}', style: TextStyle(color: theme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16)),
-              const Text('ريال / وحدة', style: TextStyle(color: Colors.grey, fontSize: 9)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQtySection(int productId, dynamic item, ThemeData theme) {
-    final levels = _unitController.getUnitLevels(item['unitId']);
-    if (!_selectedSoldUnitId.containsKey(productId)) {
-      _selectedSoldUnitId[productId] = levels.first.id!;
-      _selectedReturnedUnitId[productId] = levels.first.id!;
-    }
-
-    return Column(
-      children: [
-        _buildAdvancedQtyRow('الكمية المباعة', productId, levels, true, theme.primaryColor),
-        const SizedBox(height: 20),
-        _buildAdvancedQtyRow('الكمية المرتجعة', productId, levels, false, Colors.orange),
-      ],
-    );
-  }
-
-  Widget _buildAdvancedQtyRow(String label, int productId, List<UnitModel> levels, bool isSold, Color color) {
-    final activeUnitId = isSold ? _selectedSoldUnitId[productId] : _selectedReturnedUnitId[productId];
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-            Wrap(
-              spacing: 8,
-              children: levels.map((u) {
-                final isSelected = activeUnitId == u.id;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (isSold) _selectedSoldUnitId[productId] = u.id!;
-                      else _selectedReturnedUnitId[productId] = u.id!;
-                    });
-                    _recalculateQty(productId, isSold, isSold ? (_inputSoldValues[productId] ?? '0') : (_inputReturnedValues[productId] ?? '0'), levels);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isSelected ? color : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(u.name, style: TextStyle(fontSize: 10, color: isSelected ? Colors.white : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          decoration: InputDecoration(
-            hintText: 'أدخل الرقم هنا',
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.grey.shade200)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: color, width: 2)),
-          ),
-          onChanged: (v) {
-            if (isSold) _inputSoldValues[productId] = v;
-            else _inputReturnedValues[productId] = v;
-            _recalculateQty(productId, isSold, v, levels);
-          },
-        ),
-      ],
-    );
-  }
-
-  void _recalculateQty(int productId, bool isSold, String val, List<UnitModel> levels) {
-    final qty = double.tryParse(val) ?? 0;
-    final unitId = isSold ? _selectedSoldUnitId[productId] : _selectedReturnedUnitId[productId];
-    double multiplier = 1.0;
-    for (int i = 0; i < levels.length; i++) {
-      if (levels[i].id == unitId) break;
-      multiplier /= levels[i].conversionFactor;
-    }
-    final totalInBase = qty * multiplier;
-    if (isSold) _controller.updateEntry(productId, sold: totalInBase);
-    else _controller.updateEntry(productId, returned: totalInBase);
-  }
-
-  Widget _buildModernSummaryBar(double expected, bool complete, int productId, ThemeData theme) {
-    final remaining = _controller.getItemRemainingToPay(productId);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      decoration: BoxDecoration(
-        color: complete ? Colors.green.shade50 : Colors.orange.shade50,
-        border: Border(top: BorderSide(color: Colors.grey.shade100), bottom: BorderSide(color: Colors.grey.shade100)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('إجمالي قيمة المبيعات', style: TextStyle(fontSize: 10, color: Colors.grey)),
-              Text('${expected.toStringAsFixed(2)} ريال', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-          if (remaining > 0)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Text('المتبقي للتحصيل', style: TextStyle(fontSize: 10, color: Colors.orange)),
-                Text('${remaining.toStringAsFixed(2)} ريال', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.orange)),
-              ],
-            )
-          else
-            const Icon(Icons.verified, color: Colors.green, size: 28),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPaymentModeSelector(int productId, String currentMode, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('اختر طريقة التحصيل:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildModeIcon(productId, 'cash', Icons.payments, 'نقد', Colors.green, currentMode),
-              _buildModeIcon(productId, 'bank', Icons.account_balance, 'بنك', Colors.blue, currentMode),
-              _buildModeIcon(productId, 'transfer', Icons.swap_horiz, 'حوالة', Colors.pink, currentMode),
-              _buildModeIcon(productId, 'credit', Icons.timer, 'أجل', Colors.purple, currentMode),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModeIcon(int productId, String mode, IconData icon, String label, Color color, String current) {
-    final isSelected = current == mode;
-    return GestureDetector(
-      onTap: () => setState(() => _itemPaymentMode[productId] = mode),
-      child: Column(
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isSelected ? color : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: isSelected ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10)] : null,
-            ),
-            child: Icon(icon, color: isSelected ? Colors.white : Colors.grey, size: 24),
-          ),
-          const SizedBox(height: 6),
-          Text(label, style: TextStyle(fontSize: 10, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? color : Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSelectedPaymentForm(int productId, String mode, ThemeData theme) {
-    final entry = _controller.entryData[productId]!;
-    
-    switch (mode) {
-      case 'cash':
-        return _buildPaymentInputRow(
-          icon: Icons.payments,
-          color: Colors.green,
-          amountValue: entry['cashAmount'],
-          onAmountChanged: (v) => _controller.updateEntry(productId, cashAmount: v),
-          picker: _buildFundPickerUI('cash', entry['cashFundId'], (id) => _controller.updateEntry(productId, cashFundId: id)),
-        );
-      case 'bank':
-        return Column(
-          children: [
-            _buildPaymentInputRow(
-              icon: Icons.account_balance,
-              color: Colors.blue,
-              amountValue: entry['bankAmount'],
-              onAmountChanged: (v) => _controller.updateEntry(productId, bankAmount: v),
-              picker: _buildFundPickerUI('bank', entry['bankFundId'], (id) => _controller.updateEntry(productId, bankFundId: id)),
-            ),
-            const SizedBox(height: 10),
-            _buildModernDetailsInput('رقم العملية / تفاصيل...', entry['bankDetails'], (v) => _controller.updateEntry(productId, bankDetails: v)),
-          ],
-        );
-      case 'transfer':
-        return Column(
-          children: [
-            _buildPaymentInputRow(
-              icon: Icons.swap_horiz,
-              color: Colors.pink,
-              amountValue: entry['transferAmount'],
-              onAmountChanged: (v) => _controller.updateEntry(productId, transferAmount: v),
-              picker: _buildFundPickerUI('transfer', entry['transferFundId'], (id) => _controller.updateEntry(productId, transferFundId: id)),
-            ),
-            const SizedBox(height: 10),
-            _buildModernDetailsInput('اسم المحول / شركة التحويل...', entry['transferDetails'], (v) => _controller.updateEntry(productId, transferDetails: v)),
-          ],
-        );
-      case 'credit':
-        return Column(
-          children: [
-            _buildPaymentInputRow(
-              icon: Icons.timer,
-              color: Colors.purple,
-              amountValue: entry['creditAmount'],
-              onAmountChanged: (v) => _controller.updateEntry(productId, creditAmount: v),
-              picker: Row(
+            const SizedBox(height: 12),
+            Obx(() {
+              final methods = {
+                'cash': FundType.cash,
+                'bank': FundType.bank,
+                'transfer': FundType.transfer,
+              };
+              final funds = _fundController.getFundsByType(
+                methods[_controller.paymentMethod.value] ?? FundType.cash,
+              );
+              final selectedId = _controller.selectedFundId.value;
+              final safeId = funds.any((f) => f.id == selectedId)
+                  ? selectedId
+                  : null;
+              return Column(
                 children: [
-                  _buildSubChoice('على المندوب', entry['creditTarget'] == 'rep', () => _controller.updateEntry(productId, creditTarget: 'rep'), Colors.purple),
-                  const SizedBox(width: 10),
-                  _buildSubChoice('على عميل', entry['creditTarget'] == 'customer', () => _controller.updateEntry(productId, creditTarget: 'customer'), Colors.purple),
+                  DropdownButtonFormField<String>(
+                    value: _controller.paymentMethod.value,
+                    decoration: const InputDecoration(
+                      labelText: 'طريقة التحصيل',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'cash', child: Text('نقد')),
+                      DropdownMenuItem(value: 'bank', child: Text('بنك')),
+                      DropdownMenuItem(value: 'transfer', child: Text('حوالة')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      _controller.paymentMethod.value = v;
+                      _controller.selectedFundId.value = null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int>(
+                    value: safeId,
+                    decoration: const InputDecoration(
+                      labelText: 'الصندوق / الحساب',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: funds
+                        .map(
+                          (f) => DropdownMenuItem<int>(
+                            value: f.id,
+                            child: Text(f.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _receivedAmount > 0
+                        ? (v) => _controller.selectedFundId.value = v
+                        : null,
+                  ),
                 ],
+              );
+            }),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notesController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'ملاحظات التسوية',
+                border: OutlineInputBorder(),
               ),
             ),
-            if (entry['creditTarget'] == 'customer')
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: _buildCustomerPickerUI(entry['customerId'], (id) => _controller.updateEntry(productId, customerId: id)),
+            const SizedBox(height: 12),
+            Obx(() {
+              final previous =
+                  _controller.selectedWarehouse.value?.balance ?? 0.0;
+              final difference = _controller.totalSoldValue - _receivedAmount;
+              return _summaryBox([
+                ('إجمالي قيمة المباع', _controller.totalSoldValue),
+                ('المبلغ المستلم', _receivedAmount),
+                ('فرق التسوية', difference),
+                ('المديونية الجديدة', previous + difference),
+              ]);
+            }),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: Obx(
+                () => ElevatedButton.icon(
+                  onPressed:
+                      _controller.isLoading.value ||
+                          !_controller.areAllItemsValid
+                      ? null
+                      : () => _controller.submitSettlement(
+                          receivedAmount: _receivedAmount,
+                          notes: _notesController.text.trim().isEmpty
+                              ? null
+                              : _notesController.text.trim(),
+                        ),
+                  icon: _controller.isLoading.value
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check_circle_outline),
+                  label: Text(
+                    _controller.isLoading.value
+                        ? 'جاري الاعتماد...'
+                        : 'اعتماد تسوية العهدة',
+                  ),
+                ),
               ),
+            ),
           ],
-        );
-      default:
-        return const SizedBox();
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitDebtPayment() async {
+    final warehouse = _controller.selectedWarehouse.value;
+    final balance = warehouse?.balance ?? 0.0;
+    final isPayout = balance < -0.0001;
+    final absBalance = balance.abs();
+    if (warehouse == null) return;
+    if (_debtAmount <= 0) {
+      Get.snackbar(
+        'خطأ',
+        'أدخل مبلغ سداد صحيح.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+    if (_debtAmount > absBalance + 0.0001) {
+      Get.snackbar(
+        'خطأ',
+        isPayout
+            ? 'مبلغ السداد أكبر من الرصيد الدائن الحالي.'
+            : 'مبلغ التحصيل أكبر من المديونية الحالية.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+    if (_debtFundId == null) {
+      Get.snackbar(
+        'خطأ',
+        'اختر الصندوق أو الحساب المالي.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+    try {
+      setState(() => _isDebtSubmitting = true);
+      final result = await _repo.collectDebtPayment(
+        warehouseId: warehouse.id!,
+        amount: _debtAmount,
+        fundId: _debtFundId!,
+        paymentMethod: _debtPaymentMethod,
+        isPayout: isPayout,
+        transferNumber: _debtTransferNumberController.text.trim().isEmpty
+            ? null
+            : _debtTransferNumberController.text.trim(),
+        senderName: _debtSenderNameController.text.trim().isEmpty
+            ? null
+            : _debtSenderNameController.text.trim(),
+        receiverName: _debtReceiverNameController.text.trim().isEmpty
+            ? null
+            : _debtReceiverNameController.text.trim(),
+        transferCompany: _debtTransferCompanyController.text.trim().isEmpty
+            ? null
+            : _debtTransferCompanyController.text.trim(),
+        referenceType: _debtPaymentMethod == 'transfer'
+            ? 'HAWALA'
+            : _debtPaymentMethod == 'bank'
+            ? 'BANK'
+            : 'CASH',
+        bankName: _debtBankNameController.text.trim().isEmpty
+            ? null
+            : _debtBankNameController.text.trim(),
+        bankReference: _debtBankReferenceController.text.trim().isEmpty
+            ? null
+            : _debtBankReferenceController.text.trim(),
+        notes: _debtNotesController.text.trim().isEmpty
+            ? null
+            : _debtNotesController.text.trim(),
+      );
+      await _controller.selectWarehouse(
+        warehouse.copyWith(balance: result.newBalance),
+      );
+      _debtAmountController.clear();
+      _debtNotesController.clear();
+      _debtTransferNumberController.clear();
+      _debtSenderNameController.clear();
+      _debtReceiverNameController.clear();
+      _debtTransferCompanyController.clear();
+      _debtBankNameController.clear();
+      _debtBankReferenceController.clear();
+      setState(() => _debtFundId = null);
+      Get.snackbar(
+        'نجاح',
+        '${isPayout ? 'تم تسجيل سداد للمندوب' : 'تم تسجيل تحصيل من المندوب'}. الرصيد الجديد: ${result.newBalance.toStringAsFixed(2)}',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'خطأ',
+        e.toString().replaceAll('Exception: ', ''),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      if (mounted) setState(() => _isDebtSubmitting = false);
     }
   }
 
-  Widget _buildPaymentInputRow({required IconData icon, required Color color, required double amountValue, required Function(double) onAmountChanged, required Widget picker}) {
+  Widget _numberField(
+    TextEditingController controller,
+    String label, {
+    bool setStateRefresh = false,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.payments_outlined),
+        border: const OutlineInputBorder(),
+      ),
+      onChanged: setStateRefresh ? (_) => setState(() {}) : null,
+    );
+  }
+
+  Widget _topSummary(
+    BuildContext context,
+    List<(String, double)> values, {
+    bool alt = false,
+  }) {
+    final theme = Theme.of(context);
+    final colors = alt
+        ? [Colors.teal.shade500, Colors.teal.shade700]
+        : [theme.primaryColor, theme.primaryColor.withBlue(160)];
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        children: values
+            .map(
+              (item) => Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      item.$2.toStringAsFixed(2),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.$1,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _summaryBox(List<(String, double)> rows) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: rows
+            .map(
+              (row) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(row.$1),
+                    Text(
+                      row.$2.toStringAsFixed(2),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _miniInfo(String label, String value, Color color) {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                keyboardType: TextInputType.number,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                decoration: InputDecoration(
-                  prefixIcon: Icon(icon, color: color, size: 20),
-                  hintText: 'أدخل المبلغ المخصص...',
-                  filled: true,
-                  fillColor: color.withOpacity(0.05),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-                ),
-                onChanged: (v) => onAmountChanged(double.tryParse(v) ?? 0),
-              ),
-            ),
-          ],
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+          textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 10),
-        picker,
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+          textAlign: TextAlign.center,
+        ),
       ],
     );
   }
+}
 
-  Widget _buildFundPickerUI(String type, int? selectedId, Function(int) onChanged) {
-    return Obx(() {
-      final funds = _fundController.subFunds.where((f) => f.fundType.toString().split('.').last.toLowerCase() == type).toList();
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 15),
-        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<int>(
-            value: selectedId,
-            isExpanded: true,
-            hint: Text('اختر التحصيل لـ ($type)', style: const TextStyle(fontSize: 12)),
-            items: funds.map((f) => DropdownMenuItem(value: f.id, child: Text(f.name))).toList(),
-            onChanged: (v) => v != null ? onChanged(v) : null,
-          ),
-        ),
-      );
-    });
-  }
+class _SimpleCard extends StatelessWidget {
+  final Widget child;
 
-  Widget _buildCustomerPickerUI(int? selectedId, Function(int) onChanged) {
-    return Obx(() {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 15),
-        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<int>(
-            value: selectedId,
-            isExpanded: true,
-            hint: const Text('اختر العميل المستلم للآجل...', style: TextStyle(fontSize: 12)),
-            items: _customerController.filteredCustomers.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
-            onChanged: (v) => v != null ? onChanged(v) : null,
-          ),
-        ),
-      );
-    });
-  }
+  const _SimpleCard({required this.child});
 
-  Widget _buildSubChoice(String label, bool selected, VoidCallback onTap, Color color) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? color : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: selected ? Colors.white : Colors.black87, fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernDetailsInput(String hint, String? initial, Function(String) onChanged) {
-    return TextField(
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(fontSize: 12),
-        filled: true,
-        fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-      ),
-      onChanged: onChanged,
-    );
-  }
-
-  Widget _buildErrorStrip(String msg) {
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      color: Colors.red.shade400,
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 20),
-      child: Text(msg, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _buildFinalOptions(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-            child: Row(
-              children: [
-                const Icon(Icons.cleaning_services, color: Colors.blue),
-                const SizedBox(width: 15),
-                const Expanded(child: Text('صفير العهدة (إرجاع المتبقي للمخزن)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                Switch.adaptive(value: _isStockCleared, onChanged: (v) => setState(() => _isStockCleared = v)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _notesController,
-            maxLines: 2,
-            decoration: InputDecoration(
-              hintText: 'ملاحظات إضافية...',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavigationFooter(ThemeData theme) {
-    final canSubmit = _controller.areAllItemsValid;
-    return Container(
-      padding: const EdgeInsets.all(25),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.only(topLeft: Radius.circular(35), topRight: Radius.circular(35)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 30, offset: const Offset(0, -10))],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildLargeStat('نـقداً', _controller.totalCashAmount, Colors.green),
-              _buildLargeStat('بـنك', _controller.totalBankAmount + _controller.totalTransferAmount, Colors.blue),
-              _buildLargeStat('آجـل', _controller.totalCreditAmount, Colors.purple),
-            ],
-          ),
-          const SizedBox(height: 25),
-          SizedBox(
-            width: double.infinity,
-            height: 60,
-            child: ElevatedButton(
-              onPressed: canSubmit ? () => _controller.submitSettlement(totalCredit: 0, amountPaid: 0, notes: _notesController.text, isStockCleared: _isStockCleared) : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canSubmit ? theme.primaryColor : Colors.grey.shade400,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                elevation: 0,
-              ),
-              child: Text(canSubmit ? 'إعتمـاد وتأكيـد التسوية' : 'يرجى إكمال تحصيل الأرصدة', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
-            ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildLargeStat(String label, double val, Color color) {
-    return Column(
-      children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-        Text(val.toStringAsFixed(2), style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 20)),
-      ],
+      child: child,
     );
   }
 }

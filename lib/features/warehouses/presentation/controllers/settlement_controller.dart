@@ -1,253 +1,360 @@
+import 'package:ehab_company_admin/features/units/data/models/unit_model.dart';
+import 'package:ehab_company_admin/features/units/presentation/controllers/unit_controller.dart';
+import 'package:ehab_company_admin/features/warehouses/data/models/custody_model.dart';
+import 'package:ehab_company_admin/features/warehouses/data/models/warehouse_model.dart';
+import 'package:ehab_company_admin/features/warehouses/data/repositories/custody_repository.dart';
+import 'package:ehab_company_admin/features/warehouses/presentation/controllers/warehouse_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:ehab_company_admin/features/warehouses/data/models/warehouse_model.dart';
-import 'package:ehab_company_admin/features/warehouses/data/repositories/settlement_repository.dart';
-import 'package:ehab_company_admin/features/warehouses/presentation/controllers/warehouse_controller.dart';
 
 class SettlementController extends GetxController {
-  final SettlementRepository _repository = SettlementRepository();
-  final WarehouseController _warehouseController = Get.find<WarehouseController>();
+  final CustodyRepository _repository = CustodyRepository();
+  final WarehouseController _warehouseController =
+      Get.find<WarehouseController>();
+  final UnitController _unitController = Get.find<UnitController>();
 
-  // حالة الشاشة الحالية
-  final RxList<Map<String, dynamic>> currentStock = <Map<String, dynamic>>[].obs;
-  final RxBool isLoading = false.obs;
-  
-  // بيانات التسوية الحالية
   final Rx<WarehouseModel?> selectedWarehouse = Rx<WarehouseModel?>(null);
-  
-  // مصفوفة العناصر المعدلة يدوياً
-  // { 'productId': int, 'sold': double, 'returned': double, ...financials }
-  final RxMap<int, Map<String, dynamic>> entryData = <int, Map<String, dynamic>>{}.obs;
+  final RxList<CustodyProductSummary> currentProducts =
+      <CustodyProductSummary>[].obs;
+  final RxMap<int, List<CustodyLayerModel>> productLayers =
+      <int, List<CustodyLayerModel>>{}.obs;
+  final RxMap<int, Map<String, dynamic>> entryData =
+      <int, Map<String, dynamic>>{}.obs;
+
+  final RxBool isLoading = false.obs;
+  final RxString paymentMethod = 'cash'.obs;
+  final RxnInt selectedFundId = RxnInt();
 
   Future<void> selectWarehouse(WarehouseModel warehouse) async {
     selectedWarehouse.value = warehouse;
-    await fetchStock(warehouse.id!);
+    await fetchCurrentCustody();
   }
 
-  Future<void> fetchStock(int warehouseId) async {
+  Future<void> fetchCurrentCustody() async {
+    final warehouse = selectedWarehouse.value;
+    if (warehouse == null) return;
+
     try {
       isLoading(true);
-      final stock = await _warehouseController.getWarehouseStock(warehouseId);
-      currentStock.assignAll(stock);
-      
-      // تهيئة بيانات الإدخال
+      final products = await _repository.getCurrentCustodyProducts(
+        warehouse.id!,
+      );
+      final allLayers = await _repository.getCurrentCustodyLayers(
+        warehouse.id!,
+      );
+
+      currentProducts.assignAll(products);
+      productLayers.clear();
+      for (final layer in allLayers) {
+        productLayers.putIfAbsent(layer.productId, () => <CustodyLayerModel>[]);
+        productLayers[layer.productId]!.add(layer);
+      }
+
       entryData.clear();
-      for (var item in stock) {
-        entryData[item['productId']] = {
+      for (final product in products) {
+        entryData[product.productId] = {
           'sold': 0.0,
           'returned': 0.0,
-          'cashAmount': 0.0,
-          'cashFundId': null,
-          'bankAmount': 0.0,
-          'bankFundId': null,
-          'bankDetails': '',
-          'transferAmount': 0.0,
-          'transferFundId': null,
-          'transferDetails': '',
-          'creditAmount': 0.0,
-          'creditTarget': 'rep', // 'rep' or 'customer'
-          'customerId': null,
+          'soldUnitId': product.unitId,
+          'returnedUnitId': product.unitId,
         };
       }
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل في جلب الأرصدة: $e', backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشل في تحميل عهدة المندوب: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     } finally {
       isLoading(false);
     }
   }
 
-  void updateEntry(int productId, {
-    double? sold, 
-    double? returned,
-    double? cashAmount,
-    int? cashFundId,
-    double? bankAmount,
-    int? bankFundId,
-    String? bankDetails,
-    double? transferAmount,
-    int? transferFundId,
-    String? transferDetails,
-    double? creditAmount,
-    String? creditTarget,
-    int? customerId,
-  }) {
-    if (entryData.containsKey(productId)) {
-      final data = entryData[productId]!;
-      if (sold != null) data['sold'] = sold;
-      if (returned != null) data['returned'] = returned;
-      if (cashAmount != null) data['cashAmount'] = cashAmount;
-      if (cashFundId != null) data['cashFundId'] = cashFundId;
-      if (bankAmount != null) data['bankAmount'] = bankAmount;
-      if (bankFundId != null) data['bankFundId'] = bankFundId;
-      if (bankDetails != null) data['bankDetails'] = bankDetails;
-      if (transferAmount != null) data['transferAmount'] = transferAmount;
-      if (transferFundId != null) data['transferFundId'] = transferFundId;
-      if (transferDetails != null) data['transferDetails'] = transferDetails;
-      if (creditAmount != null) data['creditAmount'] = creditAmount;
-      if (creditTarget != null) data['creditTarget'] = creditTarget;
-      if (customerId != null) data['customerId'] = customerId;
-      
-      entryData.refresh();
+  void updateEntry(int productId, {double? sold, double? returned}) {
+    if (!entryData.containsKey(productId)) return;
+    final item = entryData[productId]!;
+    if (sold != null) item['sold'] = sold;
+    if (returned != null) item['returned'] = returned;
+    entryData.refresh();
+  }
+
+  void updateEntryUnit(int productId, {int? soldUnitId, int? returnedUnitId}) {
+    if (!entryData.containsKey(productId)) return;
+    final item = entryData[productId]!;
+    if (soldUnitId != null) item['soldUnitId'] = soldUnitId;
+    if (returnedUnitId != null) item['returnedUnitId'] = returnedUnitId;
+    entryData.refresh();
+  }
+
+  CustodyProductSummary? getProductSummary(int productId) {
+    return currentProducts.firstWhereOrNull((p) => p.productId == productId);
+  }
+
+  double getCurrentQty(int productId) {
+    return getProductSummary(productId)?.quantity ?? 0.0;
+  }
+
+  double getSoldQty(int productId) {
+    return (entryData[productId]?['sold'] as double?) ?? 0.0;
+  }
+
+  double getReturnedQty(int productId) {
+    return (entryData[productId]?['returned'] as double?) ?? 0.0;
+  }
+
+  int? getSoldUnitId(int productId) {
+    return entryData[productId]?['soldUnitId'] as int?;
+  }
+
+  int? getReturnedUnitId(int productId) {
+    return entryData[productId]?['returnedUnitId'] as int?;
+  }
+
+  double _calculateConversionFactor(int? rootUnitId, int? targetUnitId) {
+    if (rootUnitId == null || targetUnitId == null) return 1.0;
+    if (rootUnitId == targetUnitId) return 1.0;
+
+    double factor = 1.0;
+    int? currentId = rootUnitId;
+
+    while (currentId != null && currentId != targetUnitId) {
+      final unit = _unitController.allUnits.firstWhereOrNull(
+        (u) => u.id == currentId,
+      );
+      if (unit == null) return 1.0;
+      factor *= unit.conversionFactor;
+      currentId = unit.childUnitId;
     }
+
+    return currentId == targetUnitId ? factor : 1.0;
   }
 
-  /// التحقق من أن مجموع المباع والمرتجع لا يتجاوز العهدة الأصلية لصنف معين
+  double _convertToBaseQty({
+    required int productId,
+    required double quantity,
+    required int? selectedUnitId,
+  }) {
+    final product = getProductSummary(productId);
+    if (product == null || quantity <= 0) return quantity;
+    final factor = _calculateConversionFactor(product.unitId, selectedUnitId);
+    return quantity / (factor > 0 ? factor : 1.0);
+  }
+
+  double getSoldQtyInBase(int productId) {
+    return _convertToBaseQty(
+      productId: productId,
+      quantity: getSoldQty(productId),
+      selectedUnitId: getSoldUnitId(productId),
+    );
+  }
+
+  double getReturnedQtyInBase(int productId) {
+    return _convertToBaseQty(
+      productId: productId,
+      quantity: getReturnedQty(productId),
+      selectedUnitId: getReturnedUnitId(productId),
+    );
+  }
+
+  double getRemainingQty(int productId) {
+    return getCurrentQty(productId) -
+        getSoldQtyInBase(productId) -
+        getReturnedQtyInBase(productId);
+  }
+
   bool isItemValid(int productId) {
-    if (!entryData.containsKey(productId)) return true;
-    final item = currentStock.firstWhereOrNull((s) => s['productId'] == productId);
-    if (item == null) return true;
-    
-    final initial = (item['quantity'] as num).toDouble();
-    final entry = entryData[productId]!;
-    return (entry['sold']! as double) + (entry['returned']! as double) <= (initial + 0.0001);
+    final soldRaw = getSoldQty(productId);
+    final returnedRaw = getReturnedQty(productId);
+    final sold = getSoldQtyInBase(productId);
+    final returned = getReturnedQtyInBase(productId);
+
+    if (soldRaw < 0 || returnedRaw < 0 || sold < 0 || returned < 0) {
+      return false;
+    }
+
+    return (sold + returned) <= (getCurrentQty(productId) + 0.0001);
   }
 
-  /// التحقق من أن المبالغ المحصلة والآجلة تغطي قيمة المبيعات لهذا المنتج
-  bool isItemPaymentComplete(int productId) {
-    if (!entryData.containsKey(productId)) return true;
-    final item = currentStock.firstWhereOrNull((s) => s['productId'] == productId);
-    if (item == null) return true;
-    
-    final entry = entryData[productId]!;
-    final sold = (entry['sold'] as double);
-    if (sold <= 0) return true;
+  double getItemSoldValue(int productId) {
+    final layers = productLayers[productId] ?? const <CustodyLayerModel>[];
+    double remainingSold = getSoldQtyInBase(productId);
+    double total = 0.0;
 
-    final salePrice = (item['salePrice'] as num).toDouble();
-    final expected = sold * salePrice;
-    
-    final totalPaid = (entry['cashAmount'] as double) + 
-                      (entry['bankAmount'] as double) + 
-                      (entry['transferAmount'] as double) + 
-                      (entry['creditAmount'] as double);
-    
-    // نسمح بفرق بسيط جداً ناتج عن التقريب
-    return (totalPaid - expected).abs() < 0.01;
+    for (final layer in layers) {
+      if (remainingSold <= 0.0001) break;
+      final layerSold = remainingSold > layer.remainingQty
+          ? layer.remainingQty
+          : remainingSold;
+      total += layerSold * layer.salePricePerBaseUnit;
+      remainingSold -= layerSold;
+    }
+
+    return total;
   }
 
-  /// حساب المتبقي المطلوب تحصيله لصنف معين
-  double getItemRemainingToPay(int productId) {
-    if (!entryData.containsKey(productId)) return 0;
-    final item = currentStock.firstWhereOrNull((s) => s['productId'] == productId);
-    if (item == null) return 0;
-    
-    final entry = entryData[productId]!;
-    final expected = (entry['sold'] as double) * (item['salePrice'] as num).toDouble();
-    final totalPaid = (entry['cashAmount'] as double) + 
-                      (entry['bankAmount'] as double) + 
-                      (entry['transferAmount'] as double) + 
-                      (entry['creditAmount'] as double);
-    
-    return expected - totalPaid;
+  String getProductPricingHint(int productId) {
+    final layers = productLayers[productId] ?? const <CustodyLayerModel>[];
+    if (layers.isEmpty) return '';
+    final prices = layers
+        .map((layer) => layer.salePricePerBaseUnit.toStringAsFixed(2))
+        .toSet()
+        .toList();
+    if (prices.length == 1) {
+      return 'سعر العهدة: ${prices.first}';
+    }
+    return 'أسعار متعددة حسب دفعات التسليم';
   }
 
-  /// التحقق الشامل من صحة كافة مدخلات الأصناف واكتمال تحصيلها
+  List<UnitModel> getAllowedUnits(int productId) {
+    final product = getProductSummary(productId);
+    if (product?.unitId == null) return const <UnitModel>[];
+
+    final levels = _unitController.getUnitLevels(product!.unitId!);
+    final allowedIds = <int>{product.unitId!, ...?product.allowedUnitIds};
+    return levels.where((unit) => allowedIds.contains(unit.id)).toList();
+  }
+
+  String formatQuantityInSelectedUnit(
+    int productId,
+    double baseQty,
+    int? unitId,
+  ) {
+    final product = getProductSummary(productId);
+    if (product == null || unitId == null) {
+      return baseQty.toStringAsFixed(2);
+    }
+
+    final factor = _calculateConversionFactor(product.unitId, unitId);
+    final converted = baseQty * (factor > 0 ? factor : 1.0);
+    final value = converted == converted.toInt()
+        ? converted.toInt().toString()
+        : converted.toStringAsFixed(2);
+    return '$value ${_unitController.getUnitName(unitId)}';
+  }
+
   bool get areAllItemsValid {
-    for (var productId in entryData.keys) {
-      if (!isItemValid(productId)) return false;
-      if (!isItemPaymentComplete(productId)) return false;
+    for (final product in currentProducts) {
+      if (!isItemValid(product.productId)) return false;
     }
     return true;
   }
 
-  // حسابات الإجماليات اللحظية المجمعة
-  double get totalSalesValue {
-    double total = 0;
-    for (var item in currentStock) {
-      final pid = item['productId'];
-      final sold = entryData[pid]?['sold'] ?? 0.0;
-      total += sold * (item['salePrice'] as num).toDouble();
-    }
-    return total;
+  double get totalSoldValue {
+    return currentProducts.fold<double>(
+      0.0,
+      (sum, item) => sum + getItemSoldValue(item.productId),
+    );
   }
 
-  double get totalReturnedValue {
-    double total = 0;
-    for (var item in currentStock) {
-      final pid = item['productId'];
-      final returned = entryData[pid]?['returned'] ?? 0.0;
-      total += returned * (item['salePrice'] as num).toDouble();
-    }
-    return total;
+  double get totalReturnedQty {
+    return currentProducts.fold<double>(
+      0.0,
+      (sum, item) => sum + getReturnedQtyInBase(item.productId),
+    );
   }
 
-  double get totalCashAmount => entryData.values.fold(0.0, (sum, item) => sum + (item['cashAmount'] as double));
-  double get totalBankAmount => entryData.values.fold(0.0, (sum, item) => sum + (item['bankAmount'] as double));
-  double get totalTransferAmount => entryData.values.fold(0.0, (sum, item) => sum + (item['transferAmount'] as double));
-  double get totalCreditAmount => entryData.values.fold(0.0, (sum, item) => sum + (item['creditAmount'] as double));
+  double get totalRemainingQty {
+    return currentProducts.fold<double>(
+      0.0,
+      (sum, item) => sum + getRemainingQty(item.productId),
+    );
+  }
 
   Future<void> submitSettlement({
-    required double totalCredit,
-    required double amountPaid,
-    String? paymentMethod,
-    int? fundId,
-    bool isStockCleared = false,
-    bool isCreditToCustomers = false,
+    required double receivedAmount,
     String? notes,
   }) async {
-    if (selectedWarehouse.value == null) return;
+    final warehouse = selectedWarehouse.value;
+    if (warehouse == null) return;
+
+    if (!areAllItemsValid) {
+      Get.snackbar(
+        'خطأ',
+        'يوجد صنف بكمية غير صحيحة داخل التسوية.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (receivedAmount < 0) {
+      Get.snackbar(
+        'خطأ',
+        'لا يمكن إدخال مبلغ مستلم سالب.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (receivedAmount > 0 && selectedFundId.value == null) {
+      Get.snackbar(
+        'خطأ',
+        'اختر الصندوق أو الحساب المالي قبل اعتماد التسوية.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    final items = currentProducts
+        .map(
+          (product) => CustodySettlementInput(
+            productId: product.productId,
+            soldQty: getSoldQtyInBase(product.productId),
+            returnedQty: getReturnedQtyInBase(product.productId),
+          ),
+        )
+        .where((item) => item.soldQty > 0.0001 || item.returnedQty > 0.0001)
+        .toList();
+
+    if (items.isEmpty && receivedAmount <= 0) {
+      Get.snackbar(
+        'خطأ',
+        'لا توجد أي حركة لإرسالها في هذه التسوية.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
 
     try {
       isLoading(true);
-      
-      List<SettlementItemInput> items = [];
-      for (var item in currentStock) {
-        final pid = item['productId'];
-        final entry = entryData[pid]!;
-        
-        // التحقق من منطقية الأرقام
-        final initial = (item['quantity'] as num).toDouble();
-        if (!isItemValid(pid)) {
-          throw Exception('الكمية المدخلة للمنتج ${item['productName']} تتجاوز المتوفر في العهدة');
-        }
-
-        items.add(SettlementItemInput(
-          productId: pid,
-          initialQty: initial,
-          initialQtyInBaseUnit: initial, // هنا نفترض الإدخال بالوحدة الكبرى حالياً
-          soldQty: (entry['sold'] as double),
-          soldQtyInBaseUnit: (entry['sold'] as double),
-          returnedQty: (entry['returned'] as double),
-          returnedQtyInBaseUnit: (entry['returned'] as double),
-          salePrice: (item['salePrice'] as num).toDouble(),
-          unitId: item['unitId'],
-          cashAmount: (entry['cashAmount'] as double),
-          cashFundId: entry['cashFundId'],
-          bankAmount: (entry['bankAmount'] as double),
-          bankFundId: entry['bankFundId'],
-          bankDetails: entry['bankDetails'],
-          transferAmount: (entry['transferAmount'] as double),
-          transferFundId: entry['transferFundId'],
-          transferDetails: entry['transferDetails'],
-          creditAmount: (entry['creditAmount'] as double),
-          creditTarget: entry['creditTarget'],
-          customerId: entry['customerId'],
-        ));
-      }
-
-      await _repository.processSettlement(
-        warehouseId: selectedWarehouse.value!.id!,
-        totalSales: totalSalesValue,
-        totalReturned: totalReturnedValue,
-        totalCredit: totalCreditAmount, // استخدام الإجمالي المحسوب من الأصناف
-        amountPaid: totalCashAmount + totalBankAmount + totalTransferAmount, // المبالغ المحصلة فعلياً
-        deficit: 0,
-        settlementDate: DateTime.now(),
-        notes: notes,
-        paymentMethod: 'multiple', // تم تغييرها لتعدد طرق الدفع
-        fundId: null, // لم يعد هناك صندوق واحد رئيسي
-        isStockCleared: isStockCleared,
-        isCreditToCustomers: true, // نفترض التفعيل إذا وجد تحصيل للعملاء
+      final result = await _repository.processManualSettlement(
+        warehouseId: warehouse.id!,
         items: items,
+        receivedAmount: receivedAmount,
+        paymentMethod: receivedAmount > 0 ? paymentMethod.value : null,
+        fundId: receivedAmount > 0 ? selectedFundId.value : null,
+        notes: notes,
       );
 
-      Get.back(); // العودة من شاشة التسوية
-      Get.snackbar('نجاح', 'تمت عملية التسوية بنجاح', backgroundColor: Colors.green, colorText: Colors.white);
-      
-      // تحديث بيانات المخازن
-      _warehouseController.fetchAllWarehouses();
-      
+      await _warehouseController.fetchAllWarehouses();
+      final refreshed = _warehouseController.warehouses.firstWhereOrNull(
+        (element) => element.id == warehouse.id,
+      );
+      if (refreshed != null) {
+        selectedWarehouse.value = refreshed;
+      }
+      await fetchCurrentCustody();
+
+      Get.back();
+      Get.snackbar(
+        'نجاح',
+        'تم اعتماد التسوية. فرق التسوية: ${result.settlementDifference.toStringAsFixed(2)}',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 4),
+      );
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل تنفيذ التسوية: $e', backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشل تنفيذ التسوية: ${e.toString().replaceAll('Exception: ', '')}',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
     } finally {
       isLoading(false);
     }

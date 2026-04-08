@@ -7,6 +7,7 @@ class WarehouseModel {
   final String? salesRepName;
   final String? salesRepPhone;
   final double creditLimit;
+  final double balance;
   final bool isActive;
   final DateTime createdAt;
 
@@ -17,6 +18,7 @@ class WarehouseModel {
     this.salesRepName,
     this.salesRepPhone,
     this.creditLimit = 0.0,
+    this.balance = 0.0,
     this.isActive = true,
     required this.createdAt,
   });
@@ -32,6 +34,7 @@ class WarehouseModel {
       'salesRepName': salesRepName,
       'salesRepPhone': salesRepPhone,
       'creditLimit': creditLimit,
+      'balance': balance,
       'isActive': isActive ? 1 : 0,
       'createdAt': createdAt.toIso8601String(),
     };
@@ -45,6 +48,7 @@ class WarehouseModel {
       salesRepName: map['salesRepName'],
       salesRepPhone: map['salesRepPhone'],
       creditLimit: (map['creditLimit'] ?? 0.0).toDouble(),
+      balance: (map['balance'] ?? 0.0).toDouble(),
       isActive: (map['isActive'] ?? 1) == 1,
       createdAt: DateTime.parse(map['createdAt']),
     );
@@ -57,6 +61,7 @@ class WarehouseModel {
     String? salesRepName,
     String? salesRepPhone,
     double? creditLimit,
+    double? balance,
     bool? isActive,
     DateTime? createdAt,
   }) {
@@ -67,6 +72,7 @@ class WarehouseModel {
       salesRepName: salesRepName ?? this.salesRepName,
       salesRepPhone: salesRepPhone ?? this.salesRepPhone,
       creditLimit: creditLimit ?? this.creditLimit,
+      balance: balance ?? this.balance,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
     );

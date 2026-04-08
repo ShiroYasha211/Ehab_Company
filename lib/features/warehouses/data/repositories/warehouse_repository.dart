@@ -66,14 +66,30 @@ class WarehouseRepository {
       throw Exception('لا يمكن حذف المخزن الرئيسي');
     }
 
+    if (warehouse != null && warehouse.balance.abs() > 0.0001) {
+      throw Exception(
+        'لا يمكن حذف المندوب، توجد حركة مالية أو مديونية قائمة عليه.',
+      );
+    }
+
+    final stockQuery = warehouse != null && warehouse.isRep
+        ? '''
+          SELECT COALESCE(SUM(iti.remainingQuantityInBaseUnit), 0) as total
+          FROM inventory_transfer_items iti
+          JOIN inventory_transfers it ON iti.transferId = it.id
+          WHERE it.destinationWarehouseId = ?
+            AND it.status = 'COMPLETED'
+            AND iti.remainingQuantityInBaseUnit > 0.0001
+        '''
+        : 'SELECT COALESCE(SUM(quantity), 0) as total FROM warehouse_stock WHERE warehouseId = ? AND quantity > 0';
+
     // التحقق من عدم وجود أرصدة
-    final stockResult = await db.rawQuery(
-      'SELECT SUM(quantity) as total FROM warehouse_stock WHERE warehouseId = ? AND quantity > 0',
-      [id],
-    );
+    final stockResult = await db.rawQuery(stockQuery, [id]);
     final totalStock = (stockResult.first['total'] as num?)?.toDouble() ?? 0.0;
     if (totalStock > 0) {
-      throw Exception('لا يمكن حذف المخزن، يوجد أرصدة بقيمة $totalStock. يرجى ترحيل البضاعة أولاً.');
+      throw Exception(
+        'لا يمكن حذف المخزن، يوجد أرصدة بقيمة $totalStock. يرجى ترحيل البضاعة أولاً.',
+      );
     }
 
     await db.delete('warehouses', where: 'id = ?', whereArgs: [id]);
@@ -82,7 +98,54 @@ class WarehouseRepository {
   /// جلب أرصدة مخزن معين (المنتجات وكمياتها)
   Future<List<Map<String, dynamic>>> getWarehouseStock(int warehouseId) async {
     final db = await _dbService.database;
-    return await db.rawQuery('''
+    final warehouse = await getWarehouseById(warehouseId);
+
+    if (warehouse != null && warehouse.isRep) {
+      return await db.rawQuery(
+        '''
+        SELECT
+          agg.productId,
+          agg.quantity,
+          p.name as productName,
+          p.code as productCode,
+          agg.avgSalePrice as salePrice,
+          agg.avgPurchasePrice as purchasePrice,
+          p.unitId,
+          p.imageUrl,
+          p.category,
+          p.isSalesStopped
+        FROM (
+          SELECT
+            iti.productId,
+            SUM(iti.remainingQuantityInBaseUnit) as quantity,
+            CASE
+              WHEN SUM(iti.remainingQuantityInBaseUnit) > 0
+              THEN SUM(iti.remainingQuantityInBaseUnit * iti.salePricePerBaseUnit)
+                   / SUM(iti.remainingQuantityInBaseUnit)
+              ELSE 0
+            END as avgSalePrice,
+            CASE
+              WHEN SUM(iti.remainingQuantityInBaseUnit) > 0
+              THEN SUM(iti.remainingQuantityInBaseUnit * iti.purchasePricePerBaseUnit)
+                   / SUM(iti.remainingQuantityInBaseUnit)
+              ELSE 0
+            END as avgPurchasePrice
+          FROM inventory_transfer_items iti
+          JOIN inventory_transfers it ON iti.transferId = it.id
+          WHERE it.destinationWarehouseId = ?
+            AND it.status = 'COMPLETED'
+            AND iti.remainingQuantityInBaseUnit > 0.0001
+          GROUP BY iti.productId
+        ) agg
+        JOIN products p ON agg.productId = p.id
+        ORDER BY p.name ASC
+      ''',
+        [warehouseId],
+      );
+    }
+
+    return await db.rawQuery(
+      '''
       SELECT 
         ws.productId,
         ws.quantity,
@@ -98,12 +161,35 @@ class WarehouseRepository {
       JOIN products p ON ws.productId = p.id
       WHERE ws.warehouseId = ? AND ws.quantity > 0
       ORDER BY p.name ASC
-    ''', [warehouseId]);
+    ''',
+      [warehouseId],
+    );
   }
 
   /// جلب كمية منتج معين في مخزن معين
-  Future<double> getProductStockInWarehouse(int warehouseId, int productId) async {
+  Future<double> getProductStockInWarehouse(
+    int warehouseId,
+    int productId,
+  ) async {
     final db = await _dbService.database;
+    final warehouse = await getWarehouseById(warehouseId);
+
+    if (warehouse != null && warehouse.isRep) {
+      final result = await db.rawQuery(
+        '''
+        SELECT COALESCE(SUM(iti.remainingQuantityInBaseUnit), 0) as quantity
+        FROM inventory_transfer_items iti
+        JOIN inventory_transfers it ON iti.transferId = it.id
+        WHERE it.destinationWarehouseId = ?
+          AND it.status = 'COMPLETED'
+          AND iti.productId = ?
+          AND iti.remainingQuantityInBaseUnit > 0.0001
+      ''',
+        [warehouseId, productId],
+      );
+      return (result.first['quantity'] as num?)?.toDouble() ?? 0.0;
+    }
+
     final result = await db.rawQuery(
       'SELECT quantity FROM warehouse_stock WHERE warehouseId = ? AND productId = ?',
       [warehouseId, productId],
@@ -115,7 +201,37 @@ class WarehouseRepository {
   /// جلب تقرير قيمة مخزن معين
   Future<Map<String, dynamic>> getWarehouseValueReport(int warehouseId) async {
     final db = await _dbService.database;
-    final result = await db.rawQuery('''
+    final warehouse = await getWarehouseById(warehouseId);
+
+    if (warehouse != null && warehouse.isRep) {
+      final result = await db.rawQuery(
+        '''
+        SELECT
+          COUNT(DISTINCT iti.productId) as totalProducts,
+          COALESCE(SUM(iti.remainingQuantityInBaseUnit), 0) as totalQuantity,
+          COALESCE(SUM(iti.remainingQuantityInBaseUnit * iti.salePricePerBaseUnit), 0) as totalSaleValue,
+          COALESCE(SUM(iti.remainingQuantityInBaseUnit * iti.purchasePricePerBaseUnit), 0) as totalPurchaseValue
+        FROM inventory_transfer_items iti
+        JOIN inventory_transfers it ON iti.transferId = it.id
+        WHERE it.destinationWarehouseId = ?
+          AND it.status = 'COMPLETED'
+          AND iti.remainingQuantityInBaseUnit > 0.0001
+      ''',
+        [warehouseId],
+      );
+
+      final row = result.first;
+      return {
+        'totalProducts': (row['totalProducts'] as int?) ?? 0,
+        'totalQuantity': (row['totalQuantity'] as num?)?.toDouble() ?? 0.0,
+        'totalSaleValue': (row['totalSaleValue'] as num?)?.toDouble() ?? 0.0,
+        'totalPurchaseValue':
+            (row['totalPurchaseValue'] as num?)?.toDouble() ?? 0.0,
+      };
+    }
+
+    final result = await db.rawQuery(
+      '''
       SELECT 
         COUNT(ws.productId) as totalProducts,
         SUM(ws.quantity) as totalQuantity,
@@ -124,24 +240,31 @@ class WarehouseRepository {
       FROM warehouse_stock ws
       JOIN products p ON ws.productId = p.id
       WHERE ws.warehouseId = ? AND ws.quantity > 0
-    ''', [warehouseId]);
+    ''',
+      [warehouseId],
+    );
 
     final row = result.first;
     return {
       'totalProducts': (row['totalProducts'] as int?) ?? 0,
       'totalQuantity': (row['totalQuantity'] as num?)?.toDouble() ?? 0.0,
       'totalSaleValue': (row['totalSaleValue'] as num?)?.toDouble() ?? 0.0,
-      'totalPurchaseValue': (row['totalPurchaseValue'] as num?)?.toDouble() ?? 0.0,
+      'totalPurchaseValue':
+          (row['totalPurchaseValue'] as num?)?.toDouble() ?? 0.0,
     };
   }
 
   /// جلب المبيعات من مخزن معين خلال فترة
-  Future<Map<String, double>> getWarehouseSales(int warehouseId, {DateTime? from, DateTime? to}) async {
+  Future<Map<String, double>> getWarehouseSales(
+    int warehouseId, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
     final db = await _dbService.database;
-    
+
     String whereClause = "si.warehouseId = ? AND si.status != 'RETURNED'";
     List<dynamic> args = [warehouseId];
-    
+
     if (from != null) {
       whereClause += ' AND si.invoiceDate >= ?';
       args.add(from.toIso8601String());

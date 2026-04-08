@@ -36,7 +36,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 39,
+      version: 40,
       // --- نهاية الإصلاح ---
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -168,6 +168,9 @@ class DatabaseService {
     if (oldVersion < 39) {
       await _createV39Tables(db);
     }
+    if (oldVersion < 40) {
+      await _createV40Tables(db);
+    }
   }
 
   /// الإصدار 38: تحسينات الأداء (الفهارس)
@@ -180,57 +183,181 @@ class DatabaseService {
     final batch = db.batch();
 
     // التحقق من وجود الحقل في جدول حركات العملاء
-    final List<Map<String, dynamic>> custCols = await db.rawQuery('PRAGMA table_info(customer_transactions)');
-    final List<String> custColNames = custCols.map((col) => col['name'] as String).toList();
+    final List<Map<String, dynamic>> custCols = await db.rawQuery(
+      'PRAGMA table_info(customer_transactions)',
+    );
+    final List<String> custColNames = custCols
+        .map((col) => col['name'] as String)
+        .toList();
     if (!custColNames.contains('referenceId')) {
-      batch.execute('ALTER TABLE customer_transactions ADD COLUMN referenceId INTEGER');
+      batch.execute(
+        'ALTER TABLE customer_transactions ADD COLUMN referenceId INTEGER',
+      );
     }
 
     // التحقق من وجود الحقل في جدول حركات الموردين
-    final List<Map<String, dynamic>> suppCols = await db.rawQuery('PRAGMA table_info(supplier_transactions)');
-    final List<String> suppColNames = suppCols.map((col) => col['name'] as String).toList();
+    final List<Map<String, dynamic>> suppCols = await db.rawQuery(
+      'PRAGMA table_info(supplier_transactions)',
+    );
+    final List<String> suppColNames = suppCols
+        .map((col) => col['name'] as String)
+        .toList();
     if (!suppColNames.contains('referenceId')) {
-      batch.execute('ALTER TABLE supplier_transactions ADD COLUMN referenceId INTEGER');
+      batch.execute(
+        'ALTER TABLE supplier_transactions ADD COLUMN referenceId INTEGER',
+      );
     }
 
     await batch.commit(noResult: true);
   }
 
+  /// الإصدار 40: إعادة بناء نظام العهد الميدانية اليدوي
+  Future<void> _createV40Tables(Database db) async {
+    await _addColumnIfNotExists(
+      db,
+      'inventory_transfer_items',
+      'quantityInBaseUnit REAL DEFAULT 0.0',
+    );
+    await _addColumnIfNotExists(
+      db,
+      'inventory_transfer_items',
+      'remainingQuantityInBaseUnit REAL DEFAULT 0.0',
+    );
+    await _addColumnIfNotExists(
+      db,
+      'inventory_transfer_items',
+      'salePricePerBaseUnit REAL DEFAULT 0.0',
+    );
+    await _addColumnIfNotExists(
+      db,
+      'inventory_transfer_items',
+      'purchasePricePerBaseUnit REAL DEFAULT 0.0',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS custody_settlements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        warehouseId INTEGER NOT NULL,
+        totalSoldValue REAL NOT NULL DEFAULT 0.0,
+        receivedAmount REAL NOT NULL DEFAULT 0.0,
+        settlementDifference REAL NOT NULL DEFAULT 0.0,
+        previousBalance REAL NOT NULL DEFAULT 0.0,
+        newBalance REAL NOT NULL DEFAULT 0.0,
+        paymentMethod TEXT,
+        fundId INTEGER,
+        notes TEXT,
+        settlementDate TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY (warehouseId) REFERENCES warehouses(id),
+        FOREIGN KEY (fundId) REFERENCES funds(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS custody_settlement_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        settlementId INTEGER NOT NULL,
+        transferItemId INTEGER,
+        transferId INTEGER,
+        productId INTEGER NOT NULL,
+        productName TEXT NOT NULL,
+        availableQty REAL NOT NULL DEFAULT 0.0,
+        soldQty REAL NOT NULL DEFAULT 0.0,
+        returnedQty REAL NOT NULL DEFAULT 0.0,
+        remainingQty REAL NOT NULL DEFAULT 0.0,
+        salePricePerBaseUnit REAL NOT NULL DEFAULT 0.0,
+        soldValue REAL NOT NULL DEFAULT 0.0,
+        transferDate TEXT,
+        FOREIGN KEY (settlementId) REFERENCES custody_settlements(id) ON DELETE CASCADE,
+        FOREIGN KEY (transferItemId) REFERENCES inventory_transfer_items(id),
+        FOREIGN KEY (productId) REFERENCES products(id)
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transfer_items_remaining ON inventory_transfer_items(remainingQuantityInBaseUnit)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_custody_settlement_wh ON custody_settlements(warehouseId)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_custody_settlement_items_settlement ON custody_settlement_items(settlementId)',
+    );
+
+    await _backfillTransferItemBaseQuantities(db);
+  }
+
   /// إنشاء الفهارس لتسريع البحث والتقارير
   Future<void> _createIndexes(Database db) async {
     final batch = db.batch();
-    
+
     // فهارس للمخزون والمنتجات
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_products_code ON products(code)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)');
-    
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_products_code ON products(code)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)',
+    );
+
     // فهارس للصندوق والحركات المالية (مهم جداً للتقارير)
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_fund_tx_date ON fund_transactions(transactionDate)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_fund_tx_fund ON fund_transactions(fundId)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_fund_tx_ref ON fund_transactions(referenceId)');
-    
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_fund_tx_date ON fund_transactions(transactionDate)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_fund_tx_fund ON fund_transactions(fundId)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_fund_tx_ref ON fund_transactions(referenceId)',
+    );
+
     // فهارس المبيعات والمشتريات
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_sales_inv_date ON sales_invoices(invoiceDate)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_sales_inv_cust ON sales_invoices(customerId)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_purchase_inv_date ON purchase_invoices(invoiceDate)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_purchase_inv_supp ON purchase_invoices(supplierId)');
-    
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sales_inv_date ON sales_invoices(invoiceDate)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sales_inv_cust ON sales_invoices(customerId)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_purchase_inv_date ON purchase_invoices(invoiceDate)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_purchase_inv_supp ON purchase_invoices(supplierId)',
+    );
+
     // فهارس العملاء والموردين
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_cust_tx_date ON customer_transactions(transactionDate)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_supp_tx_date ON supplier_transactions(transactionDate)');
-    
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cust_tx_date ON customer_transactions(transactionDate)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_supp_tx_date ON supplier_transactions(transactionDate)',
+    );
+
     // فهارس المصروفات
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expenseDate)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_expenses_cat ON expenses(categoryId)');
-    
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expenseDate)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_expenses_cat ON expenses(categoryId)',
+    );
+
     // فهارس سجل النشاطات (Audit Logs)
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_activities_time ON activities(time)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type)');
-    
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_activities_time ON activities(time)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type)',
+    );
+
     // فهارس المخازن والمناديب
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_wh_stock_pid ON warehouse_stock(productId)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_wh_stock_whid ON warehouse_stock(warehouseId)');
-    batch.execute('CREATE INDEX IF NOT EXISTS idx_settlements_date ON settlements(settlementDate)');
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_wh_stock_pid ON warehouse_stock(productId)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_wh_stock_whid ON warehouse_stock(warehouseId)',
+    );
+    batch.execute(
+      'CREATE INDEX IF NOT EXISTS idx_settlements_date ON settlements(settlementDate)',
+    );
 
     await batch.commit(noResult: true);
   }
@@ -570,9 +697,7 @@ class DatabaseService {
 
   /// الإصدار 13: إضافة حقل وحدات البيع المسموح بها للمنتجات
   Future<void> _createV13Tables(Database db) async {
-    await db.execute(
-      'ALTER TABLE products ADD COLUMN allowedUnits TEXT',
-    );
+    await db.execute('ALTER TABLE products ADD COLUMN allowedUnits TEXT');
   }
 
   /// الإصدار 14: إضافة سعر الشراء والوحدة في تفاصيل المبيعات لضمان دقة COGS
@@ -581,25 +706,34 @@ class DatabaseService {
     batch.execute(
       'ALTER TABLE sales_invoice_items ADD COLUMN purchasePrice REAL DEFAULT 0.0',
     );
-    batch.execute(
-      'ALTER TABLE sales_invoice_items ADD COLUMN unitId INTEGER',
-    );
+    batch.execute('ALTER TABLE sales_invoice_items ADD COLUMN unitId INTEGER');
     await batch.commit(noResult: true);
   }
+
   /// الإصدار 15: إعادة هيكلة نظام الصندوق - صناديق فرعية متعددة
   Future<void> _createV15Tables(Database db) async {
     // التحقق من الأعمدة الموجودة حالياً لتجنب خطأ الـ "duplicate column"
-    final List<Map<String, dynamic>> fundsColumns = await db.rawQuery('PRAGMA table_info(funds)');
-    final List<String> fundsColumnNames = fundsColumns.map((col) => col['name'] as String).toList();
+    final List<Map<String, dynamic>> fundsColumns = await db.rawQuery(
+      'PRAGMA table_info(funds)',
+    );
+    final List<String> fundsColumnNames = fundsColumns
+        .map((col) => col['name'] as String)
+        .toList();
 
-    final List<Map<String, dynamic>> txColumns = await db.rawQuery('PRAGMA table_info(fund_transactions)');
-    final List<String> txColumnNames = txColumns.map((col) => col['name'] as String).toList();
+    final List<Map<String, dynamic>> txColumns = await db.rawQuery(
+      'PRAGMA table_info(fund_transactions)',
+    );
+    final List<String> txColumnNames = txColumns
+        .map((col) => col['name'] as String)
+        .toList();
 
     final batch = db.batch();
 
     // 1. إضافة أعمدة جديدة لجدول funds
     if (!fundsColumnNames.contains('fundType')) {
-      batch.execute("ALTER TABLE funds ADD COLUMN fundType TEXT NOT NULL DEFAULT 'cash'");
+      batch.execute(
+        "ALTER TABLE funds ADD COLUMN fundType TEXT NOT NULL DEFAULT 'cash'",
+      );
     }
     if (!fundsColumnNames.contains('bankName')) {
       batch.execute('ALTER TABLE funds ADD COLUMN bankName TEXT');
@@ -608,37 +742,58 @@ class DatabaseService {
       batch.execute('ALTER TABLE funds ADD COLUMN accountNumber TEXT');
     }
     if (!fundsColumnNames.contains('isActive')) {
-      batch.execute('ALTER TABLE funds ADD COLUMN isActive INTEGER NOT NULL DEFAULT 1');
+      batch.execute(
+        'ALTER TABLE funds ADD COLUMN isActive INTEGER NOT NULL DEFAULT 1',
+      );
     }
     if (!fundsColumnNames.contains('initialBalance')) {
-      batch.execute('ALTER TABLE funds ADD COLUMN initialBalance REAL NOT NULL DEFAULT 0.0');
+      batch.execute(
+        'ALTER TABLE funds ADD COLUMN initialBalance REAL NOT NULL DEFAULT 0.0',
+      );
     }
 
     // 2. إضافة أعمدة جديدة لجدول fund_transactions
     if (!txColumnNames.contains('sourceFundId')) {
-      batch.execute('ALTER TABLE fund_transactions ADD COLUMN sourceFundId INTEGER');
+      batch.execute(
+        'ALTER TABLE fund_transactions ADD COLUMN sourceFundId INTEGER',
+      );
     }
     if (!txColumnNames.contains('targetFundId')) {
-      batch.execute('ALTER TABLE fund_transactions ADD COLUMN targetFundId INTEGER');
+      batch.execute(
+        'ALTER TABLE fund_transactions ADD COLUMN targetFundId INTEGER',
+      );
     }
     if (!txColumnNames.contains('transferCompany')) {
-      batch.execute('ALTER TABLE fund_transactions ADD COLUMN transferCompany TEXT');
+      batch.execute(
+        'ALTER TABLE fund_transactions ADD COLUMN transferCompany TEXT',
+      );
     }
     if (!txColumnNames.contains('senderName')) {
       batch.execute('ALTER TABLE fund_transactions ADD COLUMN senderName TEXT');
     }
     if (!txColumnNames.contains('receiverName')) {
-      batch.execute('ALTER TABLE fund_transactions ADD COLUMN receiverName TEXT');
+      batch.execute(
+        'ALTER TABLE fund_transactions ADD COLUMN receiverName TEXT',
+      );
     }
     if (!txColumnNames.contains('transferNumber')) {
-      batch.execute('ALTER TABLE fund_transactions ADD COLUMN transferNumber TEXT');
+      batch.execute(
+        'ALTER TABLE fund_transactions ADD COLUMN transferNumber TEXT',
+      );
     }
     if (!txColumnNames.contains('referenceType')) {
-      batch.execute('ALTER TABLE fund_transactions ADD COLUMN referenceType TEXT');
+      batch.execute(
+        'ALTER TABLE fund_transactions ADD COLUMN referenceType TEXT',
+      );
     }
 
     // 3. تحديث الصندوق الحالي (ID=1) ليصبح نوعه cash
-    batch.update('funds', {'fundType': 'cash'}, where: 'id = ?', whereArgs: [1]);
+    batch.update(
+      'funds',
+      {'fundType': 'cash'},
+      where: 'id = ?',
+      whereArgs: [1],
+    );
 
     await batch.commit(noResult: true);
   }
@@ -646,16 +801,24 @@ class DatabaseService {
   /// الإصدار 16: دعم الرسوم والمرفقات في حركات الصناديق
   Future<void> _createV16Tables(Database db) async {
     final batch = db.batch();
-    
+
     // التحقق من وجود الحقول لتجنب الأخطاء عند إعادة التشغيل
-    final List<Map<String, dynamic>> columns = await db.rawQuery('PRAGMA table_info(fund_transactions)');
-    final List<String> columnNames = columns.map((col) => col['name'] as String).toList();
+    final List<Map<String, dynamic>> columns = await db.rawQuery(
+      'PRAGMA table_info(fund_transactions)',
+    );
+    final List<String> columnNames = columns
+        .map((col) => col['name'] as String)
+        .toList();
 
     if (!columnNames.contains('fees')) {
-      batch.execute('ALTER TABLE fund_transactions ADD COLUMN fees REAL DEFAULT 0.0');
+      batch.execute(
+        'ALTER TABLE fund_transactions ADD COLUMN fees REAL DEFAULT 0.0',
+      );
     }
     if (!columnNames.contains('attachmentPath')) {
-      batch.execute('ALTER TABLE fund_transactions ADD COLUMN attachmentPath TEXT');
+      batch.execute(
+        'ALTER TABLE fund_transactions ADD COLUMN attachmentPath TEXT',
+      );
     }
 
     await batch.commit(noResult: true);
@@ -664,13 +827,19 @@ class DatabaseService {
   /// الإصدار 17: إضافة حقل إيقاف البيع للمنتجات
   Future<void> _createV17Tables(Database db) async {
     final batch = db.batch();
-    
+
     // التحقق من وجود الحقل لتجنب الأخطاء
-    final List<Map<String, dynamic>> columns = await db.rawQuery('PRAGMA table_info(products)');
-    final List<String> columnNames = columns.map((col) => col['name'] as String).toList();
+    final List<Map<String, dynamic>> columns = await db.rawQuery(
+      'PRAGMA table_info(products)',
+    );
+    final List<String> columnNames = columns
+        .map((col) => col['name'] as String)
+        .toList();
 
     if (!columnNames.contains('isSalesStopped')) {
-      batch.execute('ALTER TABLE products ADD COLUMN isSalesStopped INTEGER NOT NULL DEFAULT 0');
+      batch.execute(
+        'ALTER TABLE products ADD COLUMN isSalesStopped INTEGER NOT NULL DEFAULT 0',
+      );
     }
 
     await batch.commit(noResult: true);
@@ -745,10 +914,16 @@ class DatabaseService {
     await batch.commit(noResult: true);
 
     // 5. إضافة عمود warehouseId لجدول المبيعات
-    final List<Map<String, dynamic>> salesCols = await db.rawQuery('PRAGMA table_info(sales_invoices)');
-    final List<String> salesColNames = salesCols.map((col) => col['name'] as String).toList();
+    final List<Map<String, dynamic>> salesCols = await db.rawQuery(
+      'PRAGMA table_info(sales_invoices)',
+    );
+    final List<String> salesColNames = salesCols
+        .map((col) => col['name'] as String)
+        .toList();
     if (!salesColNames.contains('warehouseId')) {
-      await db.execute('ALTER TABLE sales_invoices ADD COLUMN warehouseId INTEGER DEFAULT 1');
+      await db.execute(
+        'ALTER TABLE sales_invoices ADD COLUMN warehouseId INTEGER DEFAULT 1',
+      );
     }
 
     // 6. إنشاء المخزن الرئيسي تلقائياً
@@ -790,10 +965,16 @@ class DatabaseService {
     final batch = db.batch();
 
     // 1. إضافة حقل الرصيد لجدول المخازن (المناديب)
-    final List<Map<String, dynamic>> warehousesCols = await db.rawQuery('PRAGMA table_info(warehouses)');
-    final List<String> warehousesColNames = warehousesCols.map((col) => col['name'] as String).toList();
+    final List<Map<String, dynamic>> warehousesCols = await db.rawQuery(
+      'PRAGMA table_info(warehouses)',
+    );
+    final List<String> warehousesColNames = warehousesCols
+        .map((col) => col['name'] as String)
+        .toList();
     if (!warehousesColNames.contains('balance')) {
-      batch.execute('ALTER TABLE warehouses ADD COLUMN balance REAL DEFAULT 0.0');
+      batch.execute(
+        'ALTER TABLE warehouses ADD COLUMN balance REAL DEFAULT 0.0',
+      );
     }
 
     // 2. إنشاء جدول التسويات (رأس العملية)
@@ -854,25 +1035,53 @@ class DatabaseService {
   /// الإصدار 20: تفصيل التحصيل المالي لكل صنف في التسوية
   Future<void> _createV20Tables(Database db) async {
     // إضافة أعمدة مالية لجدول settlement_items بشكل آمن
-    await _addColumnIfNotExists(db, 'settlement_items', 'cashAmount REAL DEFAULT 0.0');
+    await _addColumnIfNotExists(
+      db,
+      'settlement_items',
+      'cashAmount REAL DEFAULT 0.0',
+    );
     await _addColumnIfNotExists(db, 'settlement_items', 'cashFundId INTEGER');
-    
-    await _addColumnIfNotExists(db, 'settlement_items', 'bankAmount REAL DEFAULT 0.0');
+
+    await _addColumnIfNotExists(
+      db,
+      'settlement_items',
+      'bankAmount REAL DEFAULT 0.0',
+    );
     await _addColumnIfNotExists(db, 'settlement_items', 'bankFundId INTEGER');
     await _addColumnIfNotExists(db, 'settlement_items', 'bankDetails TEXT');
-    
-    await _addColumnIfNotExists(db, 'settlement_items', 'transferAmount REAL DEFAULT 0.0');
-    await _addColumnIfNotExists(db, 'settlement_items', 'transferFundId INTEGER');
+
+    await _addColumnIfNotExists(
+      db,
+      'settlement_items',
+      'transferAmount REAL DEFAULT 0.0',
+    );
+    await _addColumnIfNotExists(
+      db,
+      'settlement_items',
+      'transferFundId INTEGER',
+    );
     await _addColumnIfNotExists(db, 'settlement_items', 'transferDetails TEXT');
-    
-    await _addColumnIfNotExists(db, 'settlement_items', 'creditAmount REAL DEFAULT 0.0');
-    await _addColumnIfNotExists(db, 'settlement_items', 'creditTarget TEXT'); // 'rep' or 'customer'
+
+    await _addColumnIfNotExists(
+      db,
+      'settlement_items',
+      'creditAmount REAL DEFAULT 0.0',
+    );
+    await _addColumnIfNotExists(
+      db,
+      'settlement_items',
+      'creditTarget TEXT',
+    ); // 'rep' or 'customer'
     await _addColumnIfNotExists(db, 'settlement_items', 'customerId INTEGER');
   }
 
   /// الإصدار 21: إضافة حقل الكمية المجانية في أصناف الفواتير
   Future<void> _createV21Tables(Database db) async {
-    await _addColumnIfNotExists(db, 'sales_invoice_items', 'freeQuantity REAL DEFAULT 0.0');
+    await _addColumnIfNotExists(
+      db,
+      'sales_invoice_items',
+      'freeQuantity REAL DEFAULT 0.0',
+    );
   }
 
   /// الإصدار 22: إضافة حقل الوحدة النصي المفقود في أصناف الفواتير
@@ -885,19 +1094,123 @@ class DatabaseService {
   }
 
   /// دالة مساعدة لإضافة عمود فقط إذا لم يكن موجوداً (تمنع خطأ Duplicate Column)
-  Future<void> _addColumnIfNotExists(Database db, String tableName, String columnDefinition) async {
+  Future<void> _addColumnIfNotExists(
+    Database db,
+    String tableName,
+    String columnDefinition,
+  ) async {
     // استخراج اسم العمود من التعريف (أول كلمة)
     final columnName = columnDefinition.split(' ').first;
-    
+
     // فحص معلومات الجدول
-    final List<Map<String, dynamic>> columns = await db.rawQuery('PRAGMA table_info($tableName)');
-    
+    final List<Map<String, dynamic>> columns = await db.rawQuery(
+      'PRAGMA table_info($tableName)',
+    );
+
     // التحقق مما إذا كان العمود موجوداً
     bool exists = columns.any((column) => column['name'] == columnName);
-    
+
     if (!exists) {
       await db.execute('ALTER TABLE $tableName ADD COLUMN $columnDefinition');
     }
+  }
+
+  Future<void> _backfillTransferItemBaseQuantities(Database db) async {
+    final items = await db.query('inventory_transfer_items');
+
+    for (final item in items) {
+      final double currentBase =
+          (item['quantityInBaseUnit'] as num?)?.toDouble() ?? 0.0;
+      final double currentRemaining =
+          (item['remainingQuantityInBaseUnit'] as num?)?.toDouble() ?? 0.0;
+      final double currentSaleBase =
+          (item['salePricePerBaseUnit'] as num?)?.toDouble() ?? 0.0;
+      final double currentPurchaseBase =
+          (item['purchasePricePerBaseUnit'] as num?)?.toDouble() ?? 0.0;
+
+      if (currentBase > 0 && currentSaleBase > 0 && currentPurchaseBase > 0) {
+        continue;
+      }
+
+      final int productId = item['productId'] as int;
+      final int? unitId = item['unitId'] as int?;
+      final double rawQuantity = (item['quantity'] as num?)?.toDouble() ?? 0.0;
+      final double salePrice = (item['salePrice'] as num?)?.toDouble() ?? 0.0;
+      final double purchasePrice =
+          (item['purchasePrice'] as num?)?.toDouble() ?? 0.0;
+
+      final double factor = await _getProductUnitConversionFactor(
+        db,
+        productId,
+        unitId,
+      );
+      final double quantityInBase = factor <= 0
+          ? rawQuantity
+          : rawQuantity / factor;
+      final double salePricePerBaseUnit = factor <= 0
+          ? salePrice
+          : salePrice * factor;
+      final double purchasePricePerBaseUnit = factor <= 0
+          ? purchasePrice
+          : purchasePrice * factor;
+      final double remainingQuantity = currentRemaining > 0
+          ? currentRemaining
+          : quantityInBase;
+
+      await db.update(
+        'inventory_transfer_items',
+        {
+          'quantityInBaseUnit': quantityInBase,
+          'remainingQuantityInBaseUnit': remainingQuantity,
+          'salePricePerBaseUnit': salePricePerBaseUnit,
+          'purchasePricePerBaseUnit': purchasePricePerBaseUnit,
+        },
+        where: 'id = ?',
+        whereArgs: [item['id']],
+      );
+    }
+  }
+
+  Future<double> _getProductUnitConversionFactor(
+    Database db,
+    int productId,
+    int? targetUnitId,
+  ) async {
+    if (targetUnitId == null) return 1.0;
+
+    final productRows = await db.query(
+      'products',
+      columns: ['unitId'],
+      where: 'id = ?',
+      whereArgs: [productId],
+      limit: 1,
+    );
+    if (productRows.isEmpty) return 1.0;
+
+    final int? baseUnitId = productRows.first['unitId'] as int?;
+    if (baseUnitId == null || baseUnitId == targetUnitId) return 1.0;
+
+    double factor = 1.0;
+    int? currentUnitId = baseUnitId;
+
+    while (currentUnitId != null && currentUnitId != targetUnitId) {
+      final unitRows = await db.query(
+        'units',
+        columns: ['childUnitId', 'conversionFactor'],
+        where: 'id = ?',
+        whereArgs: [currentUnitId],
+        limit: 1,
+      );
+      if (unitRows.isEmpty) {
+        return 1.0;
+      }
+
+      final unitRow = unitRows.first;
+      factor *= (unitRow['conversionFactor'] as num?)?.toDouble() ?? 1.0;
+      currentUnitId = unitRow['childUnitId'] as int?;
+    }
+
+    return currentUnitId == targetUnitId ? factor : 1.0;
   }
 
   /// الإصدار 24: نظام تعدد طرق الدفع (نقد، حوالة، بنك)
@@ -963,7 +1276,11 @@ class DatabaseService {
 
   /// الإصدار 29: إضافة الكمية المجانية للمشتريات
   Future<void> _createV29Tables(Database db) async {
-    await _addColumnIfNotExists(db, 'purchase_invoice_items', 'freeQuantity REAL DEFAULT 0.0');
+    await _addColumnIfNotExists(
+      db,
+      'purchase_invoice_items',
+      'freeQuantity REAL DEFAULT 0.0',
+    );
   }
 
   /// الإصدار 30: توثيق مُصدر فاتورة المشتريات وتفاصيل الدفع المختلط
@@ -1026,7 +1343,7 @@ class DatabaseService {
       )
     ''');
   }
-  
+
   /// الإصدار 34: إضافة معرف الصندوق لجدول المصروفات
   Future<void> _createV34Tables(Database db) async {
     // إضافة عمود معرف الصندوق للمصروفات
@@ -1043,27 +1360,35 @@ class DatabaseService {
 
   /// الإصدار 36: إصلاح نقص عمود المرجع في حركات الموردين
   Future<void> _createV36Tables(Database db) async {
-    await _addColumnIfNotExists(db, 'supplier_transactions', 'referenceId INTEGER');
+    await _addColumnIfNotExists(
+      db,
+      'supplier_transactions',
+      'referenceId INTEGER',
+    );
   }
 
   /// الإصدار 37: تعزيز بيانات حركات الصندوق (الموظف، العميل، الرصيد، المرتجعات)
   Future<void> _createV37Tables(Database db) async {
     final batch = db.batch();
-    
+
     // بيانات الموظف
     await _addColumnIfNotExists(db, 'fund_transactions', 'userId INTEGER');
     await _addColumnIfNotExists(db, 'fund_transactions', 'userName TEXT');
-    
+
     // معرف العميل (للمبيعات والمرتجعات)
     await _addColumnIfNotExists(db, 'fund_transactions', 'customerId INTEGER');
-    
+
     // الرصيد بعد الحركة (للرقابة المالية)
     await _addColumnIfNotExists(db, 'fund_transactions', 'balanceAfter REAL');
-    
+
     // بيانات المرتجع (خاصة بالمرتجعات)
-    await _addColumnIfNotExists(db, 'fund_transactions', 'originalInvoiceId INTEGER');
+    await _addColumnIfNotExists(
+      db,
+      'fund_transactions',
+      'originalInvoiceId INTEGER',
+    );
     await _addColumnIfNotExists(db, 'fund_transactions', 'returnReason TEXT');
-    
+
     await batch.commit(noResult: true);
   }
 }

@@ -45,15 +45,15 @@ class InventoryTransferRepository {
           'SELECT quantity FROM warehouse_stock WHERE warehouseId = ? AND productId = ?',
           [sourceWarehouseId, item.productId],
         );
-        
-        final currentStock = stockResult.isEmpty 
-            ? 0.0 
+
+        final currentStock = stockResult.isEmpty
+            ? 0.0
             : (stockResult.first['quantity'] as num).toDouble();
-        
+
         if (currentStock < item.quantityInBaseUnit) {
           throw Exception(
             'الكمية غير متوفرة في المخزن المصدر للمنتج: ${item.productName}. '
-            'المتوفر: ${currentStock.toStringAsFixed(2)}, المطلوب: ${item.quantityInBaseUnit.toStringAsFixed(2)} كرتون/أساسي'
+            'المتوفر: ${currentStock.toStringAsFixed(2)}, المطلوب: ${item.quantityInBaseUnit.toStringAsFixed(2)} كرتون/أساسي',
           );
         }
 
@@ -63,9 +63,17 @@ class InventoryTransferRepository {
           'productId': item.productId,
           'productName': item.productName,
           'quantity': item.quantity,
+          'quantityInBaseUnit': item.quantityInBaseUnit,
+          'remainingQuantityInBaseUnit': item.quantityInBaseUnit,
           'unitId': item.unitId,
           'salePrice': item.salePrice,
+          'salePricePerBaseUnit': item.quantityInBaseUnit > 0
+              ? (item.quantity * item.salePrice) / item.quantityInBaseUnit
+              : item.salePrice,
           'purchasePrice': item.purchasePrice,
+          'purchasePricePerBaseUnit': item.quantityInBaseUnit > 0
+              ? (item.quantity * item.purchasePrice) / item.quantityInBaseUnit
+              : item.purchasePrice,
           'totalSaleValue': item.quantity * item.salePrice,
           'totalCostValue': item.quantity * item.purchasePrice,
         });
@@ -117,14 +125,17 @@ class InventoryTransferRepository {
   }
 
   /// جلب جميع سندات التحويل
-  Future<List<InventoryTransferModel>> getAllTransfers({int? warehouseId}) async {
+  Future<List<InventoryTransferModel>> getAllTransfers({
+    int? warehouseId,
+  }) async {
     final db = await _dbService.database;
 
     String whereClause = '';
     List<dynamic> args = [];
 
     if (warehouseId != null) {
-      whereClause = 'WHERE it.sourceWarehouseId = ? OR it.destinationWarehouseId = ?';
+      whereClause =
+          'WHERE it.sourceWarehouseId = ? OR it.destinationWarehouseId = ?';
       args = [warehouseId, warehouseId];
     }
 
@@ -144,7 +155,9 @@ class InventoryTransferRepository {
   }
 
   /// جلب تفاصيل سند تحويل
-  Future<List<InventoryTransferItemModel>> getTransferItems(int transferId) async {
+  Future<List<InventoryTransferItemModel>> getTransferItems(
+    int transferId,
+  ) async {
     final db = await _dbService.database;
     final result = await db.query(
       'inventory_transfer_items',
@@ -157,7 +170,8 @@ class InventoryTransferRepository {
   /// جلب سند تحويل بالمعرف
   Future<InventoryTransferModel?> getTransferById(int id) async {
     final db = await _dbService.database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT 
         it.*,
         sw.name as sourceWarehouseName,
@@ -166,7 +180,9 @@ class InventoryTransferRepository {
       LEFT JOIN warehouses sw ON it.sourceWarehouseId = sw.id
       LEFT JOIN warehouses dw ON it.destinationWarehouseId = dw.id
       WHERE it.id = ?
-    ''', [id]);
+    ''',
+      [id],
+    );
     if (result.isEmpty) return null;
     return InventoryTransferModel.fromMap(result.first);
   }
@@ -178,7 +194,7 @@ class InventoryTransferRepository {
     DateTime? to,
   }) async {
     final db = await _dbService.database;
-    
+
     String whereClause = "destinationWarehouseId = ? AND status = 'COMPLETED'";
     List<dynamic> args = [warehouseId];
 

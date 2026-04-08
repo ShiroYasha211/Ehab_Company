@@ -2,11 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../data/models/custody_model.dart';
 import '../../data/models/warehouse_model.dart';
+import '../../data/repositories/custody_repository.dart';
 import '../../data/repositories/warehouse_repository.dart';
 
 class WarehouseController extends GetxController {
   final WarehouseRepository _repository = WarehouseRepository();
+  final CustodyRepository _custodyRepository = CustodyRepository();
 
   final RxList<WarehouseModel> warehouses = <WarehouseModel>[].obs;
   final RxBool isLoading = true.obs;
@@ -23,8 +26,12 @@ class WarehouseController extends GetxController {
       final list = await _repository.getAllWarehouses();
       warehouses.assignAll(list);
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل في جلب المخازن: $e',
-          backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشل في جلب المخازن: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     } finally {
       isLoading(false);
     }
@@ -62,11 +69,19 @@ class WarehouseController extends GetxController {
       await _repository.addWarehouse(warehouse);
       await fetchAllWarehouses();
       Get.back();
-      Get.snackbar('نجاح', 'تم إنشاء المخزن بنجاح',
-          backgroundColor: Colors.green, colorText: Colors.white);
+      Get.snackbar(
+        'نجاح',
+        'تم إنشاء المخزن بنجاح',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل في إنشاء المخزن: $e',
-          backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشل في إنشاء المخزن: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -76,11 +91,19 @@ class WarehouseController extends GetxController {
       await _repository.updateWarehouse(warehouse);
       await fetchAllWarehouses();
       Get.back();
-      Get.snackbar('نجاح', 'تم تحديث المخزن بنجاح',
-          backgroundColor: Colors.green, colorText: Colors.white);
+      Get.snackbar(
+        'نجاح',
+        'تم تحديث المخزن بنجاح',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      Get.snackbar('خطأ', 'فشل في تحديث المخزن: $e',
-          backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        'فشل في تحديث المخزن: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -89,11 +112,19 @@ class WarehouseController extends GetxController {
     try {
       await _repository.deleteWarehouse(id);
       await fetchAllWarehouses();
-      Get.snackbar('نجاح', 'تم حذف المخزن بنجاح',
-          backgroundColor: Colors.blue, colorText: Colors.white);
+      Get.snackbar(
+        'نجاح',
+        'تم حذف المخزن بنجاح',
+        backgroundColor: Colors.blue,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      Get.snackbar('خطأ', e.toString().replaceAll('Exception: ', ''),
-          backgroundColor: Colors.red, colorText: Colors.white);
+      Get.snackbar(
+        'خطأ',
+        e.toString().replaceAll('Exception: ', ''),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -105,5 +136,15 @@ class WarehouseController extends GetxController {
   /// جلب أرصدة مخزن
   Future<List<Map<String, dynamic>>> getWarehouseStock(int warehouseId) async {
     return await _repository.getWarehouseStock(warehouseId);
+  }
+
+  Future<WarehouseDashboardModel> getWarehouseDashboard(int warehouseId) async {
+    return await _custodyRepository.getWarehouseDashboard(warehouseId);
+  }
+
+  Future<List<CustodyProductSummary>> getCurrentCustodyProducts(
+    int warehouseId,
+  ) async {
+    return await _custodyRepository.getCurrentCustodyProducts(warehouseId);
   }
 }

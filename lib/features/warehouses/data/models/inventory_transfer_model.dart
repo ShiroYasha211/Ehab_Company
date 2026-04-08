@@ -6,9 +6,9 @@ class InventoryTransferModel {
   final int sourceWarehouseId;
   final int destinationWarehouseId;
   final DateTime transferDate;
-  final double totalValue;       // إجمالي بسعر البيع
-  final double totalCostValue;   // إجمالي بسعر الشراء
-  final String status;           // COMPLETED / RETURNED
+  final double totalValue; // إجمالي بسعر البيع
+  final double totalCostValue; // إجمالي بسعر الشراء
+  final String status; // COMPLETED / RETURNED
   final String? notes;
   final DateTime createdAt;
 
@@ -73,6 +73,9 @@ class InventoryTransferItemModel {
   final double purchasePrice;
   final double totalSaleValue;
   final double totalCostValue;
+  final double quantityInBaseUnit;
+  final double remainingQuantityInBaseUnit;
+  final double salePricePerBaseUnit;
 
   InventoryTransferItemModel({
     this.id,
@@ -85,6 +88,9 @@ class InventoryTransferItemModel {
     required this.purchasePrice,
     required this.totalSaleValue,
     required this.totalCostValue,
+    this.quantityInBaseUnit = 0.0,
+    this.remainingQuantityInBaseUnit = 0.0,
+    this.salePricePerBaseUnit = 0.0,
   });
 
   Map<String, dynamic> toMap() {
@@ -99,6 +105,9 @@ class InventoryTransferItemModel {
       'purchasePrice': purchasePrice,
       'totalSaleValue': totalSaleValue,
       'totalCostValue': totalCostValue,
+      'quantityInBaseUnit': quantityInBaseUnit,
+      'remainingQuantityInBaseUnit': remainingQuantityInBaseUnit,
+      'salePricePerBaseUnit': salePricePerBaseUnit,
     };
   }
 
@@ -114,6 +123,10 @@ class InventoryTransferItemModel {
       purchasePrice: (map['purchasePrice'] ?? 0.0).toDouble(),
       totalSaleValue: (map['totalSaleValue'] ?? 0.0).toDouble(),
       totalCostValue: (map['totalCostValue'] ?? 0.0).toDouble(),
+      quantityInBaseUnit: (map['quantityInBaseUnit'] ?? 0.0).toDouble(),
+      remainingQuantityInBaseUnit: (map['remainingQuantityInBaseUnit'] ?? 0.0)
+          .toDouble(),
+      salePricePerBaseUnit: (map['salePricePerBaseUnit'] ?? 0.0).toDouble(),
     );
   }
 }
