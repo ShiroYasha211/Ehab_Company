@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sqflite/sqflite.dart'; // <-- 1. إضافة import للتعامل مع أخطاء قاعدة البيانات
 
-import '../../../../core/services/import_serivce.dart';
+import '../../../../core/services/import_service.dart';
 import '../../../categories/presentation/controllers/category_controller.dart';
 import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
 import 'package:ehab_company_admin/features/activities/presentation/controllers/activity_controller.dart';

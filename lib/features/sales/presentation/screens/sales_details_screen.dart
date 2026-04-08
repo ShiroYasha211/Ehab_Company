@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 import '../../../../core/services/settings_service.dart';
-import '../../../../core/services/sales_invoice_pdf_service.dart';
+import '../../../../core/services/printing/sales_invoice_pdf_service.dart';
 import '../controllers/sales_details_controller.dart';
 
 class SalesDetailsScreen extends StatelessWidget {

@@ -2,6 +2,7 @@
 
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'dart:io';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -30,9 +31,12 @@ class DatabaseService {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'ehab_company.db');
 
+    // 1. إجراء نسخة احتياطية وقائية قبل الفتح في حال وجود تحديث
+    await _backupDatabase(path);
+
     return await openDatabase(
       path,
-      version: 37,
+      version: 39,
       // --- نهاية الإصلاح ---
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -158,6 +162,107 @@ class DatabaseService {
     if (oldVersion < 37) {
       await _createV37Tables(db);
     }
+    if (oldVersion < 38) {
+      await _createV38Optimization(db);
+    }
+    if (oldVersion < 39) {
+      await _createV39Tables(db);
+    }
+  }
+
+  /// الإصدار 38: تحسينات الأداء (الفهارس)
+  Future<void> _createV38Optimization(Database db) async {
+    await _createIndexes(db);
+  }
+
+  /// الإصدار 39: إضافة حقل مرجع الحركة (Reference ID) لحركات العملاء والموردين
+  Future<void> _createV39Tables(Database db) async {
+    final batch = db.batch();
+
+    // التحقق من وجود الحقل في جدول حركات العملاء
+    final List<Map<String, dynamic>> custCols = await db.rawQuery('PRAGMA table_info(customer_transactions)');
+    final List<String> custColNames = custCols.map((col) => col['name'] as String).toList();
+    if (!custColNames.contains('referenceId')) {
+      batch.execute('ALTER TABLE customer_transactions ADD COLUMN referenceId INTEGER');
+    }
+
+    // التحقق من وجود الحقل في جدول حركات الموردين
+    final List<Map<String, dynamic>> suppCols = await db.rawQuery('PRAGMA table_info(supplier_transactions)');
+    final List<String> suppColNames = suppCols.map((col) => col['name'] as String).toList();
+    if (!suppColNames.contains('referenceId')) {
+      batch.execute('ALTER TABLE supplier_transactions ADD COLUMN referenceId INTEGER');
+    }
+
+    await batch.commit(noResult: true);
+  }
+
+  /// إنشاء الفهارس لتسريع البحث والتقارير
+  Future<void> _createIndexes(Database db) async {
+    final batch = db.batch();
+    
+    // فهارس للمخزون والمنتجات
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_products_code ON products(code)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category)');
+    
+    // فهارس للصندوق والحركات المالية (مهم جداً للتقارير)
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_fund_tx_date ON fund_transactions(transactionDate)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_fund_tx_fund ON fund_transactions(fundId)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_fund_tx_ref ON fund_transactions(referenceId)');
+    
+    // فهارس المبيعات والمشتريات
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_sales_inv_date ON sales_invoices(invoiceDate)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_sales_inv_cust ON sales_invoices(customerId)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_purchase_inv_date ON purchase_invoices(invoiceDate)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_purchase_inv_supp ON purchase_invoices(supplierId)');
+    
+    // فهارس العملاء والموردين
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_cust_tx_date ON customer_transactions(transactionDate)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_supp_tx_date ON supplier_transactions(transactionDate)');
+    
+    // فهارس المصروفات
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expenseDate)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_expenses_cat ON expenses(categoryId)');
+    
+    // فهارس سجل النشاطات (Audit Logs)
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_activities_time ON activities(time)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type)');
+    
+    // فهارس المخازن والمناديب
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_wh_stock_pid ON warehouse_stock(productId)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_wh_stock_whid ON warehouse_stock(warehouseId)');
+    batch.execute('CREATE INDEX IF NOT EXISTS idx_settlements_date ON settlements(settlementDate)');
+
+    await batch.commit(noResult: true);
+  }
+
+  /// دالة النسخ الاحتياطي الوقائي
+  Future<void> _backupDatabase(String dbPath) async {
+    try {
+      final dbFile = File(dbPath);
+      if (await dbFile.exists()) {
+        final backupPath = dbPath.replaceAll('.db', '_backup.db');
+        await dbFile.copy(backupPath);
+        print('Database backup created at: $backupPath');
+      }
+    } catch (e) {
+      print('Failed to create database backup: $e');
+    }
+  }
+
+  /// تنطيف وضغط قاعدة البيانات
+  Future<void> vacuum() async {
+    final db = await database;
+    await db.execute('VACUUM');
+  }
+
+  /// التحقق من سلامة قاعدة البيانات
+  Future<bool> checkIntegrity() async {
+    final db = await database;
+    final result = await db.rawQuery('PRAGMA integrity_check');
+    if (result.isNotEmpty && result.first['integrity_check'] == 'ok') {
+      return true;
+    }
+    return false;
   }
 
   /// الإصدار 1: جداول المخازن والصندوق الأساسية
@@ -250,6 +355,7 @@ class DatabaseService {
         notes TEXT,
         transactionDate TEXT NOT NULL,
         affectsFund INTEGER NOT NULL DEFAULT 1,
+        referenceId INTEGER, -- رقم الفاتورة أو المرتجع المرتبط
         FOREIGN KEY (supplierId) REFERENCES suppliers(id) ON DELETE CASCADE
       )
     ''');
@@ -301,6 +407,7 @@ class DatabaseService {
         notes TEXT,
         transactionDate TEXT NOT NULL,
         affectsFund INTEGER NOT NULL DEFAULT 1,
+        referenceId INTEGER, -- رقم الفاتورة أو المرتجع المرتبط
         FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE
       )
     ''');

@@ -7,7 +7,7 @@ import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
-import '../../../../core/services/report_service.dart';
+import '../../../../core/services/printing/report_service.dart';
 import 'add_edit_product_screen.dart';
 import 'package:ehab_company_admin/features/products/presentation/widgets/product_grid_item.dart';
 

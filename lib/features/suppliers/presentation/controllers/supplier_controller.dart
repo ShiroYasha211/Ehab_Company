@@ -4,7 +4,7 @@ import 'package:ehab_company_admin/features/suppliers/data/models/supplier_model
 import 'package:ehab_company_admin/features/suppliers/data/repositories/supplier_repository.dart';
 import 'package:flutter/material.dart' hide DateRangePickerDialog;
 import 'package:get/get.dart';
-import 'package:ehab_company_admin/core/services/supplier_report_service.dart'; // <-- إضافة هذا السطر
+import 'package:ehab_company_admin/core/services/printing/supplier_report_service.dart'; // <-- إضافة هذا السطر
 import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range_picker_dialog.dart'; // <-- إضافة هذا السطر
 
 import '../../../../core/services/settings_service.dart';
@@ -433,9 +433,9 @@ class SupplierController extends GetxController {
             // 4. طباعة التقرير باستخدام البيانات التي تم جلبها
             await SupplierReportService.printSupplierStatement(
               supplier: supplier, // تمرير بيانات المورد
-              openingBalance:
-                  reportData['openingBalance'], // تمرير الرصيد الافتتاحي
-              transactions: reportData['transactions'], // تمرير قائمة الحركات
+              openingBalance: reportData['openingBalance'], // تمرير الرصيد الافتتاحي
+              transactions: (reportData['transactions'] as List<SupplierTransactionModel>)
+                  .map((t) => t.toMap()).toList(), // تمرير قائمة الحركات كخرائط
             );
           } catch (e) {
             if (Get.isDialogOpen!)

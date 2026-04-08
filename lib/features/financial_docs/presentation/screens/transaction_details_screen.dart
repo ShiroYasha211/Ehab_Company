@@ -7,7 +7,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../../../../core/services/settings_service.dart';
-import '../../../../core/services/voucher_pdf_service.dart';
+import '../../../../core/services/printing/voucher_pdf_service.dart';
 
 class TransactionDetailsScreen extends StatelessWidget {
   final dynamic
@@ -61,7 +61,13 @@ class TransactionDetailsScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.print_outlined),
             onPressed: () {
-              VoucherPdfService.printVoucher(transaction);
+              final bool isReceipt = !isSupplier && (transaction as CustomerTransactionModel).type == CustomerTransactionType.RECEIPT;
+              final data = transaction.toMap();
+              data['entityName'] = partyName; // ضمان وجود اسم العميل/المورد للطباعة
+              VoucherPdfService.printVoucher(
+                data,
+                isReceipt: isReceipt,
+              );
             },
             tooltip: 'طباعة السند',
           ),

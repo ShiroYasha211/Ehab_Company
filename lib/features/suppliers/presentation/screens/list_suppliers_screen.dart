@@ -11,7 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/services/settings_service.dart';
-import '../../../../core/services/supplier_pdf_service.dart';
+import '../../../../core/services/printing/supplier_pdf_service.dart';
 
 class ListSuppliersScreen extends StatelessWidget {
   const ListSuppliersScreen({super.key});

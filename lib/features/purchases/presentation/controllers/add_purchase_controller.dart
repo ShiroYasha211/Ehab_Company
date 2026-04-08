@@ -14,7 +14,7 @@ import 'package:lottie/lottie.dart';
 import 'package:ehab_company_admin/features/purchases/data/models/purchase_invoice_item.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/services/purchase_invoice_pdf_service.dart';
+import '../../../../core/services/printing/purchase_invoice_pdf_service.dart';
 import '../../../../core/services/settings_service.dart';
 import 'package:ehab_company_admin/features/fund/presentation/controllers/fund_controller.dart';
 import '../../../../core/services/auth_service.dart';

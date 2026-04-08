@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
-import '../../../../core/services/purchase_invoice_pdf_service.dart';
+import '../../../../core/services/printing/purchase_invoice_pdf_service.dart';
 import '../../../../core/services/settings_service.dart';
 
 class PurchaseDetailsScreen extends StatelessWidget {

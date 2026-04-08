@@ -1,7 +1,7 @@
 // File: lib/core/services/tafqeet_service.dart
 
+import 'package:ehab_company_admin/core/services/settings_service.dart';
 import 'package:get/get.dart';
-import 'settings_service.dart';
 
 class TafqeetService {
   static final List<String> _ones = [

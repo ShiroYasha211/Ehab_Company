@@ -7,7 +7,7 @@ import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
 
-import '../../../../core/services/expense_pdf_service.dart';
+import '../../../../core/services/printing/expense_pdf_service.dart';
 import '../../../../core/services/settings_service.dart';
 
 class ListExpensesScreen extends StatelessWidget {
@@ -46,9 +46,8 @@ class ListExpensesScreen extends StatelessWidget {
                       if (Get.isDialogOpen!) Get.back(); // إغلاق مؤشر التحميل
 
                       await ExpensePdfService.printExpenseReport(
-                        reportData: reportData,
-                        from: from,
-                        to: to,
+                        (reportData['expenses'] as List).cast<Map<String, dynamic>>(),
+                        dateRange: '${intl.DateFormat('yyyy-MM-dd').format(from)} - ${intl.DateFormat('yyyy-MM-dd').format(to)}',
                       );
                     } catch (e) {
                       if (Get.isDialogOpen!)
@@ -218,9 +217,57 @@ class ListExpensesScreen extends StatelessWidget {
           expense.categoryName ?? 'بند غير محدد',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text(
-          '${expense.notes ?? 'لا توجد ملاحظات'}\n${intl.DateFormat('yyyy-MM-dd').format(expense.expenseDate)}',
-          style: TextStyle(color: Colors.grey.shade600),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${expense.notes ?? 'لا توجد ملاحظات'}\n${intl.DateFormat('yyyy-MM-dd').format(expense.expenseDate)}',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                if (expense.deductFromFund && expense.fundName != null)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.blue.shade100),
+                    ),
+                    child: Text(
+                      expense.fundName!,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.blue.shade800,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                if (expense.supplierId != null && expense.supplierName != null)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.orange.shade100),
+                    ),
+                    child: Text(
+                      'المورد: ${expense.supplierName!}',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -234,42 +281,6 @@ class ListExpensesScreen extends StatelessWidget {
                 color: Colors.red.shade700,
               ),
             ),
-            if (expense.deductFromFund && expense.fundName != null)
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.blue.shade100),
-                ),
-                child: Text(
-                  expense.fundName!,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.blue.shade800,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            if (expense.supplierId != null && expense.supplierName != null)
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.orange.shade100),
-                ),
-                child: Text(
-                  'المورد: ${expense.supplierName!}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
           ],
         ),
         isThreeLine: true,

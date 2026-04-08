@@ -12,6 +12,12 @@ class SettingsService extends GetxService {
   static const String _isLocalSameAsPrimaryKey = 'is_local_same_as_primary';
   static const String _exchangeRateKey = 'exchange_rate';
   static const String _showBothCurrenciesKey = 'show_both_currencies';
+  static const String _companyNameKey = 'company_name';
+  static const String _companyPhoneKey = 'company_phone';
+  static const String _companyAddressKey = 'company_address';
+  static const String _companyEmailKey = 'company_email';
+  static const String _companyVatNumberKey = 'company_vat_number';
+  static const String _companyLogoPathKey = 'company_logo_path';
 
   // --- القيم الافتراضية ---
   static final CurrencyModel _defaultCurrency = CurrencyModel
@@ -33,6 +39,14 @@ class SettingsService extends GetxService {
 
   /// هل نعرض العملتين في الفاتورة؟
   final RxBool showBothCurrenciesInInvoice = false.obs;
+
+  // --- بيانات الشركة (Company Profile) ---
+  final RxString companyName = 'شركة إيهاب للتجارة العامة'.obs;
+  final RxString companyPhone = '777-777-777'.obs;
+  final RxString companyAddress = 'صنعاء - اليمن'.obs;
+  final RxString companyEmail = 'info@ehab-company.com'.obs;
+  final RxString companyVatNumber = ''.obs;
+  final RxString companyLogoPath = 'assets/images/logo.png'.obs;
 
   /// تهيئة الخدمة واسترجاع البيانات المحفوظة
   Future<SettingsService> init() async {
@@ -59,6 +73,14 @@ class SettingsService extends GetxService {
     // 4. تحميل إعداد عرض العملتين
     showBothCurrenciesInInvoice.value =
         _prefs.getBool(_showBothCurrenciesKey) ?? false;
+
+    // 5. تحميل بيانات الشركة
+    companyName.value = _prefs.getString(_companyNameKey) ?? 'شركة إيهاب للتجارة العامة';
+    companyPhone.value = _prefs.getString(_companyPhoneKey) ?? '777-777-777';
+    companyAddress.value = _prefs.getString(_companyAddressKey) ?? 'صنعاء - اليمن';
+    companyEmail.value = _prefs.getString(_companyEmailKey) ?? 'info@ehab-company.com';
+    companyVatNumber.value = _prefs.getString(_companyVatNumberKey) ?? '';
+    companyLogoPath.value = _prefs.getString(_companyLogoPathKey) ?? 'assets/images/logo.png';
 
     return this;
   }
@@ -116,5 +138,41 @@ class SettingsService extends GetxService {
   Future<void> setShowBothCurrencies(bool show) async {
     showBothCurrenciesInInvoice.value = show;
     await _prefs.setBool(_showBothCurrenciesKey, show);
+  }
+
+  // --- تحديث بيانات الشركة ---
+
+  Future<void> updateCompanyInfo({
+    String? name,
+    String? phone,
+    String? address,
+    String? email,
+    String? vat,
+    String? logo,
+  }) async {
+    if (name != null) {
+      companyName.value = name;
+      await _prefs.setString(_companyNameKey, name);
+    }
+    if (phone != null) {
+      companyPhone.value = phone;
+      await _prefs.setString(_companyPhoneKey, phone);
+    }
+    if (address != null) {
+      companyAddress.value = address;
+      await _prefs.setString(_companyAddressKey, address);
+    }
+    if (email != null) {
+      companyEmail.value = email;
+      await _prefs.setString(_companyEmailKey, email);
+    }
+    if (vat != null) {
+      companyVatNumber.value = vat;
+      await _prefs.setString(_companyVatNumberKey, vat);
+    }
+    if (logo != null) {
+      companyLogoPath.value = logo;
+      await _prefs.setString(_companyLogoPathKey, logo);
+    }
   }
 }

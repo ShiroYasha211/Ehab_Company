@@ -13,7 +13,7 @@ import 'package:lottie/lottie.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ehab_company_admin/features/fund/presentation/controllers/fund_controller.dart';
 import '../../../../core/services/auth_service.dart';
-import '../../../../core/services/sales_invoice_pdf_service.dart';
+import '../../../../core/services/printing/sales_invoice_pdf_service.dart';
 import '../../../../core/services/settings_service.dart';
 import '../../../units/presentation/controllers/unit_controller.dart';
 import '../../data/repositories/sales_details_repository.dart';

@@ -12,7 +12,7 @@ import 'package:flutter/material.dart' hide DateRangePickerDialog;
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' as intl;
-import 'package:ehab_company_admin/core/services/fund_pdf_service.dart';
+import 'package:ehab_company_admin/core/services/printing/fund_pdf_service.dart';
 import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range_picker_dialog.dart';
 import 'package:ehab_company_admin/core/services/settings_service.dart';
 
@@ -635,7 +635,19 @@ class _FundScreenState extends State<FundScreen> with SingleTickerProviderStateM
             final fundId = fund?.id ?? 1;
             final reportData = await controller.repository.generateFundFlowReportData(fundId: fundId, from: from, to: to);
             if (Get.isDialogOpen!) Get.back();
-            await FundPdfService.printFundReport(reportData: reportData, from: from, to: to);
+            
+            final List<Map<String, dynamic>> txList = (reportData['transactions'] as List<FundTransactionModel>)
+                .map((t) => {
+                  ...t.toMap(),
+                  'transactionDate': intl.DateFormat('yyyy-MM-dd HH:mm').format(t.transactionDate),
+                }).toList();
+
+            await FundPdfService.printFundTransactions(
+              txList,
+              fundName: fund?.name,
+              openingBalance: (reportData['openingBalance'] as num?)?.toDouble() ?? 0.0,
+              dateRange: '${intl.DateFormat('yyyy-MM-dd').format(from)} - ${intl.DateFormat('yyyy-MM-dd').format(to)}'
+            );
           } catch (e) {
             if (Get.isDialogOpen!) Get.back();
             Get.snackbar('خطأ', 'فشل في إنشاء التقرير: $e');

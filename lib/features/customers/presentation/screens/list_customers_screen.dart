@@ -3,7 +3,7 @@
 import 'package:ehab_company_admin/features/customers/data/models/customer_model.dart';
 import 'package:ehab_company_admin/features/customers/presentation/controllers/customer_controller.dart';
 import 'package:ehab_company_admin/features/customers/presentation/screens/add_edit_customer_screen.dart';
-import 'package:ehab_company_admin/core/services/customer_pdf_service.dart'; // <-- إضافة هذا السطر
+import 'package:ehab_company_admin/core/services/printing/customer_pdf_service.dart'; // <-- إضافة هذا السطر
 // --- 1. بداية التعديل: إضافة import ---
 import 'package:ehab_company_admin/features/customers/presentation/screens/customer_details_screen.dart';
 // --- نهاية التعديل ---

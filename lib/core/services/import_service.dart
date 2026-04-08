@@ -1,20 +1,25 @@
 // File: lib/core/services/import_service.dart
 
 import 'dart:io';
+import 'package:collection/collection.dart';
 import 'package:ehab_company_admin/features/products/data/models/product_model.dart';
 import 'package:ehab_company_admin/features/products/data/repositories/product_repository.dart';
+import 'package:ehab_company_admin/features/units/data/models/unit_model.dart';
+import 'package:ehab_company_admin/features/units/data/repositories/unit_repository.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:excel/excel.dart';
 
 class ImportService {
   final ProductRepository _productRepository = ProductRepository();
+  final UnitRepository _unitRepository = UnitRepository();
 
-  // ... (دالة importProductsFromExcel تبقى كما هي)
   Future<Map<String, int>> importProductsFromExcel(String filePath) async {
-    // ... الكود هنا لا يتغير
     int successCount = 0;
     int failureCount = 0;
+
+    // جلب كافة الوحدات الحالية لتسريع عملية البحث
+    List<UnitModel> allUnits = await _unitRepository.getAllUnits();
 
     var bytes = File(filePath).readAsBytesSync();
     var excel = Excel.decodeBytes(bytes);
@@ -32,7 +37,7 @@ class ImportService {
         final double purchasePrice = double.tryParse(row[3]?.value?.toString() ?? '0') ?? 0.0;
         final double salePrice = double.tryParse(row[4]?.value?.toString() ?? '0') ?? 0.0;
         final String? category = row[5]?.value?.toString();
-        // final String? unit = row[6]?.value?.toString(); // غير مستخدم حالياً
+        final String? unitName = row[6]?.value?.toString().trim();
         final double minStockLevel = double.tryParse(row[7]?.value?.toString() ?? '0') ?? 0.0;
         final String? prodDateString = row[8]?.value?.toString();
         final String? expDateString = row[9]?.value?.toString();
@@ -44,10 +49,24 @@ class ImportService {
           continue;
         }
 
-        // final uintRepository = ProductRepository(); // غير مستخدم حالياً
-        // ملاحظة: هنا سنحتاج لتعديل بسيط لجلب الـ ID من الاسم
-        // حالياً سنضع Null لتجنب الخطأ البرمجي، ويمكن تطوير البحث بالاسم لاحقاً
-        
+        int? unitId;
+        if (unitName != null && unitName.isNotEmpty) {
+          // البحث عن الوحدة بالاسم
+          final existingUnit = allUnits.firstWhereOrNull(
+            (u) => u.name.toLowerCase() == unitName.toLowerCase(),
+          );
+
+          if (existingUnit != null) {
+            unitId = existingUnit.id;
+          } else {
+            // إنشاء وحدة جديدة إذا لم تكن موجودة
+            final newUnit = UnitModel(name: unitName);
+            unitId = await _unitRepository.addUnit(newUnit);
+            // تحديث قائمة الوحدات المحلية لتجنب التكرار في الصفوف التالية
+            allUnits.add(UnitModel(id: unitId, name: unitName));
+          }
+        }
+
         final product = ProductModel(
           name: name,
           code: code,
@@ -55,7 +74,8 @@ class ImportService {
           purchasePrice: purchasePrice,
           salePrice: salePrice,
           category: category,
-          unitId: null, // <-- تغيير من unit إلى unitId
+          unitId: unitId,
+          allowedUnits: unitId != null ? [unitId] : null,
           minStockLevel: minStockLevel,
           createdAt: DateTime.now(),
           productionDate: productionDate,
@@ -73,10 +93,7 @@ class ImportService {
     return {'success': successCount, 'failure': failureCount};
   }
 
-  // --- بداية التعديلات ---
   Future<void> createExcelTemplate() async {
-
-    // 2. إذا تم منح الإذن، استكمل باقي الكود كالمعتاد
     var excel = Excel.createExcel();
     Sheet sheetObject = excel['Sheet1'];
 

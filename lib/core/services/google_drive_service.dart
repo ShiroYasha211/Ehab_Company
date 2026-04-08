@@ -98,12 +98,7 @@ class GoogleDriveService extends GetxService {
       final driveApi = await _getDriveApi();
       if (driveApi == null) return null;
 
-      drive.Media response = await driveApi.files.get(
-        fileId,
-        downloadOptions: drive.DownloadOptions.metadata,
-      ) as drive.Media; // This might be wrong in some versions, normally it's alt=media
-
-      // Correct way to download media in newer googleapis:
+      // تحميل محتوى الملف بالكامل
       final drive.Media media = await driveApi.files.get(
         fileId,
         downloadOptions: drive.DownloadOptions.fullMedia,

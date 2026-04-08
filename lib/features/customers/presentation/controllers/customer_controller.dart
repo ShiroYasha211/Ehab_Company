@@ -4,7 +4,7 @@ import 'package:ehab_company_admin/features/customers/data/models/customer_model
 import 'package:ehab_company_admin/features/customers/data/repositories/customer_repository.dart';
 import 'package:flutter/material.dart' hide DateRangePickerDialog;
 import 'package:get/get.dart';
-import 'package:ehab_company_admin/core/services/customer_report_service.dart'; // <-- إضافة هذا السطر
+import 'package:ehab_company_admin/core/services/printing/customer_report_service.dart'; // <-- إضافة هذا السطر
 import 'package:ehab_company_admin/features/fund/presentation/widgets/date_range_picker_dialog.dart';
 import 'package:ehab_company_admin/features/customers/data/models/customer_transaction_model.dart';
 import 'package:ehab_company_admin/features/activities/data/models/activity_model.dart';
@@ -335,10 +335,9 @@ class CustomerController extends GetxController {
             // 4. طباعة التقرير باستخدام البيانات التي تم جلبها
             await CustomerReportService.printCustomerStatement(
               customer: customer,
-              // تمرير بيانات العميل
               openingBalance: reportData['openingBalance'],
-              // تمرير الرصيد الافتتاحي
-              transactions: reportData['transactions'], // تمرير قائمة الحركات
+              transactions: (reportData['transactions'] as List<CustomerTransactionModel>)
+                  .map((t) => t.toMap()).toList(),
             );
           } catch (e) {
             if (Get.isDialogOpen!) Get
